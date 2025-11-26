@@ -15,19 +15,20 @@ class EnsureSchoolSelected
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Admin users don't need a school selected - they can access dashboard without one
+        if (auth()->user()->is_admin) {
+            return $next($request);
+        }
+
         // If user is not admin, they should have a school selected
-        if (!auth()->user()->is_admin && !session()->has('selected_school_id')) {
+        if (!session()->has('selected_school_id')) {
             // Auto-select the first school for normal users
             $school = auth()->user()->schools()->first();
             if ($school) {
                 session(['selected_school_id' => $school->id]);
-            }
-        }
-
-        // If user is admin and no school selected, redirect to selection
-        if (auth()->user()->is_admin && !session()->has('selected_school_id')) {
-            if (!$request->routeIs('school.select')) {
-                return redirect()->route('school.select');
+            } else {
+                // Normal user without school - redirect to error or logout
+                return redirect()->route('login')->with('error', 'No tienes asignado ningún colegio.');
             }
         }
 

@@ -17,6 +17,6 @@ class SchoolSelection extends Component
     {
         return view('livewire.school-selection', [
             'schools' => School::all(),
-        ])->layout('layouts.app');
+        ])->layout('layouts.school-select');
     }
 }

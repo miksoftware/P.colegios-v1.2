@@ -40,10 +40,10 @@
         @if($schools->count() > 0)
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 @foreach($schools as $index => $school)
-                    <button
-                        wire:click="selectSchool({{ $school->id }})"
-                        class="group bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl shadow-gray-200/50 p-6 border border-white/20 hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1 transition-all duration-300 text-left overflow-hidden relative school-card"
+                    <div
+                        class="group bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl shadow-gray-200/50 p-6 border border-white/20 hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1 transition-all duration-300 overflow-hidden relative school-card cursor-pointer"
                         style="animation-delay: {{ $index * 0.05 }}s"
+                        wire:click="selectSchool({{ $school->id }})"
                     >
                         <!-- Gradient Overlay on Hover -->
                         <div class="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-teal-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
@@ -80,8 +80,34 @@
                                 </div>
                             </div>
 
-                            <!-- Arrow Icon -->
-                            <div class="mt-4 flex items-center justify-end">
+                            <!-- Arrow Icon and Actions -->
+                            <div class="mt-4 flex items-center justify-between">
+                                @if(auth()->user()->hasRole('Admin'))
+                                    <div class="flex gap-2" @click.stop>
+                                        <button 
+                                            wire:click="editSchool({{ $school->id }})"
+                                            class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors z-20 relative"
+                                            title="Editar Colegio"
+                                        >
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                            </svg>
+                                        </button>
+                                        <button 
+                                            wire:confirm="¿Estás seguro de eliminar este colegio? Esta acción no se puede deshacer."
+                                            wire:click="deleteSchool({{ $school->id }})"
+                                            class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors z-20 relative"
+                                            title="Eliminar Colegio"
+                                        >
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                @else
+                                    <div></div>
+                                @endif
+
                                 <div class="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-500 rounded-full flex items-center justify-center group-hover:translate-x-1 transition-transform duration-300">
                                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -89,7 +115,7 @@
                                 </div>
                             </div>
                         </div>
-                    </button>
+                    </div>
                 @endforeach
             </div>
 
@@ -99,22 +125,21 @@
             </div>
         @else
             <div class="text-center py-12">
-                <div class="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                <div class="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
+                    <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                     </svg>
                 </div>
-                <h3 class="text-xl font-bold text-white mb-2">No se encontraron colegios</h3>
+                <h3 class="text-2xl font-bold text-white mb-2">No se encontraron colegios</h3>
                 <p class="text-blue-100">Intenta con otra búsqueda o crea un nuevo colegio</p>
             </div>
         @endif
 
-        <!-- Create School Button (Admin Only) -->
-        @if(auth()->user()->is_admin)
+        <!-- Floating Action Button for Create -->
+        @if(auth()->user()->hasRole('Admin'))
             <button 
                 wire:click="openCreateModal"
-                class="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-br from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white rounded-full shadow-2xl shadow-teal-500/50 hover:shadow-teal-500/70 hover:scale-110 transition-all duration-300 flex items-center justify-center group z-50"
-                title="Crear Nuevo Colegio"
+                class="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-r from-blue-600 to-teal-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform duration-300 z-50 group"
             >
                 <svg class="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -128,176 +153,215 @@
         </p>
     </div>
 
-    <!-- Create School Modal -->
-    @if($showCreateModal)
-        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" wire:click.self="closeCreateModal">
-            <div class="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto school-modal">
-                <!-- Modal Header -->
-                <div class="sticky top-0 bg-gradient-to-r from-blue-600 to-teal-600 text-white px-8 py-6 rounded-t-3xl">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-2xl font-bold">Crear Nuevo Colegio</h2>
-                        <button wire:click="closeCreateModal" class="w-10 h-10 hover:bg-white/20 rounded-full transition-colors flex items-center justify-center">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </div>
+    <!-- Create/Edit School Modal -->
+    <div 
+        x-data="{ show: @entangle('showCreateModal') }"
+        x-show="show"
+        class="fixed inset-0 z-50 overflow-y-auto"
+        style="display: none;"
+    >
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div 
+                x-show="show"
+                x-transition:enter="ease-out duration-300"
+                x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100"
+                x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100"
+                x-transition:leave-end="opacity-0"
+                class="fixed inset-0 transition-opacity" 
+                aria-hidden="true"
+                @click="show = false"
+            >
+                <div class="absolute inset-0 bg-gray-900 opacity-75 backdrop-blur-sm"></div>
+            </div>
+
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div 
+                x-show="show"
+                x-transition:enter="ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl w-full"
+            >
+                <div class="absolute top-0 right-0 pt-4 pr-4">
+                    <button 
+                        @click="show = false" 
+                        class="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    >
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
                 </div>
 
-                <!-- Modal Content -->
-                <form wire:submit.prevent="createSchool" class="p-8 space-y-6">
-                    <!-- Basic Information -->
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-900 mb-4">Información Básica</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Nombre del Colegio *</label>
-                                <input type="text" wire:model="name" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('name') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">NIT *</label>
-                                <input type="text" wire:model="nit" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('nit') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Código DANE *</label>
-                                <input type="text" wire:model="dane_code" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('dane_code') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Municipio *</label>
-                                <input type="text" wire:model="municipality" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('municipality') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                            <h3 class="text-2xl leading-6 font-bold text-gray-900 mb-8" id="modal-title">
+                                {{ $isEditing ? 'Editar Colegio' : 'Registrar Nuevo Colegio' }}
+                            </h3>
+                            
+                            <form wire:submit="saveSchool" class="space-y-8">
+                                <!-- Basic Information -->
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-900 mb-4">Información Básica</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Nombre del Colegio *</label>
+                                            <input type="text" wire:model="name" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('name') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">NIT *</label>
+                                            <input type="text" wire:model="nit" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('nit') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Código DANE *</label>
+                                            <input type="text" wire:model="dane_code" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('dane_code') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Municipio *</label>
+                                            <input type="text" wire:model="municipality" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('municipality') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Rector Information -->
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-900 mb-4">Información del Rector</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Nombre del Rector *</label>
+                                            <input type="text" wire:model="rector_name" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('rector_name') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Documento del Rector *</label>
+                                            <input type="text" wire:model="rector_document" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('rector_document') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Nombre del Pagador *</label>
+                                            <input type="text" wire:model="pagador_name" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('pagador_name') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Vigencia Actual *</label>
+                                            <input type="number" wire:model="current_validity" required min="2000" max="2100" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('current_validity') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Contact Information -->
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-900 mb-4">Información de Contacto</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div class="md:col-span-2">
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Dirección *</label>
+                                            <input type="text" wire:model="address" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('address') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Email *</label>
+                                            <input type="email" wire:model="email" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('email') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Teléfono *</label>
+                                            <input type="text" wire:model="phone" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('phone') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Sitio Web</label>
+                                            <input type="text" wire:model="website" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Budget Information -->
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-900 mb-4">Información Presupuestal</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">N° Acuerdo Presupuesto *</label>
+                                            <input type="text" wire:model="budget_agreement_number" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('budget_agreement_number') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Fecha Aprobación Presupuesto *</label>
+                                            <input type="date" wire:model="budget_approval_date" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('budget_approval_date') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">N° Aprob. Manual Contratación</label>
+                                            <input type="text" wire:model="contracting_manual_approval_number" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Fecha Aprob. Manual Contratación</label>
+                                            <input type="date" wire:model="contracting_manual_approval_date" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- DIAN Information -->
+                                <div>
+                                    <h3 class="text-lg font-bold text-gray-900 mb-4">Información DIAN</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Resolución DIAN 1 *</label>
+                                            <input type="text" wire:model="dian_resolution_1" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('dian_resolution_1') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Rango Resolución 1 *</label>
+                                            <input type="text" wire:model="dian_range_1" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('dian_range_1') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Vencimiento Resolución 1 *</label>
+                                            <input type="date" wire:model="dian_expiration_1" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            @error('dian_expiration_1') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Resolución DIAN 2</label>
+                                            <input type="text" wire:model="dian_resolution_2" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Rango Resolución 2</label>
+                                            <input type="text" wire:model="dian_range_2" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold text-gray-900 mb-2">Vencimiento Resolución 2</label>
+                                            <input type="date" wire:model="dian_expiration_2" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Form Actions -->
+                                <div class="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
+                                    <button type="button" wire:click="$set('showCreateModal', false)" class="px-6 py-3 text-gray-700 hover:bg-gray-100 rounded-xl font-semibold transition-colors">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/30 transition-all">
+                                        {{ $isEditing ? 'Actualizar' : 'Crear' }} Colegio
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
-
-                    <!-- Rector Information -->
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-900 mb-4">Información del Rector</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Nombre del Rector *</label>
-                                <input type="text" wire:model="rector_name" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('rector_name') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Documento del Rector *</label>
-                                <input type="text" wire:model="rector_document" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('rector_document') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Nombre del Pagador *</label>
-                                <input type="text" wire:model="pagador_name" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('pagador_name') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Vigencia Actual *</label>
-                                <input type="number" wire:model="current_validity" required min="2000" max="2100" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('current_validity') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Contact Information -->
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-900 mb-4">Información de Contacto</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="md:col-span-2">
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Dirección *</label>
-                                <input type="text" wire:model="address" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('address') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Email *</label>
-                                <input type="email" wire:model="email" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('email') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Teléfono *</label>
-                                <input type="text" wire:model="phone" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('phone') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Sitio Web</label>
-                                <input type="text" wire:model="website" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Budget Information -->
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-900 mb-4">Información Presupuestal</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">N° Acuerdo Presupuesto *</label>
-                                <input type="text" wire:model="budget_agreement_number" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('budget_agreement_number') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Fecha Aprobación Presupuesto *</label>
-                                <input type="date" wire:model="budget_approval_date" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('budget_approval_date') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">N° Aprob. Manual Contratación</label>
-                                <input type="text" wire:model="contracting_manual_approval_number" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Fecha Aprob. Manual Contratación</label>
-                                <input type="date" wire:model="contracting_manual_approval_date" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- DIAN Information -->
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-900 mb-4">Información DIAN</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Resolución DIAN 1 *</label>
-                                <input type="text" wire:model="dian_resolution_1" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('dian_resolution_1') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Rango Resolución 1 *</label>
-                                <input type="text" wire:model="dian_range_1" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('dian_range_1') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Vencimiento Resolución 1 *</label>
-                                <input type="date" wire:model="dian_expiration_1" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                @error('dian_expiration_1') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Resolución DIAN 2</label>
-                                <input type="text" wire:model="dian_resolution_2" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Rango Resolución 2</label>
-                                <input type="text" wire:model="dian_range_2" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-900 mb-2">Vencimiento Resolución 2</label>
-                                <input type="date" wire:model="dian_expiration_2" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Form Actions -->
-                    <div class="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
-                        <button type="button" wire:click="closeCreateModal" class="px-6 py-3 text-gray-700 hover:bg-gray-100 rounded-xl font-semibold transition-colors">
-                            Cancelar
-                        </button>
-                        <button type="submit" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/30 transition-all">
-                            Crear Colegio
-                        </button>
-                    </div>
-                </form>
+                </div>
             </div>
         </div>
-    @endif
+    </div>
 
     <!-- Scripts -->
     <script>
@@ -335,10 +399,10 @@
         </div>
     </div>
 
-    <!-- Loading Overlay for School Creation -->
+    <!-- Loading Overlay for School Creation/Update -->
     <div 
         wire:loading.flex
-        wire:target="createSchool"
+        wire:target="saveSchool"
         class="fixed inset-0 z-[9999] items-center justify-center bg-black/50 backdrop-blur-sm"
         style="display: none;"
     >
@@ -348,7 +412,7 @@
                     <div class="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
                     <div class="absolute inset-0 border-4 border-transparent border-t-blue-600 rounded-full animate-spin"></div>
                 </div>
-                <h3 class="text-lg font-bold text-gray-900">Creando Colegio...</h3>
+                <h3 class="text-lg font-bold text-gray-900">Procesando...</h3>
             </div>
         </div>
     </div>

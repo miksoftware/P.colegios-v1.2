@@ -14,36 +14,32 @@ new #[Layout('layouts.guest')] class extends Component
      */
     public function login(): void
     {
-        $this->validate();
-
-        $this->form->authenticate();
-
-        Session::regenerate();
-
-        $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
+        try {
+            $this->validate();
+            $this->form->authenticate();
+            Session::regenerate();
+            $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->dispatch('login-failed');
+            throw $e;
+        }
     }
 }; ?>
-<div class="relative" x-data="{ isLoading: false }">
+<div class="relative" x-data="{ isLoading: false }" @login-failed.window="isLoading = false">
     <!-- Login Form Container -->
-    <div class="w-full sm:max-w-md px-6 py-8">
-        <!-- Logo -->
-        <div class="flex justify-center mb-8">
-            <div class="w-20 h-20 bg-white rounded-2xl shadow-2xl shadow-blue-500/30 flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
-                <img src="{{ asset('images/logo.png') }}" alt="Logo" class="w-12 h-12 object-contain">
-            </div>
-        </div>
+    <div class="w-full sm:max-w-md px-6 py-4">
 
         <!-- Title -->
-        <h2 class="text-3xl font-bold text-center text-gray-900 mb-2">Bienvenido</h2>
-        <p class="text-center text-gray-600 mb-8">Ingresa a tu cuenta</p>
+        <h2 class="text-2xl font-bold text-center text-gray-900 mb-1">Bienvenido</h2>
+        <p class="text-center text-gray-600 mb-6 text-sm">Ingresa a tu cuenta</p>
 
         <!-- Session Status -->
         <x-auth-session-status class="mb-4" :status="session('status')" />
 
-        <form wire:submit="login" @submit="isLoading = true" class="space-y-6">
+        <form wire:submit="login" @submit="isLoading = true" class="space-y-4">
             <!-- Email Address -->
             <div>
-                <label for="email" class="block text-sm font-semibold text-gray-900 mb-2">
+                <label for="email" class="block text-sm font-semibold text-gray-900 mb-1">
                     Correo Electrónico
                 </label>
                 <div class="relative">
@@ -59,16 +55,16 @@ new #[Layout('layouts.guest')] class extends Component
                         required
                         autofocus
                         autocomplete="username"
-                        class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        class="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         placeholder="tu@email.com"
                     >
                 </div>
-                <x-input-error :messages="$errors->get('form.email')" class="mt-2" />
+                <x-input-error :messages="$errors->get('form.email')" class="mt-1" />
             </div>
 
             <!-- Password -->
             <div>
-                <label for="password" class="block text-sm font-semibold text-gray-900 mb-2">
+                <label for="password" class="block text-sm font-semibold text-gray-900 mb-1">
                     Contraseña
                 </label>
                 <div class="relative">
@@ -83,11 +79,11 @@ new #[Layout('layouts.guest')] class extends Component
                         type="password"
                         required
                         autocomplete="current-password"
-                        class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        class="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         placeholder="••••••••"
                     >
                 </div>
-                <x-input-error :messages="$errors->get('form.password')" class="mt-2" />
+                <x-input-error :messages="$errors->get('form.password')" class="mt-1" />
             </div>
 
             <!-- Remember Me -->

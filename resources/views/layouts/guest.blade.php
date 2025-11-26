@@ -35,17 +35,7 @@
             
             <!-- Login Container -->
             <div class="w-full max-w-md relative z-10">
-                <!-- Logo and Branding -->
-                <div class="text-center mb-8">
-                    <div class="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-2xl shadow-blue-500/30 mb-6 transform hover:scale-105 transition-transform duration-300">
-                        <img src="{{ asset('images/logo.png') }}" alt="Logo" class="w-12 h-12 object-contain">
-                    </div>
-                    <h1 class="text-4xl font-bold text-white mb-2 drop-shadow-lg">
-                        Sistema de Presupuesto Escolar
-                    </h1>
-                    <p class="text-blue-100 text-lg">Gestión contable para instituciones educativas</p>
-                </div>
-
+               
                 <!-- Login Card with Glass Morphism -->
                 <div class="glass-morphism rounded-3xl shadow-2xl p-8 border border-white/20">
                     {{ $slot }}

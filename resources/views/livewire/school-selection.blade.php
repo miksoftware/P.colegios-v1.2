@@ -317,6 +317,42 @@
         });
     </script>
 
+    <!-- Loading Overlay for School Selection -->
+    <div 
+        wire:loading.flex
+        wire:target="selectSchool"
+        class="fixed inset-0 z-[9999] items-center justify-center bg-black/50 backdrop-blur-sm"
+        style="display: none;"
+    >
+        <div class="bg-white rounded-2xl shadow-2xl p-8">
+            <div class="flex flex-col items-center">
+                <div class="relative w-16 h-16 mb-4">
+                    <div class="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-transparent border-t-blue-600 rounded-full animate-spin"></div>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900">Cargando...</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay for School Creation -->
+    <div 
+        wire:loading.flex
+        wire:target="createSchool"
+        class="fixed inset-0 z-[9999] items-center justify-center bg-black/50 backdrop-blur-sm"
+        style="display: none;"
+    >
+        <div class="bg-white rounded-2xl shadow-2xl p-8">
+            <div class="flex flex-col items-center">
+                <div class="relative w-16 h-16 mb-4">
+                    <div class="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-transparent border-t-blue-600 rounded-full animate-spin"></div>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900">Creando Colegio...</h3>
+            </div>
+        </div>
+    </div>
+
     <style>
         @keyframes slideIn {
             from {

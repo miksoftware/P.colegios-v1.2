@@ -4,17 +4,13 @@ namespace App\Livewire;
 
 use App\Models\School;
 use Livewire\Component;
-use Livewire\WithPagination;
 
-class SchoolSelection extends Component
+class SchoolManagement extends Component
 {
-    use WithPagination;
-
-    public $search = '';
-    public $perPage = 12;
-    public $showCreateModal = false;
+    public $school;
+    public $isEditing = false;
     
-    // Form fields for creating school
+    // Form fields
     public $name = '';
     public $nit = '';
     public $dane_code = '';
@@ -38,40 +34,54 @@ class SchoolSelection extends Component
     public $dian_expiration_1 = '';
     public $dian_expiration_2 = '';
 
-    public function updatingSearch()
+    public function mount()
     {
-        $this->resetPage();
-    }
-
-    public function selectSchool($schoolId)
-    {
-        session(['selected_school_id' => $schoolId]);
+        $schoolId = session('selected_school_id');
         
-        $this->dispatch('notify', message: 'Colegio seleccionado correctamente.', type: 'success');
-        
-        return redirect()->route('dashboard');
+        if (!$schoolId) {
+            session()->flash('error', 'No hay colegio seleccionado.');
+            return redirect()->route('dashboard');
+        }
+
+        $this->school = School::findOrFail($schoolId);
+        $this->loadSchoolData();
     }
 
-    public function openCreateModal()
+    public function loadSchoolData()
     {
-        $this->showCreateModal = true;
+        $this->name = $this->school->name;
+        $this->nit = $this->school->nit;
+        $this->dane_code = $this->school->dane_code;
+        $this->municipality = $this->school->municipality;
+        $this->rector_name = $this->school->rector_name;
+        $this->rector_document = $this->school->rector_document;
+        $this->pagador_name = $this->school->pagador_name;
+        $this->address = $this->school->address;
+        $this->email = $this->school->email;
+        $this->phone = $this->school->phone;
+        $this->website = $this->school->website;
+        $this->budget_agreement_number = $this->school->budget_agreement_number;
+        $this->budget_approval_date = $this->school->budget_approval_date;
+        $this->current_validity = $this->school->current_validity;
+        $this->contracting_manual_approval_number = $this->school->contracting_manual_approval_number;
+        $this->contracting_manual_approval_date = $this->school->contracting_manual_approval_date;
+        $this->dian_resolution_1 = $this->school->dian_resolution_1;
+        $this->dian_resolution_2 = $this->school->dian_resolution_2;
+        $this->dian_range_1 = $this->school->dian_range_1;
+        $this->dian_range_2 = $this->school->dian_range_2;
+        $this->dian_expiration_1 = $this->school->dian_expiration_1;
+        $this->dian_expiration_2 = $this->school->dian_expiration_2;
     }
 
-    public function closeCreateModal()
+    public function toggleEdit()
     {
-        $this->showCreateModal = false;
-        $this->reset([
-            'name', 'nit', 'dane_code', 'municipality', 'rector_name', 
-            'rector_document', 'pagador_name', 'address', 'email', 'phone',
-            'website', 'budget_agreement_number', 'budget_approval_date',
-            'current_validity', 'contracting_manual_approval_number',
-            'contracting_manual_approval_date', 'dian_resolution_1',
-            'dian_resolution_2', 'dian_range_1', 'dian_range_2',
-            'dian_expiration_1', 'dian_expiration_2'
-        ]);
+        if ($this->isEditing) {
+            $this->loadSchoolData(); // Reset to original data
+        }
+        $this->isEditing = !$this->isEditing;
     }
 
-    public function createSchool()
+    public function updateSchool()
     {
         $validated = $this->validate([
             'name' => 'required|string|max:255',
@@ -106,26 +116,16 @@ class SchoolSelection extends Component
         $validated['dian_range_2'] = $validated['dian_range_2'] ?: null;
         $validated['dian_expiration_2'] = $validated['dian_expiration_2'] ?: null;
 
-        $school = School::create($validated);
+        $this->school->update($validated);
         
-        session(['selected_school_id' => $school->id]);
-        $this->dispatch('notify', message: 'Colegio creado exitosamente.', type: 'success');
-        $this->reset(['name', 'nit', 'dane_code', 'municipality', 'showCreateModal']);
-        return redirect()->route('dashboard');
+        $this->dispatch('notify', message: 'Colegio actualizado exitosamente.', type: 'success');
+        $this->isEditing = false;
+        $this->school->refresh();
+        $this->loadSchoolData();
     }
 
     public function render()
     {
-        $schools = School::query()
-            ->when($this->search, function ($query) {
-                $query->where('name', 'like', '%' . $this->search . '%')
-                    ->orWhere('nit', 'like', '%' . $this->search . '%')
-                    ->orWhere('municipality', 'like', '%' . $this->search . '%');
-            })
-            ->paginate($this->perPage);
-
-        return view('livewire.school-selection', [
-            'schools' => $schools,
-        ])->layout('layouts.school-select');
+        return view('livewire.school-management')->layout('layouts.app');
     }
 }

@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>Dashboard - Sistema de Presupuesto Escolar</title>
+        <title>{{ config('app.name', 'Laravel') }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -13,6 +13,7 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @livewireStyles
         
         <style>
             body {
@@ -41,8 +42,8 @@
                     </div>
 
                     <!-- Navigation -->
-                    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto" x-data="{ registroOpen: false }">
-                        <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl shadow-lg shadow-blue-500/30 transition-all">
+                    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto" x-data="{ registroOpen: {{ request()->routeIs('school.manage') ? 'true' : 'false' }} }">
+                        <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-4 py-3 text-sm font-semibold {{ request()->routeIs('dashboard') ? 'text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl shadow-lg shadow-blue-500/30' : 'text-gray-700 hover:bg-gray-100 rounded-xl' }} transition-all">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                             </svg>
@@ -53,7 +54,7 @@
                         <div>
                             <button 
                                 @click="registroOpen = !registroOpen"
-                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-all"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('school.manage') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
                             >
                                 <div class="flex items-center gap-3">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,7 +90,7 @@
                                     </svg>
                                     Usuarios
                                 </a>
-                                <a href="#" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-all">
+                                <a href="{{ route('school.manage') }}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium {{ request()->routeIs('school.manage') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }} rounded-lg transition-all">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                                     </svg>
@@ -175,5 +176,30 @@
                 sidebar.classList.toggle('-translate-x-full');
             });
         </script>
+        @livewireScripts
+        <x-toast-notification />
+
+        <!-- Global Logout Loading Overlay -->
+        <div 
+            x-data="{ loggingOut: false }" 
+            @logout-started.window="loggingOut = true"
+            x-show="loggingOut"
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            style="display: none;"
+        >
+            <div class="bg-white rounded-2xl shadow-2xl p-8">
+                <div class="flex flex-col items-center">
+                    <div class="relative w-16 h-16 mb-4">
+                        <div class="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+                        <div class="absolute inset-0 border-4 border-transparent border-t-blue-600 rounded-full animate-spin"></div>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-900">Cerrando Sesión...</h3>
+                    <p class="text-sm text-gray-500 mt-2">Hasta pronto</p>
+                </div>
+            </div>
+        </div>
     </body>
 </html>

@@ -8,6 +8,10 @@ Route::get('school/select', App\Livewire\SchoolSelection::class)
     ->middleware(['auth'])
     ->name('school.select');
 
+Route::get('school/manage', App\Livewire\SchoolManagement::class)
+    ->middleware(['auth', 'verified'])
+    ->name('school.manage');
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

@@ -2,15 +2,16 @@
 
 namespace App\Livewire;
 
+use App\Models\Module;
+use App\Models\Permission;
 use Livewire\Component;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
 use Livewire\Attributes\Layout;
 
 class RoleManagement extends Component
 {
     public $roles;
-    public $permissions;
+    public $modules;
     public $name = '';
     public $selectedPermissions = [];
     public $roleId = null;
@@ -19,18 +20,24 @@ class RoleManagement extends Component
 
     public function mount()
     {
-        abort_if(!auth()->user()->can('gestionar roles'), 403, 'No tienes permisos para gestionar roles.');
+        abort_if(!auth()->user()->can('roles.view'), 403, 'No tienes permisos para ver roles.');
         $this->loadData();
     }
 
     public function loadData()
     {
         $this->roles = Role::with('permissions')->get();
-        $this->permissions = Permission::all();
+        // Load modules with their permissions for organized display
+        $this->modules = Module::with('permissions')->orderBy('order')->get();
     }
 
     public function openModal()
     {
+        if (!auth()->user()->can('roles.create')) {
+            $this->dispatch('notify', message: 'No tienes permiso para crear roles.', type: 'error');
+            return;
+        }
+
         $this->resetValidation();
         $this->reset(['name', 'selectedPermissions', 'roleId', 'isEditing']);
         $this->showModal = true;
@@ -43,6 +50,11 @@ class RoleManagement extends Component
 
     public function editRole($id)
     {
+        if (!auth()->user()->can('roles.edit')) {
+            $this->dispatch('notify', message: 'No tienes permiso para editar roles.', type: 'error');
+            return;
+        }
+
         $this->resetValidation();
         $role = Role::findOrFail($id);
         $this->roleId = $role->id;
@@ -54,6 +66,12 @@ class RoleManagement extends Component
 
     public function save()
     {
+        $permission = $this->isEditing ? 'roles.edit' : 'roles.create';
+        if (!auth()->user()->can($permission)) {
+            $this->dispatch('notify', message: 'No tienes permiso para realizar esta acción.', type: 'error');
+            return;
+        }
+
         $this->validate([
             'name' => 'required|unique:roles,name,' . $this->roleId,
             'selectedPermissions' => 'array'
@@ -65,7 +83,7 @@ class RoleManagement extends Component
             $role->syncPermissions($this->selectedPermissions);
             $this->dispatch('notify', message: 'Rol actualizado exitosamente.', type: 'success');
         } else {
-            $role = Role::create(['name' => $this->name]);
+            $role = Role::create(['name' => $this->name, 'guard_name' => 'web']);
             $role->syncPermissions($this->selectedPermissions);
             $this->dispatch('notify', message: 'Rol creado exitosamente.', type: 'success');
         }
@@ -76,10 +94,21 @@ class RoleManagement extends Component
 
     public function deleteRole($id)
     {
+        if (!auth()->user()->can('roles.delete')) {
+            $this->dispatch('notify', message: 'No tienes permiso para eliminar roles.', type: 'error');
+            return;
+        }
+
         $role = Role::findOrFail($id);
         
         if ($role->name === 'Admin') {
             $this->dispatch('notify', message: 'No puedes eliminar el rol de Admin.', type: 'error');
+            return;
+        }
+
+        // Check if role has users
+        if ($role->users()->count() > 0) {
+            $this->dispatch('notify', message: 'No puedes eliminar un rol que tiene usuarios asignados.', type: 'error');
             return;
         }
 

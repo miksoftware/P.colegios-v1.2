@@ -31,12 +31,12 @@ class UserManagement extends Component
 
     public function mount()
     {
-        abort_if(!auth()->user()->can('gestionar usuarios'), 403, 'No tienes permisos para gestionar usuarios.');
+        abort_if(!auth()->user()->can('users.view'), 403, 'No tienes permisos para ver usuarios.');
 
         $this->schoolId = session('selected_school_id');
         
         if (!$this->schoolId && !auth()->user()->hasRole('Admin')) {
-            return redirect()->route('school.select');
+            return redirect()->route('dashboard');
         }
 
         $this->loadData();
@@ -57,6 +57,11 @@ class UserManagement extends Component
 
     public function openModal()
     {
+        if (!auth()->user()->can('users.create')) {
+            $this->dispatch('notify', message: 'No tienes permisos para crear usuarios.', type: 'error');
+            return;
+        }
+        
         $this->resetValidation();
         $this->reset(['name', 'surname', 'identification_type', 'identification_number', 'email', 'password', 'role', 'userId', 'isEditing']);
         $this->showModal = true;
@@ -69,6 +74,11 @@ class UserManagement extends Component
 
     public function editUser($id)
     {
+        if (!auth()->user()->can('users.edit')) {
+            $this->dispatch('notify', message: 'No tienes permisos para editar usuarios.', type: 'error');
+            return;
+        }
+        
         $this->resetValidation();
         $user = User::findOrFail($id);
         $this->userId = $user->id;
@@ -86,6 +96,12 @@ class UserManagement extends Component
 
     public function save()
     {
+        $permission = $this->isEditing ? 'users.edit' : 'users.create';
+        if (!auth()->user()->can($permission)) {
+            $this->dispatch('notify', message: 'No tienes permisos para esta acción.', type: 'error');
+            return;
+        }
+        
         $rules = [
             'name' => 'required|string|max:255',
             'surname' => 'required|string|max:255',
@@ -152,6 +168,11 @@ class UserManagement extends Component
 
     public function deleteUser($id)
     {
+        if (!auth()->user()->can('users.delete')) {
+            $this->dispatch('notify', message: 'No tienes permisos para eliminar usuarios.', type: 'error');
+            return;
+        }
+        
         $user = User::findOrFail($id);
         
         if ($user->id === auth()->id()) {

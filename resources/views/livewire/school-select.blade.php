@@ -86,12 +86,14 @@
                                             <div class="h-14 w-14 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xl shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
                                                 {{ substr($school->name, 0, 1) }}
                                             </div>
-                                            @if(auth()->user()->hasRole('Admin'))
+                                            @can('schools.edit')
                                                 <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 scale-90 group-hover:scale-100" @click.stop>
                                                     <button wire:click="editSchool({{ $school->id }})" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
-                                                    <button wire:click="deleteSchool({{ $school->id }})" wire:confirm="¿Eliminar?" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                    @can('schools.delete')
+                                                        <button wire:click="deleteSchool({{ $school->id }})" wire:confirm="¿Eliminar?" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                    @endcan
                                                 </div>
-                                            @endif
+                                            @endcan
                                         </div>
                                         <h3 class="text-lg font-bold text-gray-900 leading-snug mb-3 group-hover:text-indigo-600 transition-colors line-clamp-2">{{ $school->name }}</h3>
                                         <div class="space-y-2.5 text-sm text-gray-500">
@@ -116,13 +118,13 @@
                     @endif
                 </div>
 
-                @if(auth()->user()->hasRole('Admin'))
+                @can('schools.create')
                     <div class="bg-gray-50 px-8 py-5 border-t border-gray-200 flex justify-end">
                         <button wire:click="openCreateModal" class="inline-flex items-center px-6 py-3 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition-all shadow-lg">
                             <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg> Registrar Nuevo Colegio
                         </button>
                     </div>
-                @endif
+                @endcan
             </div>
         </div>
     </div>
@@ -169,9 +171,8 @@
                     </button>
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-8 bg-gray-50 custom-scrollbar">
-                    <form wire:submit="saveSchool" class="space-y-8">
-                        
+                <form wire:submit="saveSchool" class="flex flex-col flex-1 overflow-hidden">
+                    <div class="flex-1 overflow-y-auto p-8 bg-gray-50 custom-scrollbar space-y-8">
                         <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                             <h4 class="text-sm font-bold text-indigo-600 uppercase tracking-wider mb-6 border-b pb-2">Información Básica</h4>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -309,21 +310,21 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 sticky bottom-0 bg-white py-4 -mb-4 z-10">
-                            <button type="button" @click="show = false" class="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors">
-                                Cancelar
-                            </button>
-                            <button type="submit" class="px-6 py-2.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center">
-                                <span wire:loading.remove wire:target="saveSchool">{{ $isEditing ? 'Actualizar Datos' : 'Crear Colegio' }}</span>
-                                <span wire:loading wire:target="saveSchool" class="flex items-center">
-                                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 
-                                    Guardando...
-                                </span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    <div class="flex items-center justify-end gap-3 px-8 py-4 border-t border-gray-200 bg-white">
+                        <button type="button" @click="show = false" class="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="px-6 py-2.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center">
+                            <span wire:loading.remove wire:target="saveSchool">{{ $isEditing ? 'Actualizar Datos' : 'Crear Colegio' }}</span>
+                            <span wire:loading wire:target="saveSchool" class="flex items-center">
+                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 
+                                Guardando...
+                            </span>
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

@@ -3,11 +3,11 @@
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
             <div>
-                <h2 class="text-3xl font-bold text-gray-900">Información del Colegio</h2>
-                <p class="text-gray-600 mt-1">Visualiza y edita los datos del colegio seleccionado</p>
+                <h2 class="text-3xl font-bold text-gray-900">Mi Colegio</h2>
+                <p class="text-gray-600 mt-1">Información de tu colegio asignado</p>
             </div>
             
-            @can('schools.edit')
+            @can('school_info.edit')
                 <button 
                     wire:click="toggleEdit" 
                     class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all"
@@ -21,11 +21,28 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                         </svg>
-                        Editar Colegio
+                        Editar Información
                     @endif
                 </button>
             @endcan
         </div>
+
+        <!-- School Name Banner -->
+        @if($school)
+        <div class="bg-gradient-to-r from-blue-600 to-teal-600 rounded-2xl shadow-lg p-6 mb-6 text-white">
+            <div class="flex items-center gap-4">
+                <div class="bg-white/20 rounded-xl p-3">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-2xl font-bold">{{ $school->name }}</h3>
+                    <p class="text-white/80">NIT: {{ $school->nit }} | DANE: {{ $school->dane_code }}</p>
+                </div>
+            </div>
+        </div>
+        @endif
 
         <!-- Success Message -->
         @if (session()->has('message'))
@@ -205,7 +222,7 @@
                             <input type="date" wire:model="budget_approval_date" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
                             @error('budget_approval_date') <span class="text-red-500 text-sm mt-1">{{ $message }}</span> @enderror
                         @else
-                            <p class="text-gray-900 px-4 py-3 bg-gray-50 rounded-xl">{{ \Carbon\Carbon::parse($school->budget_approval_date)->format('d/m/Y') }}</p>
+                            <p class="text-gray-900 px-4 py-3 bg-gray-50 rounded-xl">{{ $school->budget_approval_date ? \Carbon\Carbon::parse($school->budget_approval_date)->format('d/m/Y') : 'No especificado' }}</p>
                         @endif
                     </div>
                     <div>
@@ -261,7 +278,7 @@
                             <input type="date" wire:model="dian_expiration_1" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
                             @error('dian_expiration_1') <span class="text-red-500 text-sm mt-1">{{ $message }}</span> @enderror
                         @else
-                            <p class="text-gray-900 px-4 py-3 bg-gray-50 rounded-xl">{{ \Carbon\Carbon::parse($school->dian_expiration_1)->format('d/m/Y') }}</p>
+                            <p class="text-gray-900 px-4 py-3 bg-gray-50 rounded-xl">{{ $school->dian_expiration_1 ? \Carbon\Carbon::parse($school->dian_expiration_1)->format('d/m/Y') : 'No especificado' }}</p>
                         @endif
                     </div>
                     
@@ -313,7 +330,6 @@
             @endif
         </form>
 
-        <!-- Loading Overlay for School Update -->
         <!-- Loading Overlay for School Update -->
         <div 
             wire:loading.flex

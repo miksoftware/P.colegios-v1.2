@@ -57,4 +57,12 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(School::class);
     }
+
+    /**
+     * Check if the user is an administrator.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('Admin');
+    }
 }

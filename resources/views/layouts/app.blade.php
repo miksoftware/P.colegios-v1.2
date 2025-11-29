@@ -42,7 +42,7 @@
                     </div>
 
                     <!-- Navigation -->
-                    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto" x-data="{ registroOpen: {{ request()->routeIs('school.manage') ? 'true' : 'false' }} }">
+                    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto" x-data="{ registroOpen: {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') ? 'true' : 'false' }} }">
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-4 py-3 text-sm font-semibold {{ request()->routeIs('dashboard') ? 'text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl shadow-lg shadow-blue-500/30' : 'text-gray-700 hover:bg-gray-100 rounded-xl' }} transition-all">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
@@ -54,7 +54,7 @@
                         <div>
                             <button 
                                 @click="registroOpen = !registroOpen"
-                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('school.manage') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
                             >
                                 <div class="flex items-center gap-3">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,7 +84,7 @@
                                 x-transition:leave-end="opacity-0 transform -translate-y-2"
                                 class="mt-1 ml-4 space-y-1"
                             >
-                                @can('gestionar usuarios')
+                                @can('users.view')
                                     <a href="{{ route('users.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('users.index') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
                                         <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
@@ -93,19 +93,33 @@
                                     </a>
                                 @endcan
 
-                                @can('gestionar colegios')
-                                    <a href="{{ auth()->user()->hasRole('Admin') ? route('school.select') : route('school.manage') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('school.manage') || request()->routeIs('school.select') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                {{-- Admin: Abre modal de selección de colegios --}}
+                                @role('Admin')
+                                    <button 
+                                        @click="$dispatch('open-school-modal')" 
+                                        class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                                    >
                                         <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                                         </svg>
                                         Colegios
-                                    </a>
-                                @endcan
+                                    </button>
+                                @else
+                                    {{-- Usuario normal: Va a la vista de su colegio --}}
+                                    @can('school_info.view')
+                                        <a href="{{ route('school.info') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('school.info') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                            <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                            </svg>
+                                            Mi Colegio
+                                        </a>
+                                    @endcan
+                                @endrole
 
-                                @can('gestionar roles')
+                                @can('roles.view')
                                     <a href="{{ route('roles.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('roles.index') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
                                         <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                                         </svg>
                                         Roles y Permisos
                                     </a>
@@ -192,6 +206,11 @@
         </script>
         @livewireScripts
         <x-toast-notification />
+
+        {{-- Modal de selección de colegios para Admin --}}
+        @role('Admin')
+            <livewire:school-select />
+        @endrole
 
         <!-- Global Logout Loading Overlay -->
         <div 

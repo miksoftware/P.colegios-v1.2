@@ -4,20 +4,20 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
 
-Route::get('school/select', App\Livewire\SchoolSelection::class)
-    ->middleware(['auth'])
-    ->name('school.select');
+Route::get('school/info', App\Livewire\SchoolInfo::class)
+    ->middleware(['auth', 'verified', 'can:school_info.view'])
+    ->name('school.info');
 
 Route::get('school/manage', App\Livewire\SchoolManagement::class)
     ->middleware(['auth', 'verified'])
     ->name('school.manage');
 
 Route::get('users', App\Livewire\UserManagement::class)
-    ->middleware(['auth', 'verified', 'can:gestionar usuarios'])
+    ->middleware(['auth', 'verified', 'can:users.view'])
     ->name('users.index');
 
 Route::get('roles', App\Livewire\RoleManagement::class)
-    ->middleware(['auth', 'verified', 'can:gestionar roles'])
+    ->middleware(['auth', 'verified', 'can:roles.view'])
     ->name('roles.index');
 
 Route::view('dashboard', 'dashboard')

@@ -6,6 +6,7 @@
                 <h1 class="text-3xl font-bold text-gray-900">Gestión de Roles</h1>
                 <p class="text-gray-500 mt-1">Administra los roles y permisos del sistema</p>
             </div>
+            @can('roles.create')
             <button 
                 wire:click="openModal"
                 class="inline-flex items-center px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all transform hover:-translate-y-0.5"
@@ -15,6 +16,7 @@
                 </svg>
                 Nuevo Rol
             </button>
+            @endcan
         </div>
 
         <!-- Roles Grid -->
@@ -38,6 +40,7 @@
                         
                         @if($role->name !== 'Admin')
                             <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                @can('roles.edit')
                                 <button 
                                     wire:click="editRole({{ $role->id }})"
                                     class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -46,6 +49,8 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                     </svg>
                                 </button>
+                                @endcan
+                                @can('roles.delete')
                                 <button 
                                     wire:confirm="¿Estás seguro de eliminar este rol?"
                                     wire:click="deleteRole({{ $role->id }})"
@@ -55,6 +60,7 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                     </svg>
                                 </button>
+                                @endcan
                             </div>
                         @else
                             <button 
@@ -76,7 +82,7 @@
                                 <svg class="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                                 </svg>
-                                {{ $permission->name }}
+                                {{ $permission->display_name ?? $permission->name }}
                             </div>
                         @endforeach
                         @if($role->permissions->count() > 3)
@@ -122,7 +128,7 @@
                 x-transition:leave="ease-in duration-200"
                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full"
+                class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full"
             >
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                     <h3 class="text-xl font-bold text-gray-900 mb-4">
@@ -143,19 +149,31 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Permisos</label>
-                            <div class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto p-2 border border-gray-100 rounded-xl bg-gray-50">
-                                @foreach($permissions as $permission)
-                                    <label class="flex items-center space-x-3 p-2 hover:bg-white rounded-lg transition-colors cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            wire:model="selectedPermissions" 
-                                            value="{{ $permission->name }}"
-                                            class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                            {{ $name === 'Admin' ? 'disabled checked' : '' }}
-                                        >
-                                        <span class="text-sm text-gray-700">{{ $permission->name }}</span>
-                                    </label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Permisos por Módulo</label>
+                            <div class="max-h-96 overflow-y-auto p-2 border border-gray-100 rounded-xl bg-gray-50 space-y-4">
+                                @foreach($modules as $module)
+                                    <div class="bg-white p-4 rounded-lg border border-gray-200">
+                                        <h4 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                            <span class="w-6 h-6 bg-blue-100 text-blue-600 rounded flex items-center justify-center text-xs font-bold">
+                                                {{ substr($module->display_name, 0, 1) }}
+                                            </span>
+                                            {{ $module->display_name }}
+                                        </h4>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            @foreach($module->permissions as $permission)
+                                                <label class="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        wire:model="selectedPermissions" 
+                                                        value="{{ $permission->name }}"
+                                                        class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                        {{ $name === 'Admin' ? 'disabled checked' : '' }}
+                                                    >
+                                                    <span class="text-sm text-gray-700">{{ $permission->display_name ?? $permission->name }}</span>
+                                                </label>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 @endforeach
                             </div>
                         </div>

@@ -16,7 +16,7 @@ class EnsureSchoolSelected
     public function handle(Request $request, Closure $next): Response
     {
         // Admin users don't need a school selected - they can access dashboard without one
-        if (auth()->user()->is_admin) {
+        if (auth()->user()->hasRole('Admin')) {
             return $next($request);
         }
 

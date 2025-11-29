@@ -166,7 +166,5 @@
             </div>
         </div>
     @endif
-    
-    <livewire:school-select />
 
 </x-app-layout>

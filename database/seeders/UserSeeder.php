@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\School;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class UserSeeder extends Seeder
 {
@@ -14,13 +15,17 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
+        // Ensure Admin role exists
+        $adminRole = Role::firstOrCreate(['name' => 'Admin', 'guard_name' => 'web']);
+        $rectorRole = Role::firstOrCreate(['name' => 'Rector', 'guard_name' => 'web']);
+
         // Create admin user (can access any school)
         $admin = User::create([
             'name' => 'Administrador',
             'email' => 'admin@admin.com',
-            'is_admin' => true,
             'password' => Hash::make('password'),
         ]);
+        $admin->assignRole($adminRole);
 
         // Get all schools
         $schools = School::all();
@@ -31,20 +36,20 @@ class UserSeeder extends Seeder
             $user1 = User::create([
                 'name' => 'Edgar Galvis',
                 'email' => 'edgar@sanjuan.edu.co',
-                'is_admin' => false,
                 'password' => Hash::make('password'),
             ]);
             $user1->schools()->attach($schools[0]->id);
+            $user1->assignRole($rectorRole);
 
             // User for second school
             if ($schools->count() > 1) {
                 $user2 = User::create([
                     'name' => 'María Rodríguez',
                     'email' => 'maria@santamaria.edu.co',
-                    'is_admin' => false,
                     'password' => Hash::make('password'),
                 ]);
                 $user2->schools()->attach($schools[1]->id);
+                $user2->assignRole($rectorRole);
             }
 
             // User for third school
@@ -52,10 +57,10 @@ class UserSeeder extends Seeder
                 $user3 = User::create([
                     'name' => 'Juan Martínez',
                     'email' => 'juan@iti.edu.co',
-                    'is_admin' => false,
                     'password' => Hash::make('password'),
                 ]);
                 $user3->schools()->attach($schools[2]->id);
+                $user3->assignRole($rectorRole);
             }
         }
     }

@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             ModulePermissionSeeder::class,
             SchoolSeeder::class,
             UserSeeder::class,
+            AccountingAccountSeeder::class,
         ]);
     }
 }

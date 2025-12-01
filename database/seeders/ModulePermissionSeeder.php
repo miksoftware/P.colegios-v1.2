@@ -83,6 +83,27 @@ class ModulePermissionSeeder extends Seeder
                     ['name' => 'roles.delete', 'display_name' => 'Eliminar Roles'],
                 ],
             ],
+            [
+                'name' => 'accounting_accounts',
+                'display_name' => 'Cuentas Contables',
+                'icon' => 'calculator',
+                'order' => 6,
+                'permissions' => [
+                    ['name' => 'accounting_accounts.view', 'display_name' => 'Ver Cuentas Contables'],
+                    ['name' => 'accounting_accounts.create', 'display_name' => 'Crear Cuentas Contables'],
+                    ['name' => 'accounting_accounts.edit', 'display_name' => 'Editar Cuentas Contables'],
+                    ['name' => 'accounting_accounts.delete', 'display_name' => 'Eliminar Cuentas Contables'],
+                ],
+            ],
+            [
+                'name' => 'activity_logs',
+                'display_name' => 'Registro de Actividad',
+                'icon' => 'document-text',
+                'order' => 7,
+                'permissions' => [
+                    ['name' => 'activity_logs.view', 'display_name' => 'Ver Registro de Actividad'],
+                ],
+            ],
         ];
 
         foreach ($modules as $moduleData) {
@@ -126,6 +147,9 @@ class ModulePermissionSeeder extends Seeder
             'users.view',
             'users.create',
             'users.edit',
+            'accounting_accounts.view',
+            'accounting_accounts.create',
+            'accounting_accounts.edit',
         ]);
 
         // Create Auxiliar Role
@@ -133,6 +157,7 @@ class ModulePermissionSeeder extends Seeder
         $auxRole->syncPermissions([
             'dashboard.view',
             'school_info.view',
+            'accounting_accounts.view',
         ]);
 
         // Clear cache one final time

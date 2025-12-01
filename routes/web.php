@@ -20,6 +20,14 @@ Route::get('roles', App\Livewire\RoleManagement::class)
     ->middleware(['auth', 'verified', 'can:roles.view'])
     ->name('roles.index');
 
+Route::get('accounting-accounts', App\Livewire\AccountingAccountManagement::class)
+    ->middleware(['auth', 'verified', 'can:accounting_accounts.view'])
+    ->name('accounting.accounts');
+
+Route::get('activity-logs', App\Livewire\ActivityLogViewer::class)
+    ->middleware(['auth', 'verified', 'can:activity_logs.view'])
+    ->name('activity.logs');
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

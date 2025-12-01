@@ -4,14 +4,12 @@
         message: '', 
         type: 'success',
         init() {
-            // Listen for Livewire events
+            // Listen for Livewire events (both 'notify' and 'toast')
             Livewire.on('notify', (data) => {
-                // Handle both array format [message, type] and object format {message: '...', type: '...'}
-                if (Array.isArray(data)) {
-                    this.showNotification(data[0].message || data[0], data[0].type || 'success');
-                } else {
-                    this.showNotification(data.message, data.type);
-                }
+                this.handleNotification(data);
+            });
+            Livewire.on('toast', (data) => {
+                this.handleNotification(data);
             });
 
             // Check for session flash messages
@@ -22,13 +20,21 @@
                 this.showNotification('{{ session('error') }}', 'error');
             @endif
         },
+        handleNotification(data) {
+            // Handle both array format [message, type] and object format {message: '...', type: '...'}
+            if (Array.isArray(data)) {
+                this.showNotification(data[0].message || data[0], data[0].type || 'success');
+            } else {
+                this.showNotification(data.message, data.type);
+            }
+        },
         showNotification(message, type = 'success') {
             this.message = message;
             this.type = type;
             this.show = true;
             setTimeout(() => {
                 this.show = false;
-            }, 3000);
+            }, 4000);
         }
     }"
     x-show="show"

@@ -28,6 +28,10 @@ Route::get('activity-logs', App\Livewire\ActivityLogViewer::class)
     ->middleware(['auth', 'verified', 'can:activity_logs.view'])
     ->name('activity.logs');
 
+Route::get('suppliers', App\Livewire\SupplierManagement::class)
+    ->middleware(['auth', 'verified', 'can:suppliers.view'])
+    ->name('suppliers.index');
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

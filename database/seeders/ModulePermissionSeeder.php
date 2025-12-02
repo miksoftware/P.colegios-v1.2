@@ -104,6 +104,18 @@ class ModulePermissionSeeder extends Seeder
                     ['name' => 'activity_logs.view', 'display_name' => 'Ver Registro de Actividad'],
                 ],
             ],
+            [
+                'name' => 'suppliers',
+                'display_name' => 'Proveedores',
+                'icon' => 'truck',
+                'order' => 8,
+                'permissions' => [
+                    ['name' => 'suppliers.view', 'display_name' => 'Ver Proveedores'],
+                    ['name' => 'suppliers.create', 'display_name' => 'Crear Proveedores'],
+                    ['name' => 'suppliers.edit', 'display_name' => 'Editar Proveedores'],
+                    ['name' => 'suppliers.delete', 'display_name' => 'Eliminar Proveedores'],
+                ],
+            ],
         ];
 
         foreach ($modules as $moduleData) {
@@ -150,6 +162,9 @@ class ModulePermissionSeeder extends Seeder
             'accounting_accounts.view',
             'accounting_accounts.create',
             'accounting_accounts.edit',
+            'suppliers.view',
+            'suppliers.create',
+            'suppliers.edit',
         ]);
 
         // Create Auxiliar Role

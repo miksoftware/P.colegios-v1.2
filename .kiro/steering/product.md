@@ -37,5 +37,7 @@ Colombian school administration context with specific fields:
 - **School Info**: Individual school profile
 - **Accounting Accounts**: Chart of accounts (PUC) with 5-level hierarchy
 - **Suppliers**: Vendor management (natural/juridical persons)
-- **Budget Items**: Budget line items linked to auxiliary accounts
+- **Budget Items**: Budget line items (rubros) linked to auxiliary accounts
+- **Budgets**: Budget management with initial amounts, additions and reductions per budget item
+- **Funding Sources**: Funding sources management (internal/external) linked to budget items
 - **Activity Logs**: System audit trail

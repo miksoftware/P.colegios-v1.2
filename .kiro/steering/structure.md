@@ -12,6 +12,9 @@ inclusion: always
 - `AccountingAccount` - Chart of accounts (5 levels)
 - `Supplier` - Vendors/providers
 - `BudgetItem` - Budget line items (rubros)
+- `Budget` - Budget per item with initial/current amounts, type (income/expense)
+- `BudgetModification` - Budget modifications (additions/reductions) with tracking
+- `FundingSource` - Funding sources (internal/external) linked to budget items
 - `Department` - Colombian departments
 - `Municipality` - Colombian municipalities
 - `Module` - Permission modules for organization
@@ -45,6 +48,9 @@ inclusion: always
 - `accounting_accounts` - Hierarchical with parent_id
 - `suppliers` - With department_id, municipality_id FKs
 - `budget_items` - With school_id, accounting_account_id FKs
+- `budgets` - With school_id, budget_item_id, type (income/expense), fiscal_year
+- `budget_modifications` - With budget_id, modification_number, type (addition/reduction)
+- `funding_sources` - With school_id, budget_item_id, type (internal/external)
 - `departments`, `municipalities` - Colombian geography with DIAN codes
 - `modules`, `permissions` - Permission organization
 - `activity_logs` - Audit trail
@@ -55,11 +61,16 @@ inclusion: always
 - `AccountingAccountSeeder` - PUC chart of accounts
 - `BudgetItemSeeder` - Sample budget items
 - `BudgetItemPermissionSeeder` - Module + permissions setup
+- `BudgetPermissionSeeder` - Budget module permissions
+- `BudgetSeeder` - Sample budgets with modifications
+- `FundingSourcePermissionSeeder` - Funding sources permissions
 
 ## Routes (`routes/web.php`)
 
 Key routes with middleware:
 - `/budget-items` - BudgetItemManagement (requires school selected)
+- `/budgets` - BudgetManagement (requires school selected)
+- `/funding-sources` - FundingSourceManagement (requires school selected)
 - `/suppliers` - SupplierManagement (requires school selected)
 - `/accounting-accounts` - AccountingAccountManagement
 - `/roles` - RoleManagement

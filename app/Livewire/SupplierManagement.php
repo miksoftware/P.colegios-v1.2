@@ -2,6 +2,8 @@
 
 namespace App\Livewire;
 
+use App\Models\Department;
+use App\Models\Municipality;
 use App\Models\Supplier;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
@@ -36,8 +38,8 @@ class SupplierManagement extends Component
     public $person_type = 'natural';
     public $tax_regime = 'simplificado';
     public $address = '';
-    public $city = '';
-    public $department = '';
+    public $department_id = '';
+    public $municipality_id = '';
     public $phone = '';
     public $mobile = '';
     public $email = '';
@@ -46,6 +48,10 @@ class SupplierManagement extends Component
     public $account_number = '';
     public $is_active = true;
     public $notes = '';
+
+    // Colecciones para selects
+    public $departments = [];
+    public $municipalities = [];
 
     // Modal de eliminación
     public $showDeleteModal = false;
@@ -78,8 +84,8 @@ class SupplierManagement extends Component
             'person_type' => 'required|in:natural,juridica',
             'tax_regime' => 'required|in:simplificado,comun,gran_contribuyente,no_responsable',
             'address' => 'required|string|max:255',
-            'city' => 'required|string|max:100',
-            'department' => 'nullable|string|max:100',
+            'department_id' => 'required|exists:departments,id',
+            'municipality_id' => 'required|exists:municipalities,id',
             'phone' => 'nullable|string|max:20',
             'mobile' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:150',
@@ -97,7 +103,8 @@ class SupplierManagement extends Component
         'document_number.unique' => 'Ya existe un proveedor con este documento.',
         'first_surname.required' => 'El primer apellido o razón social es obligatorio.',
         'address.required' => 'La dirección es obligatoria.',
-        'city.required' => 'La ciudad es obligatoria.',
+        'department_id.required' => 'El departamento es obligatorio.',
+        'municipality_id.required' => 'El municipio es obligatorio.',
         'tax_regime.required' => 'El régimen tributario es obligatorio.',
         'email.email' => 'Ingrese un correo electrónico válido.',
     ];
@@ -111,6 +118,16 @@ class SupplierManagement extends Component
         if (!$this->schoolId) {
             return redirect()->route('dashboard')->with('error', 'Debes seleccionar un colegio primero.');
         }
+
+        $this->departments = Department::orderBy('name')->get();
+    }
+
+    public function updatedDepartmentId($value)
+    {
+        $this->municipality_id = '';
+        $this->municipalities = $value 
+            ? Municipality::where('department_id', $value)->orderBy('name')->get() 
+            : [];
     }
 
     public function updatingSearch()
@@ -191,8 +208,11 @@ class SupplierManagement extends Component
         $this->person_type = $supplier->person_type;
         $this->tax_regime = $supplier->tax_regime;
         $this->address = $supplier->address;
-        $this->city = $supplier->city;
-        $this->department = $supplier->department;
+        $this->department_id = $supplier->department_id;
+        if ($this->department_id) {
+            $this->municipalities = Municipality::where('department_id', $this->department_id)->orderBy('name')->get();
+        }
+        $this->municipality_id = $supplier->municipality_id;
         $this->phone = $supplier->phone;
         $this->mobile = $supplier->mobile;
         $this->email = $supplier->email;
@@ -233,8 +253,8 @@ class SupplierManagement extends Component
             'person_type' => $this->person_type,
             'tax_regime' => $this->tax_regime,
             'address' => $this->address,
-            'city' => $this->city,
-            'department' => $this->department,
+            'department_id' => $this->department_id,
+            'municipality_id' => $this->municipality_id,
             'phone' => $this->phone,
             'mobile' => $this->mobile,
             'email' => $this->email ? strtolower($this->email) : null,
@@ -323,8 +343,9 @@ class SupplierManagement extends Component
         $this->person_type = 'natural';
         $this->tax_regime = 'simplificado';
         $this->address = '';
-        $this->city = '';
-        $this->department = '';
+        $this->department_id = '';
+        $this->municipality_id = '';
+        $this->municipalities = [];
         $this->phone = '';
         $this->mobile = '';
         $this->email = '';

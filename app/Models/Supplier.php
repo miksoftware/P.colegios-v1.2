@@ -22,8 +22,8 @@ class Supplier extends Model
         'person_type',
         'tax_regime',
         'address',
-        'city',
-        'department',
+        'department_id',
+        'municipality_id',
         'phone',
         'mobile',
         'email',
@@ -99,6 +99,30 @@ class Supplier extends Model
     public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
+    }
+
+    /**
+     * Departamento
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * Municipio
+     */
+    public function municipality(): BelongsTo
+    {
+        return $this->belongsTo(Municipality::class);
+    }
+
+    /**
+     * Obtener nombre de la ciudad (municipio)
+     */
+    public function getCityAttribute(): string
+    {
+        return $this->municipality?->name ?? '';
     }
 
     /**

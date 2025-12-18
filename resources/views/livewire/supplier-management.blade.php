@@ -277,7 +277,7 @@
                                 </div>
 
                                 <!-- Número de documento + DV -->
-                                <div>
+                                <div class="min-w-0">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">
                                         {{ $document_type === 'NIT' ? 'NIT *' : 'Número Documento *' }}
                                     </label>
@@ -286,11 +286,11 @@
                                             type="text" 
                                             wire:model="document_number"
                                             wire:blur="calculateDv"
-                                            class="flex-1 rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono"
+                                            class="flex-1 min-w-0 rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono"
                                             placeholder="{{ $document_type === 'NIT' ? '900123456' : '12345678' }}"
                                         >
                                         @if($document_type === 'NIT')
-                                            <div class="flex items-center gap-1">
+                                            <div class="flex items-center gap-1 flex-shrink-0">
                                                 <span class="text-gray-500">-</span>
                                                 <input 
                                                     type="text" 
@@ -415,23 +415,31 @@
                                     @error('address') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Ciudad *</label>
-                                    <input 
-                                        type="text" 
-                                        wire:model="city"
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Departamento *</label>
+                                    <select 
+                                        wire:model.live="department_id"
                                         class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                        placeholder="Bogotá"
                                     >
-                                    @error('city') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        <option value="">Seleccione...</option>
+                                        @foreach($departments as $dept)
+                                            <option value="{{ $dept->id }}">{{ $dept->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('department_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
-                                    <input 
-                                        type="text" 
-                                        wire:model="department"
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Municipio *</label>
+                                    <select 
+                                        wire:model="municipality_id"
                                         class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                        placeholder="Cundinamarca"
+                                        {{ empty($department_id) ? 'disabled' : '' }}
                                     >
+                                        <option value="">{{ empty($department_id) ? 'Seleccione departamento primero' : 'Seleccione...' }}</option>
+                                        @foreach($municipalities as $mun)
+                                            <option value="{{ $mun->id }}">{{ $mun->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('municipality_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono Fijo</label>

@@ -7,78 +7,68 @@ inclusion: always
 ## Application Code (`app/`)
 
 ### Models (`app/Models/`)
-- Eloquent models with relationships
-- Use `HasFactory`, `Notifiable`, `HasRoles` traits
-- Define `$fillable` arrays for mass assignment
-- Relationships: `belongsToMany` for User-School pivot
+- `User` - Users with HasRoles trait
+- `School` - Educational institutions
+- `AccountingAccount` - Chart of accounts (5 levels)
+- `Supplier` - Vendors/providers
+- `BudgetItem` - Budget line items (rubros)
+- `Department` - Colombian departments
+- `Municipality` - Colombian municipalities
+- `Module` - Permission modules for organization
+- `Permission` - Extended Spatie Permission with module_id
+- `ActivityLog` - Audit trail
 
 ### Livewire Components (`app/Livewire/`)
-- Full-page components with `->layout('layouts.app')`
+- Full-page components with `#[Layout('layouts.app')]`
 - Public properties for form fields
-- Validation in update methods
-- Use `dispatch('notify')` for toast messages
-- Forms in `app/Livewire/Forms/` subdirectory
-- Actions in `app/Livewire/Actions/` subdirectory
+- Computed properties with `get[Name]Property()` for queries
+- Use `dispatch('toast')` for notifications
+- `forSchool($schoolId)` scope for multi-tenant queries
 
 ### HTTP Layer (`app/Http/`)
-- Controllers in `app/Http/Controllers/`
-- Middleware in `app/Http/Middleware/`
-- Custom middleware: `EnsureSchoolSelected` for school context
-
-### View Components (`app/View/Components/`)
-- Blade components: `AppLayout`, `GuestLayout`
+- Middleware `EnsureSchoolSelected` - Auto-selects school for session
 
 ## Views (`resources/views/`)
 
-### Blade Templates
-- `layouts/` - Layout components
-- `livewire/` - Livewire component views
-- `components/` - Reusable UI components
-- Use `.blade.php` extension
+### Reusable Components (`components/`)
+- `searchable-select.blade.php` - Select with search (Alpine.js)
+- `modal.blade.php` - Modal dialogs
+- `toast-notification.blade.php` - Toast messages
 
-### Livewire Views
-- Match component namespace structure
-- Located in `resources/views/livewire/`
-- Example: `SchoolManagement.php` → `livewire/school-management.blade.php`
+### Livewire Views (`livewire/`)
+- Match component names: `BudgetItemManagement.php` → `budget-item-management.blade.php`
 
-## Database (`database/`)
+## Database
 
-### Migrations (`database/migrations/`)
-- Timestamped migration files
-- Use descriptive names: `create_[table]_table`, `add_[fields]_to_[table]_table`
+### Key Tables
+- `users`, `schools`, `school_user` (pivot)
+- `accounting_accounts` - Hierarchical with parent_id
+- `suppliers` - With department_id, municipality_id FKs
+- `budget_items` - With school_id, accounting_account_id FKs
+- `departments`, `municipalities` - Colombian geography with DIAN codes
+- `modules`, `permissions` - Permission organization
+- `activity_logs` - Audit trail
 
-### Seeders (`database/seeders/`)
-- `DatabaseSeeder` calls other seeders
-- Separate seeders per model: `SchoolSeeder`, `UserSeeder`, `RoleSeeder`
+### Seeders
+- `DepartmentSeeder` - 33 Colombian departments
+- `MunicipalitySeeder` - All Colombian municipalities
+- `AccountingAccountSeeder` - PUC chart of accounts
+- `BudgetItemSeeder` - Sample budget items
+- `BudgetItemPermissionSeeder` - Module + permissions setup
 
-## Frontend Assets
+## Routes (`routes/web.php`)
 
-### Styles (`resources/css/`)
-- `app.css` - Main stylesheet with Tailwind directives
-
-### JavaScript (`resources/js/`)
-- `app.js` - Application entry point
-- `bootstrap.js` - Axios and Echo setup
-
-## Configuration (`config/`)
-- Laravel config files
-- `permission.php` - Spatie Permission config
-- `tall-toasts.php` - Toast notification config
-
-## Routes (`routes/`)
-- Web routes with Livewire component routing
-- Auth routes from Breeze
-
-## Testing (`tests/`)
-- `Feature/` - Feature tests (HTTP, auth flows)
-- `Unit/` - Unit tests
-- Use PHPUnit
+Key routes with middleware:
+- `/budget-items` - BudgetItemManagement (requires school selected)
+- `/suppliers` - SupplierManagement (requires school selected)
+- `/accounting-accounts` - AccountingAccountManagement
+- `/roles` - RoleManagement
+- `/users` - UserManagement
 
 ## Conventions
 
-- PSR-4 autoloading
-- PSR-12 code style (enforced by Pint)
-- Eloquent relationships defined in models
-- Session-based school context (`selected_school_id`)
-- Spanish language for user-facing messages
-- English for code and comments
+- School-scoped data uses `school_id` FK and `forSchool()` scope
+- Permissions follow pattern: `module.action` (e.g., `budget_items.view`)
+- Permission seeders create Module + Permissions with `updateOrCreate`
+- Spanish for UI text, English for code
+- `is_active` boolean for soft-disable pattern

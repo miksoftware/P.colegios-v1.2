@@ -59,6 +59,22 @@ class Budget extends Model
         return $this->hasMany(BudgetModification::class)->orderBy('modification_number');
     }
 
+    /**
+     * Traslados donde este presupuesto es el origen (contracrédito - sale dinero)
+     */
+    public function outgoingTransfers(): HasMany
+    {
+        return $this->hasMany(BudgetTransfer::class, 'source_budget_id');
+    }
+
+    /**
+     * Traslados donde este presupuesto es el destino (crédito - entra dinero)
+     */
+    public function incomingTransfers(): HasMany
+    {
+        return $this->hasMany(BudgetTransfer::class, 'destination_budget_id');
+    }
+
     public function getTypeNameAttribute(): string
     {
         return self::TYPES[$this->type] ?? $this->type;
@@ -81,6 +97,22 @@ class Budget extends Model
         return $this->modifications()->where('type', 'reduction')->sum('amount');
     }
 
+    /**
+     * Total de contracréditos (dinero que salió por traslados)
+     */
+    public function getTotalContracreditosAttribute(): float
+    {
+        return $this->outgoingTransfers()->sum('amount');
+    }
+
+    /**
+     * Total de créditos (dinero que entró por traslados)
+     */
+    public function getTotalCreditosAttribute(): float
+    {
+        return $this->incomingTransfers()->sum('amount');
+    }
+
     public function getNextModificationNumber(): int
     {
         return ($this->modifications()->max('modification_number') ?? 0) + 1;
@@ -88,7 +120,11 @@ class Budget extends Model
 
     public function recalculateCurrentAmount(): void
     {
-        $this->current_amount = $this->initial_amount + $this->total_additions - $this->total_reductions;
+        $this->current_amount = $this->initial_amount 
+            + $this->total_additions 
+            - $this->total_reductions
+            + $this->total_creditos
+            - $this->total_contracreditos;
         $this->save();
     }
 

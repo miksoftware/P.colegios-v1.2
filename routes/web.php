@@ -44,6 +44,10 @@ Route::get('funding-sources', App\Livewire\FundingSourceManagement::class)
     ->middleware(['auth', 'verified', 'can:funding_sources.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('funding-sources.index');
 
+Route::get('budget-transfers', App\Livewire\BudgetTransferManagement::class)
+    ->middleware(['auth', 'verified', 'can:budget_transfers.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('budget-transfers.index');
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

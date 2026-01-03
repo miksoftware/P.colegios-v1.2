@@ -11,10 +11,12 @@ inclusion: always
 - `School` - Educational institutions
 - `AccountingAccount` - Chart of accounts (5 levels)
 - `Supplier` - Vendors/providers
-- `BudgetItem` - Budget line items (rubros)
+- `BudgetItem` - Budget line items (rubros) with fundingSources() relation
 - `Budget` - Budget per item with initial/current amounts, type (income/expense)
 - `BudgetModification` - Budget modifications (additions/reductions) with tracking
-- `FundingSource` - Funding sources (internal/external) linked to budget items
+- `FundingSource` - Funding sources (internal/external) with incomes() relation and balance calculations
+- `Income` - Real income records linked to funding sources
+- `BudgetTransfer` - Budget transfers between funding sources (créditos/contracréditos)
 - `Department` - Colombian departments
 - `Municipality` - Colombian municipalities
 - `Module` - Permission modules for organization
@@ -51,6 +53,8 @@ inclusion: always
 - `budgets` - With school_id, budget_item_id, type (income/expense), fiscal_year
 - `budget_modifications` - With budget_id, modification_number, type (addition/reduction)
 - `funding_sources` - With school_id, budget_item_id, type (internal/external)
+- `incomes` - With school_id, funding_source_id, amount, date, payment_method
+- `budget_transfers` - With school_id, source/destination funding_source_id, amounts tracking
 - `departments`, `municipalities` - Colombian geography with DIAN codes
 - `modules`, `permissions` - Permission organization
 - `activity_logs` - Audit trail
@@ -64,6 +68,8 @@ inclusion: always
 - `BudgetPermissionSeeder` - Budget module permissions
 - `BudgetSeeder` - Sample budgets with modifications
 - `FundingSourcePermissionSeeder` - Funding sources permissions
+- `IncomePermissionSeeder` - Incomes module permissions
+- `BudgetTransferPermissionSeeder` - Budget transfers permissions
 
 ## Routes (`routes/web.php`)
 
@@ -71,6 +77,8 @@ Key routes with middleware:
 - `/budget-items` - BudgetItemManagement (requires school selected)
 - `/budgets` - BudgetManagement (requires school selected)
 - `/funding-sources` - FundingSourceManagement (requires school selected)
+- `/incomes` - IncomeManagement (requires school selected)
+- `/budget-transfers` - BudgetTransferManagement (requires school selected)
 - `/suppliers` - SupplierManagement (requires school selected)
 - `/accounting-accounts` - AccountingAccountManagement
 - `/roles` - RoleManagement

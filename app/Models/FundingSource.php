@@ -60,6 +60,47 @@ class FundingSource extends Model
             : 'bg-purple-100 text-purple-700';
     }
 
+    public function incomes(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Income::class);
+    }
+
+    public function getTotalExecutedAttribute(): float
+    {
+        return $this->incomes()->sum('amount');
+    }
+
+    /**
+     * Calcula el saldo disponible real de la fuente de financiación
+     * Saldo = Ingresos - Transferencias Salientes + Transferencias Entrantes
+     */
+    public function getAvailableBalanceAttribute(): float
+    {
+        $totalIncomes = $this->incomes()->sum('amount');
+        
+        $totalOutgoing = BudgetTransfer::where('source_funding_source_id', $this->id)->sum('amount');
+        $totalIncoming = BudgetTransfer::where('destination_funding_source_id', $this->id)->sum('amount');
+        
+        return $totalIncomes - $totalOutgoing + $totalIncoming;
+    }
+
+    /**
+     * Calcula el saldo disponible para un año específico
+     */
+    public function getAvailableBalanceForYear(int $year): float
+    {
+        $totalIncomes = $this->incomes()->whereYear('date', $year)->sum('amount');
+        
+        $totalOutgoing = BudgetTransfer::where('source_funding_source_id', $this->id)
+            ->where('fiscal_year', $year)
+            ->sum('amount');
+        $totalIncoming = BudgetTransfer::where('destination_funding_source_id', $this->id)
+            ->where('fiscal_year', $year)
+            ->sum('amount');
+        
+        return $totalIncomes - $totalOutgoing + $totalIncoming;
+    }
+
     public function scopeForSchool($query, int $schoolId)
     {
         return $query->where('school_id', $schoolId);

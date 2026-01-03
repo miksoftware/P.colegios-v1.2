@@ -48,6 +48,10 @@ Route::get('budget-transfers', App\Livewire\BudgetTransferManagement::class)
     ->middleware(['auth', 'verified', 'can:budget_transfers.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('budget-transfers.index');
 
+Route::get('incomes', App\Livewire\IncomeManagement::class)
+    ->middleware(['auth', 'verified', 'can:incomes.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('incomes.index');
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BudgetItem extends Model
 {
@@ -53,6 +54,14 @@ class BudgetItem extends Model
     public function accountingAccount(): BelongsTo
     {
         return $this->belongsTo(AccountingAccount::class);
+    }
+
+    /**
+     * Fuentes de financiación asociadas
+     */
+    public function fundingSources(): HasMany
+    {
+        return $this->hasMany(FundingSource::class);
     }
 
     /**

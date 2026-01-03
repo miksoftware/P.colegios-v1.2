@@ -1,415 +1,291 @@
-<div>
-    <!-- Header -->
-    <div class="mb-8">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Créditos y Contracréditos</h1>
-                <p class="text-sm text-gray-500 mt-1">Traslados presupuestales entre rubros de gastos</p>
+                <h1 class="text-3xl font-bold text-gray-900">Créditos y Contracréditos</h1>
+                <p class="text-gray-500 mt-1">Traslados presupuestales entre fuentes de financiación</p>
             </div>
             @can('budget_transfers.create')
-                <button 
-                    wire:click="openCreateModal"
-                    class="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 hover:scale-[1.02] transition-all"
-                >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    Nuevo Traslado
-                </button>
+            <button wire:click="openCreateModal" class="inline-flex items-center px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Nuevo Traslado
+            </button>
             @endcan
         </div>
-    </div>
 
-    <!-- Filters -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
-        <div class="flex flex-col sm:flex-row gap-4">
-            <div class="flex-1">
-                <div class="relative">
-                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
-                    <input 
-                        wire:model.live.debounce.300ms="search"
-                        type="text" 
-                        placeholder="Buscar por número, documento, rubro..."
-                        class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    >
+        <!-- Filters -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
+                    <input type="text" wire:model.live.debounce.300ms="search" class="w-full rounded-xl border-gray-300" placeholder="Número, documento, rubro...">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Año</label>
+                    <select wire:model.live="filterYear" class="w-full rounded-xl border-gray-300">
+                        @foreach($this->availableYears as $year)
+                            <option value="{{ $year }}">{{ $year }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
-            <div class="w-full sm:w-40">
-                <select 
-                    wire:model.live="filterYear"
-                    class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                >
-                    @foreach($this->availableYears as $year)
-                        <option value="{{ $year }}">{{ $year }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <button 
-                wire:click="clearFilters"
-                class="px-4 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
-            >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-            </button>
         </div>
-    </div>
 
-    <!-- Table -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead class="bg-gray-50 border-b border-gray-100">
+        <!-- Table -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">#</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Fecha</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Origen (Contracrédito)</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Destino (Crédito)</th>
-                        <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Monto</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Responsable</th>
-                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Acciones</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Origen</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Destino</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100">
+                <tbody class="divide-y divide-gray-200">
                     @forelse($this->transfers as $transfer)
-                        <tr class="hover:bg-gray-50 transition-colors">
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg">
-                                    {{ $transfer->formatted_number }}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">{{ $transfer->formatted_number }}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {{ $transfer->created_at->format('d/m/Y') }}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
                                 </span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                {{ $transfer->created_at->format('d/m/Y H:i') }}
-                            </td>
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-2">
-                                    <span class="inline-flex items-center justify-center w-6 h-6 bg-red-100 text-red-600 rounded-full">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"/>
-                                        </svg>
-                                    </span>
-                                    <div>
-                                        <div class="text-sm font-medium text-gray-900">{{ $transfer->sourceBudget->budgetItem->code }}</div>
-                                        <div class="text-xs text-gray-500">{{ Str::limit($transfer->sourceBudget->budgetItem->name, 30) }}</div>
-                                    </div>
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900">{{ $transfer->sourceFundingSource->name ?? 'N/A' }}</div>
+                                    <div class="text-xs text-gray-500">{{ $transfer->sourceFundingSource->budgetItem->code ?? '' }}</div>
                                 </div>
-                            </td>
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-2">
-                                    <span class="inline-flex items-center justify-center w-6 h-6 bg-green-100 text-green-600 rounded-full">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/>
-                                        </svg>
-                                    </span>
-                                    <div>
-                                        <div class="text-sm font-medium text-gray-900">{{ $transfer->destinationBudget->budgetItem->code }}</div>
-                                        <div class="text-xs text-gray-500">{{ Str::limit($transfer->destinationBudget->budgetItem->name, 30) }}</div>
-                                    </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                                </span>
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900">{{ $transfer->destinationFundingSource->name ?? 'N/A' }}</div>
+                                    <div class="text-xs text-gray-500">{{ $transfer->destinationFundingSource->budgetItem->code ?? '' }}</div>
                                 </div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-right">
-                                <span class="text-sm font-bold text-gray-900">${{ number_format($transfer->amount, 2) }}</span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                {{ $transfer->creator->name ?? 'N/A' }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-center">
-                                <button 
-                                    wire:click="showDetail({{ $transfer->id }})"
-                                    class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                    title="Ver detalle"
-                                >
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                    </svg>
-                                </button>
-                            </td>
-                        </tr>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
+                            ${{ number_format($transfer->amount, 0, ',', '.') }}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <button wire:click="showDetail({{ $transfer->id }})" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Ver detalle">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            </button>
+                        </td>
+                    </tr>
                     @empty
-                        <tr>
-                            <td colspan="7" class="px-6 py-12 text-center">
-                                <div class="flex flex-col items-center">
-                                    <svg class="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-                                    </svg>
-                                    <p class="text-gray-500 text-sm">No hay traslados registrados</p>
-                                </div>
-                            </td>
-                        </tr>
+                    <tr><td colspan="6" class="px-6 py-12 text-center text-gray-500">No hay traslados registrados</td></tr>
                     @endforelse
                 </tbody>
             </table>
+            @if($this->transfers->hasPages())<div class="px-6 py-4 border-t">{{ $this->transfers->links() }}</div>@endif
         </div>
-
-        @if($this->transfers->hasPages())
-            <div class="px-6 py-4 border-t border-gray-100">
-                {{ $this->transfers->links() }}
-            </div>
-        @endif
     </div>
 
-    <!-- Modal Crear Traslado -->
+    <!-- Modal Crear -->
     @if($showModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-                <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity" wire:click="closeModal"></div>
-
-                <div class="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden transform transition-all">
-                    <!-- Header -->
-                    <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-bold text-white">Nuevo Traslado Presupuestal</h3>
-                            <button wire:click="closeModal" class="text-white/80 hover:text-white transition-colors">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Body -->
-                    <div class="px-6 py-6 space-y-6">
-                        <!-- Rubro Origen (Contracrédito) -->
+    <div class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeModal"></div>
+            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-2xl">
+                <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
+                    <div class="flex items-center justify-between">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                Rubro Origen (Contracrédito) 
-                                <span class="text-red-500">*</span>
-                            </label>
-                            <p class="text-xs text-gray-500 mb-2">De donde saldrá el dinero</p>
-                            <select 
-                                wire:model.live="source_budget_id"
-                                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all @error('source_budget_id') border-red-500 @enderror"
-                            >
-                                <option value="">Seleccione un rubro...</option>
-                                @foreach($sourceBudgets as $budget)
-                                    <option value="{{ $budget['id'] }}">
-                                        {{ $budget['name'] }} (Saldo: ${{ number_format($budget['current_amount'], 2) }})
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('source_budget_id')
-                                <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                            @enderror
-
-                            @if($selectedSourceBudget)
-                                <div class="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl">
-                                    <div class="flex items-center gap-2">
-                                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"/>
-                                        </svg>
-                                        <div>
-                                            <p class="text-sm font-medium text-red-700">Saldo disponible:</p>
-                                            <p class="text-lg font-bold text-red-900">${{ number_format($selectedSourceBudget->current_amount, 2) }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endif
+                            <h3 class="text-xl font-bold text-white">Nuevo Traslado Presupuestal</h3>
+                            <p class="text-blue-100 text-sm mt-1">Crédito y Contracrédito</p>
                         </div>
-
-                        <!-- Monto -->
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                Monto a Trasladar
-                                <span class="text-red-500">*</span>
-                            </label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
-                                <input 
-                                    type="number" 
-                                    wire:model="amount"
-                                    step="0.01"
-                                    min="0.01"
-                                    @if($selectedSourceBudget) max="{{ $selectedSourceBudget->current_amount }}" @endif
-                                    placeholder="0.00"
-                                    class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all @error('amount') border-red-500 @enderror"
-                                >
-                            </div>
-                            @error('amount')
-                                <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <!-- Rubro Destino (Crédito) -->
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                Rubro Destino (Crédito)
-                                <span class="text-red-500">*</span>
-                            </label>
-                            <p class="text-xs text-gray-500 mb-2">A donde irá el dinero</p>
-                            <select 
-                                wire:model="destination_budget_id"
-                                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all @error('destination_budget_id') border-red-500 @enderror"
-                                @if(!$source_budget_id) disabled @endif
-                            >
-                                <option value="">{{ $source_budget_id ? 'Seleccione un rubro destino...' : 'Primero seleccione el rubro origen' }}</option>
-                                @foreach($destinationBudgets as $budget)
-                                    <option value="{{ $budget['id'] }}">
-                                        {{ $budget['name'] }} (Saldo actual: ${{ number_format($budget['current_amount'], 2) }})
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('destination_budget_id')
-                                <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <!-- Justificación -->
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                Justificación
-                                <span class="text-red-500">*</span>
-                            </label>
-                            <textarea 
-                                wire:model="reason"
-                                rows="3"
-                                placeholder="Describa la razón del traslado..."
-                                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none @error('reason') border-red-500 @enderror"
-                            ></textarea>
-                            @error('reason')
-                                <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <!-- Número de Documento (Opcional) -->
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                Número de Documento
-                                <span class="text-gray-400 text-xs font-normal">(Opcional)</span>
-                            </label>
-                            <input 
-                                type="text" 
-                                wire:model="document_number"
-                                placeholder="Ej: RES-001-2024"
-                                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all @error('document_number') border-red-500 @enderror"
-                            >
-                            @error('document_number')
-                                <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                            @enderror
-                        </div>
-                    </div>
-
-                    <!-- Footer -->
-                    <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-                        <button 
-                            wire:click="closeModal"
-                            class="px-5 py-2.5 text-gray-700 font-medium hover:bg-gray-100 rounded-xl transition-all"
-                        >
-                            Cancelar
-                        </button>
-                        <button 
-                            wire:click="save"
-                            wire:loading.attr="disabled"
-                            class="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all disabled:opacity-50"
-                        >
-                            <span wire:loading.remove wire:target="save">Registrar Traslado</span>
-                            <span wire:loading wire:target="save">Guardando...</span>
+                        <button type="button" wire:click="closeModal" class="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
                 </div>
+                <form wire:submit="save" class="px-6 py-5 space-y-5">
+                    <!-- Origen -->
+                    <div class="p-4 bg-red-50 rounded-xl border border-red-100">
+                        <h4 class="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                            Origen (Contracrédito)
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Rubro *</label>
+                                <select wire:model.live="source_budget_item_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="">Seleccione...</option>
+                                    @foreach($budgetItems as $item)
+                                        <option value="{{ $item['id'] }}">{{ $item['name'] }}</option>
+                                    @endforeach
+                                </select>
+                                @error('source_budget_item_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Fuente *</label>
+                                <select wire:model.live="source_funding_source_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" @if(empty($sourceFundingSources)) disabled @endif>
+                                    <option value="">{{ empty($sourceFundingSources) ? 'Seleccione rubro primero' : 'Seleccione...' }}</option>
+                                    @foreach($sourceFundingSources as $source)
+                                        <option value="{{ $source['id'] }}">{{ $source['name'] }} (${{ number_format($source['balance'], 0, ',', '.') }})</option>
+                                    @endforeach
+                                </select>
+                                @error('source_funding_source_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                        @if($selectedSourceFundingSource)
+                        <div class="mt-3 text-sm">
+                            <span class="text-gray-600">Saldo disponible:</span>
+                            <span class="font-bold text-red-700">${{ number_format($selectedSourceFundingSource['balance'], 0, ',', '.') }}</span>
+                        </div>
+                        @endif
+                    </div>
+
+                    <!-- Monto -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Monto a Trasladar *</label>
+                        <div class="flex">
+                            <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
+                            <input type="number" wire:model="amount" step="0.01" min="0.01" class="flex-1 rounded-r-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="0.00">
+                        </div>
+                        @error('amount') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Destino -->
+                    <div class="p-4 bg-green-50 rounded-xl border border-green-100">
+                        <h4 class="text-sm font-semibold text-green-700 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                            Destino (Crédito)
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Rubro *</label>
+                                <select wire:model.live="destination_budget_item_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="">Seleccione...</option>
+                                    @foreach($budgetItems as $item)
+                                        <option value="{{ $item['id'] }}">{{ $item['name'] }}</option>
+                                    @endforeach
+                                </select>
+                                @error('destination_budget_item_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Fuente *</label>
+                                <select wire:model.live="destination_funding_source_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" @if(empty($destinationFundingSources)) disabled @endif>
+                                    <option value="">{{ empty($destinationFundingSources) ? 'Seleccione rubro primero' : 'Seleccione...' }}</option>
+                                    @foreach($destinationFundingSources as $source)
+                                        <option value="{{ $source['id'] }}">{{ $source['name'] }} (${{ number_format($source['balance'], 0, ',', '.') }})</option>
+                                    @endforeach
+                                </select>
+                                @error('destination_funding_source_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                        @if($selectedDestinationFundingSource)
+                        <div class="mt-3 text-sm">
+                            <span class="text-gray-600">Saldo actual:</span>
+                            <span class="font-bold text-green-700">${{ number_format($selectedDestinationFundingSource['balance'], 0, ',', '.') }}</span>
+                        </div>
+                        @endif
+                    </div>
+
+                    <!-- Justificación -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Justificación *</label>
+                        <textarea wire:model="reason" rows="2" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Razón del traslado..."></textarea>
+                        @error('reason') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Documento -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Número de Documento <span class="text-gray-400 text-xs">(Opcional)</span></label>
+                        <input type="text" wire:model="document_number" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Ej: RES-001-2024">
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-4 border-t">
+                        <button type="button" wire:click="closeModal" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium">Registrar Traslado</button>
+                    </div>
+                </form>
             </div>
         </div>
+    </div>
     @endif
 
     <!-- Modal Detalle -->
     @if($showDetailModal && $detailTransfer)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-                <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity" wire:click="closeDetailModal"></div>
-
-                <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden transform transition-all">
-                    <!-- Header -->
-                    <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-bold text-white">Detalle del Traslado #{{ $detailTransfer->formatted_number }}</h3>
-                            <button wire:click="closeDetailModal" class="text-white/80 hover:text-white transition-colors">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Body -->
-                    <div class="px-6 py-6 space-y-4">
-                        <!-- Fecha -->
-                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span class="text-sm text-gray-500">Fecha</span>
-                            <span class="text-sm font-medium text-gray-900">{{ $detailTransfer->created_at->format('d/m/Y H:i') }}</span>
-                        </div>
-
-                        <!-- Monto -->
-                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span class="text-sm text-gray-500">Monto Trasladado</span>
-                            <span class="text-lg font-bold text-blue-600">${{ number_format($detailTransfer->amount, 2) }}</span>
-                        </div>
-
-                        <!-- Origen -->
-                        <div class="p-4 bg-red-50 rounded-xl">
-                            <div class="flex items-center gap-2 mb-2">
-                                <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"/>
-                                </svg>
-                                <span class="text-sm font-semibold text-red-700">Origen (Contracrédito)</span>
-                            </div>
-                            <p class="text-sm font-medium text-gray-900">{{ $detailTransfer->sourceBudget->budgetItem->code }} - {{ $detailTransfer->sourceBudget->budgetItem->name }}</p>
-                            <div class="flex gap-4 mt-2 text-xs text-gray-600">
-                                <span>Antes: ${{ number_format($detailTransfer->source_previous_amount, 2) }}</span>
-                                <span>→</span>
-                                <span class="font-semibold text-red-600">Después: ${{ number_format($detailTransfer->source_new_amount, 2) }}</span>
-                            </div>
-                        </div>
-
-                        <!-- Destino -->
-                        <div class="p-4 bg-green-50 rounded-xl">
-                            <div class="flex items-center gap-2 mb-2">
-                                <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/>
-                                </svg>
-                                <span class="text-sm font-semibold text-green-700">Destino (Crédito)</span>
-                            </div>
-                            <p class="text-sm font-medium text-gray-900">{{ $detailTransfer->destinationBudget->budgetItem->code }} - {{ $detailTransfer->destinationBudget->budgetItem->name }}</p>
-                            <div class="flex gap-4 mt-2 text-xs text-gray-600">
-                                <span>Antes: ${{ number_format($detailTransfer->destination_previous_amount, 2) }}</span>
-                                <span>→</span>
-                                <span class="font-semibold text-green-600">Después: ${{ number_format($detailTransfer->destination_new_amount, 2) }}</span>
-                            </div>
-                        </div>
-
-                        <!-- Justificación -->
-                        <div class="py-2">
-                            <span class="text-sm text-gray-500 block mb-1">Justificación</span>
-                            <p class="text-sm text-gray-900">{{ $detailTransfer->reason }}</p>
-                        </div>
-
-                        <!-- Documento -->
-                        @if($detailTransfer->document_number)
-                            <div class="flex justify-between items-center py-2 border-t border-gray-100">
-                                <span class="text-sm text-gray-500">Documento</span>
-                                <span class="text-sm font-medium text-gray-900">{{ $detailTransfer->document_number }}</span>
-                            </div>
-                        @endif
-
-                        <!-- Responsable -->
-                        <div class="flex justify-between items-center py-2 border-t border-gray-100">
-                            <span class="text-sm text-gray-500">Registrado por</span>
-                            <span class="text-sm font-medium text-gray-900">{{ $detailTransfer->creator->name ?? 'N/A' }}</span>
-                        </div>
-                    </div>
-
-                    <!-- Footer -->
-                    <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
-                        <button 
-                            wire:click="closeDetailModal"
-                            class="px-5 py-2.5 text-gray-700 font-medium hover:bg-gray-100 rounded-xl transition-all"
-                        >
-                            Cerrar
+    <div class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeDetailModal"></div>
+            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-lg">
+                <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xl font-bold text-white">Traslado #{{ $detailTransfer->formatted_number }}</h3>
+                        <button type="button" wire:click="closeDetailModal" class="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
                 </div>
+                <div class="px-6 py-5 space-y-4">
+                    <div class="flex justify-between py-2 border-b">
+                        <span class="text-sm text-gray-500">Fecha</span>
+                        <span class="text-sm font-medium">{{ $detailTransfer->created_at->format('d/m/Y H:i') }}</span>
+                    </div>
+                    <div class="flex justify-between py-2 border-b">
+                        <span class="text-sm text-gray-500">Monto</span>
+                        <span class="text-lg font-bold text-blue-600">${{ number_format($detailTransfer->amount, 0, ',', '.') }}</span>
+                    </div>
+
+                    <!-- Origen -->
+                    <div class="p-3 bg-red-50 rounded-xl">
+                        <p class="text-xs font-semibold text-red-700 mb-1">Origen (Contracrédito)</p>
+                        <p class="text-sm font-medium text-gray-900">{{ $detailTransfer->sourceFundingSource->name ?? 'N/A' }}</p>
+                        <p class="text-xs text-gray-500">{{ $detailTransfer->sourceFundingSource->budgetItem->code ?? '' }} - {{ $detailTransfer->sourceFundingSource->budgetItem->name ?? '' }}</p>
+                        <div class="flex gap-2 mt-2 text-xs">
+                            <span class="text-gray-500">Antes: ${{ number_format($detailTransfer->source_previous_amount, 0, ',', '.') }}</span>
+                            <span>→</span>
+                            <span class="font-semibold text-red-600">Después: ${{ number_format($detailTransfer->source_new_amount, 0, ',', '.') }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Destino -->
+                    <div class="p-3 bg-green-50 rounded-xl">
+                        <p class="text-xs font-semibold text-green-700 mb-1">Destino (Crédito)</p>
+                        <p class="text-sm font-medium text-gray-900">{{ $detailTransfer->destinationFundingSource->name ?? 'N/A' }}</p>
+                        <p class="text-xs text-gray-500">{{ $detailTransfer->destinationFundingSource->budgetItem->code ?? '' }} - {{ $detailTransfer->destinationFundingSource->budgetItem->name ?? '' }}</p>
+                        <div class="flex gap-2 mt-2 text-xs">
+                            <span class="text-gray-500">Antes: ${{ number_format($detailTransfer->destination_previous_amount, 0, ',', '.') }}</span>
+                            <span>→</span>
+                            <span class="font-semibold text-green-600">Después: ${{ number_format($detailTransfer->destination_new_amount, 0, ',', '.') }}</span>
+                        </div>
+                    </div>
+
+                    <div class="py-2">
+                        <p class="text-sm text-gray-500 mb-1">Justificación</p>
+                        <p class="text-sm text-gray-900">{{ $detailTransfer->reason }}</p>
+                    </div>
+
+                    @if($detailTransfer->document_number)
+                    <div class="flex justify-between py-2 border-t">
+                        <span class="text-sm text-gray-500">Documento</span>
+                        <span class="text-sm font-medium">{{ $detailTransfer->document_number }}</span>
+                    </div>
+                    @endif
+
+                    <div class="flex justify-between py-2 border-t">
+                        <span class="text-sm text-gray-500">Registrado por</span>
+                        <span class="text-sm font-medium">{{ $detailTransfer->creator->name ?? 'N/A' }}</span>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-6 py-4 flex justify-end">
+                    <button type="button" wire:click="closeDetailModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cerrar</button>
+                </div>
             </div>
         </div>
+    </div>
     @endif
 </div>

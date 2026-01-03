@@ -40,4 +40,6 @@ Colombian school administration context with specific fields:
 - **Budget Items**: Budget line items (rubros) linked to auxiliary accounts
 - **Budgets**: Budget management with initial amounts, additions and reductions per budget item
 - **Funding Sources**: Funding sources management (internal/external) linked to budget items
+- **Incomes (Ingresos Reales)**: Real income tracking against funding sources with payment methods
+- **Budget Transfers (Créditos y Contracréditos)**: Budget transfers between funding sources with audit trail
 - **Activity Logs**: System audit trail

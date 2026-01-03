@@ -2,8 +2,9 @@
 
 namespace App\Livewire;
 
-use App\Models\Budget;
+use App\Models\BudgetItem;
 use App\Models\BudgetTransfer;
+use App\Models\FundingSource;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
@@ -21,16 +22,28 @@ class BudgetTransferManagement extends Component
 
     // Modal crear traslado
     public $showModal = false;
-    public $source_budget_id = '';
-    public $destination_budget_id = '';
+    
+    // Origen
+    public $source_budget_item_id = '';
+    public $source_funding_source_id = '';
+    
+    // Destino
+    public $destination_budget_item_id = '';
+    public $destination_funding_source_id = '';
+    
+    // Datos del traslado
     public $amount = '';
     public $reason = '';
     public $document_number = '';
 
     // Datos para selects
-    public $sourceBudgets = [];
-    public $destinationBudgets = [];
-    public $selectedSourceBudget = null;
+    public $budgetItems = [];
+    public $sourceFundingSources = [];
+    public $destinationFundingSources = [];
+    
+    // Info seleccionada
+    public $selectedSourceFundingSource = null;
+    public $selectedDestinationFundingSource = null;
 
     // Modal de detalle
     public $showDetailModal = false;
@@ -44,8 +57,10 @@ class BudgetTransferManagement extends Component
     protected function rules()
     {
         return [
-            'source_budget_id' => 'required|exists:budgets,id',
-            'destination_budget_id' => 'required|exists:budgets,id|different:source_budget_id',
+            'source_budget_item_id' => 'required|exists:budget_items,id',
+            'source_funding_source_id' => 'required|exists:funding_sources,id',
+            'destination_budget_item_id' => 'required|exists:budget_items,id',
+            'destination_funding_source_id' => 'required|exists:funding_sources,id|different:source_funding_source_id',
             'amount' => 'required|numeric|min:0.01',
             'reason' => 'required|string|min:10',
             'document_number' => 'nullable|string|max:50',
@@ -53,9 +68,11 @@ class BudgetTransferManagement extends Component
     }
 
     protected $messages = [
-        'source_budget_id.required' => 'Debe seleccionar el rubro origen (contracrédito).',
-        'destination_budget_id.required' => 'Debe seleccionar el rubro destino (crédito).',
-        'destination_budget_id.different' => 'El rubro destino debe ser diferente al origen.',
+        'source_budget_item_id.required' => 'Debe seleccionar el rubro origen.',
+        'source_funding_source_id.required' => 'Debe seleccionar la fuente de financiación origen.',
+        'destination_budget_item_id.required' => 'Debe seleccionar el rubro destino.',
+        'destination_funding_source_id.required' => 'Debe seleccionar la fuente de financiación destino.',
+        'destination_funding_source_id.different' => 'La fuente destino debe ser diferente a la origen.',
         'amount.required' => 'El monto es obligatorio.',
         'amount.min' => 'El monto debe ser mayor a 0.',
         'reason.required' => 'La justificación es obligatoria.',
@@ -84,58 +101,115 @@ class BudgetTransferManagement extends Component
         }
 
         $this->filterYear = date('Y');
-        $this->loadSourceBudgets();
+        $this->loadBudgetItems();
     }
 
-    public function loadSourceBudgets()
+    public function loadBudgetItems()
     {
-        // Solo cargar rubros de GASTO con saldo disponible
-        $this->sourceBudgets = Budget::forSchool($this->schoolId)
-            ->forYear($this->filterYear)
-            ->byType('expense')
-            ->active()
-            ->where('current_amount', '>', 0)
-            ->with('budgetItem')
-            ->orderBy('created_at')
+        // Cargar rubros que tienen fuentes de financiación con saldo
+        $this->budgetItems = BudgetItem::forSchool($this->schoolId)
+            ->whereHas('fundingSources', function($q) {
+                $q->active();
+            })
+            ->orderBy('code')
             ->get()
-            ->map(fn($budget) => [
-                'id' => $budget->id,
-                'name' => "{$budget->budgetItem->code} - {$budget->budgetItem->name}",
-                'current_amount' => $budget->current_amount,
+            ->map(fn($item) => [
+                'id' => $item->id,
+                'name' => "{$item->code} - {$item->name}",
             ])
             ->toArray();
     }
 
-    public function updatedSourceBudgetId($value)
+    public function updatedSourceBudgetItemId($value)
     {
-        $this->destination_budget_id = '';
-        $this->destinationBudgets = [];
+        $this->source_funding_source_id = '';
+        $this->sourceFundingSources = [];
+        $this->selectedSourceFundingSource = null;
         
         if ($value) {
-            $this->selectedSourceBudget = Budget::with('budgetItem')->find($value);
-            $this->loadDestinationBudgets();
-        } else {
-            $this->selectedSourceBudget = null;
+            $this->loadSourceFundingSources($value);
         }
     }
 
-    public function loadDestinationBudgets()
+    public function loadSourceFundingSources($budgetItemId)
     {
-        // Cargar todos los rubros de GASTO excepto el origen
-        $this->destinationBudgets = Budget::forSchool($this->schoolId)
-            ->forYear($this->filterYear)
-            ->byType('expense')
+        $sources = FundingSource::forSchool($this->schoolId)
+            ->where('budget_item_id', $budgetItemId)
             ->active()
-            ->where('id', '!=', $this->source_budget_id)
             ->with('budgetItem')
-            ->orderBy('created_at')
-            ->get()
-            ->map(fn($budget) => [
-                'id' => $budget->id,
-                'name' => "{$budget->budgetItem->code} - {$budget->budgetItem->name}",
-                'current_amount' => $budget->current_amount,
-            ])
-            ->toArray();
+            ->get();
+
+        $this->sourceFundingSources = $sources->map(function($source) {
+            $balance = $source->getAvailableBalanceForYear($this->filterYear);
+            return [
+                'id' => $source->id,
+                'name' => $source->name,
+                'type' => $source->type_name,
+                'balance' => $balance,
+            ];
+        })->filter(fn($s) => $s['balance'] > 0)->values()->toArray();
+    }
+
+    public function updatedSourceFundingSourceId($value)
+    {
+        $this->selectedSourceFundingSource = null;
+        
+        if ($value) {
+            $source = FundingSource::find($value);
+            if ($source) {
+                $this->selectedSourceFundingSource = [
+                    'id' => $source->id,
+                    'name' => $source->name,
+                    'balance' => $source->getAvailableBalanceForYear($this->filterYear),
+                ];
+            }
+        }
+    }
+
+    public function updatedDestinationBudgetItemId($value)
+    {
+        $this->destination_funding_source_id = '';
+        $this->destinationFundingSources = [];
+        $this->selectedDestinationFundingSource = null;
+        
+        if ($value) {
+            $this->loadDestinationFundingSources($value);
+        }
+    }
+
+    public function loadDestinationFundingSources($budgetItemId)
+    {
+        $sources = FundingSource::forSchool($this->schoolId)
+            ->where('budget_item_id', $budgetItemId)
+            ->active()
+            ->with('budgetItem')
+            ->get();
+
+        $this->destinationFundingSources = $sources->map(function($source) {
+            $balance = $source->getAvailableBalanceForYear($this->filterYear);
+            return [
+                'id' => $source->id,
+                'name' => $source->name,
+                'type' => $source->type_name,
+                'balance' => $balance,
+            ];
+        })->values()->toArray();
+    }
+
+    public function updatedDestinationFundingSourceId($value)
+    {
+        $this->selectedDestinationFundingSource = null;
+        
+        if ($value) {
+            $source = FundingSource::find($value);
+            if ($source) {
+                $this->selectedDestinationFundingSource = [
+                    'id' => $source->id,
+                    'name' => $source->name,
+                    'balance' => $source->getAvailableBalanceForYear($this->filterYear),
+                ];
+            }
+        }
     }
 
     public function updatingSearch()
@@ -150,13 +224,19 @@ class BudgetTransferManagement extends Component
 
     public function updatedFilterYear()
     {
-        $this->loadSourceBudgets();
+        $this->loadBudgetItems();
     }
 
     public function getTransfersProperty()
     {
         return BudgetTransfer::forSchool($this->schoolId)
-            ->with(['sourceBudget.budgetItem', 'destinationBudget.budgetItem', 'creator'])
+            ->with([
+                'sourceBudget.budgetItem', 
+                'destinationBudget.budgetItem', 
+                'sourceFundingSource',
+                'destinationFundingSource',
+                'creator'
+            ])
             ->when($this->filterYear, fn($q) => $q->forYear($this->filterYear))
             ->when($this->search, fn($q) => $q->search($this->search))
             ->orderBy('created_at', 'desc')
@@ -187,7 +267,7 @@ class BudgetTransferManagement extends Component
         }
 
         $this->resetForm();
-        $this->loadSourceBudgets();
+        $this->loadBudgetItems();
         $this->showModal = true;
     }
 
@@ -200,57 +280,58 @@ class BudgetTransferManagement extends Component
 
         $this->validate();
 
-        // Obtener presupuestos
-        $sourceBudget = Budget::forSchool($this->schoolId)->findOrFail($this->source_budget_id);
-        $destinationBudget = Budget::forSchool($this->schoolId)->findOrFail($this->destination_budget_id);
+        // Obtener fuentes de financiación
+        $sourceFundingSource = FundingSource::forSchool($this->schoolId)->findOrFail($this->source_funding_source_id);
+        $destinationFundingSource = FundingSource::forSchool($this->schoolId)->findOrFail($this->destination_funding_source_id);
+
+        // Calcular saldo disponible de la fuente origen
+        $sourceBalance = $sourceFundingSource->getAvailableBalanceForYear($this->filterYear);
 
         // Validar que el monto no exceda el saldo disponible
-        if ($this->amount > $sourceBudget->current_amount) {
-            $this->addError('amount', 'El monto no puede ser mayor al saldo disponible ($' . number_format($sourceBudget->current_amount, 2) . ').');
+        if ($this->amount > $sourceBalance) {
+            $this->addError('amount', 'El monto no puede ser mayor al saldo disponible ($' . number_format($sourceBalance, 2) . ').');
             return;
         }
 
-        // Validar que ambos sean del mismo año fiscal
-        if ($sourceBudget->fiscal_year !== $destinationBudget->fiscal_year) {
-            $this->addError('destination_budget_id', 'Ambos rubros deben pertenecer al mismo año fiscal.');
-            return;
-        }
-
-        // Calcular nuevos montos
-        $sourceNewAmount = $sourceBudget->current_amount - $this->amount;
-        $destinationNewAmount = $destinationBudget->current_amount + $this->amount;
+        // Calcular nuevos saldos
+        $destinationBalance = $destinationFundingSource->getAvailableBalanceForYear($this->filterYear);
+        $sourceNewBalance = $sourceBalance - $this->amount;
+        $destinationNewBalance = $destinationBalance + $this->amount;
 
         // Crear el traslado
         BudgetTransfer::create([
             'school_id' => $this->schoolId,
-            'transfer_number' => BudgetTransfer::getNextTransferNumber($this->schoolId, $sourceBudget->fiscal_year),
-            'source_budget_id' => $sourceBudget->id,
-            'destination_budget_id' => $destinationBudget->id,
+            'transfer_number' => BudgetTransfer::getNextTransferNumber($this->schoolId, $this->filterYear),
+            'source_budget_id' => $sourceFundingSource->budget_item_id,
+            'source_funding_source_id' => $sourceFundingSource->id,
+            'destination_budget_id' => $destinationFundingSource->budget_item_id,
+            'destination_funding_source_id' => $destinationFundingSource->id,
             'amount' => $this->amount,
-            'source_previous_amount' => $sourceBudget->current_amount,
-            'source_new_amount' => $sourceNewAmount,
-            'destination_previous_amount' => $destinationBudget->current_amount,
-            'destination_new_amount' => $destinationNewAmount,
+            'source_previous_amount' => $sourceBalance,
+            'source_new_amount' => $sourceNewBalance,
+            'destination_previous_amount' => $destinationBalance,
+            'destination_new_amount' => $destinationNewBalance,
             'reason' => $this->reason,
             'document_number' => $this->document_number ?: null,
             'document_date' => now(),
-            'fiscal_year' => $sourceBudget->fiscal_year,
+            'fiscal_year' => $this->filterYear,
             'created_by' => auth()->id(),
         ]);
 
-        // Actualizar saldos de ambos presupuestos
-        $sourceBudget->update(['current_amount' => $sourceNewAmount]);
-        $destinationBudget->update(['current_amount' => $destinationNewAmount]);
-
         $this->dispatch('toast', message: 'Traslado presupuestal registrado exitosamente.', type: 'success');
         $this->closeModal();
-        $this->loadSourceBudgets();
     }
 
     public function showDetail($id)
     {
         $this->detailTransfer = BudgetTransfer::forSchool($this->schoolId)
-            ->with(['sourceBudget.budgetItem', 'destinationBudget.budgetItem', 'creator'])
+            ->with([
+                'sourceBudget.budgetItem', 
+                'destinationBudget.budgetItem', 
+                'sourceFundingSource.budgetItem',
+                'destinationFundingSource.budgetItem',
+                'creator'
+            ])
             ->findOrFail($id);
         $this->showDetailModal = true;
     }
@@ -269,13 +350,17 @@ class BudgetTransferManagement extends Component
 
     public function resetForm()
     {
-        $this->source_budget_id = '';
-        $this->destination_budget_id = '';
+        $this->source_budget_item_id = '';
+        $this->source_funding_source_id = '';
+        $this->destination_budget_item_id = '';
+        $this->destination_funding_source_id = '';
         $this->amount = '';
         $this->reason = '';
         $this->document_number = '';
-        $this->selectedSourceBudget = null;
-        $this->destinationBudgets = [];
+        $this->sourceFundingSources = [];
+        $this->destinationFundingSources = [];
+        $this->selectedSourceFundingSource = null;
+        $this->selectedDestinationFundingSource = null;
         $this->resetValidation();
     }
 
@@ -284,7 +369,7 @@ class BudgetTransferManagement extends Component
         $this->reset(['search']);
         $this->filterYear = date('Y');
         $this->resetPage();
-        $this->loadSourceBudgets();
+        $this->loadBudgetItems();
     }
 
     #[Layout('layouts.app')]

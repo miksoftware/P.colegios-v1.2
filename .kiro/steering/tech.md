@@ -103,3 +103,35 @@ foreach ($permissions as $name => $displayName) {
 
 ## Windows Environment
 Project runs on Windows with cmd shell. Use `;` for command separation in PowerShell.
+
+## Important Notes
+
+### View Cache
+After modifying Blade views, if changes don't appear, clear the view cache:
+```bash
+php artisan view:clear
+```
+
+### Modal Pattern
+Use inline modals with `@if($showModal)` instead of `<x-modal>` component for Livewire compatibility:
+```blade
+@if($showModal)
+<div class="fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
+        <div class="fixed inset-0 bg-gray-500/75" wire:click="closeModal"></div>
+        <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-lg">
+            <!-- Modal content -->
+        </div>
+    </div>
+</div>
+@endif
+```
+
+### Input Group for Currency
+Use input groups for currency fields:
+```blade
+<div class="flex">
+    <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
+    <input type="number" class="flex-1 rounded-r-xl border-gray-300">
+</div>
+```

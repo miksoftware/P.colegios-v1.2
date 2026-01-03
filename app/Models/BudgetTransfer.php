@@ -14,7 +14,9 @@ class BudgetTransfer extends Model
         'school_id',
         'transfer_number',
         'source_budget_id',
+        'source_funding_source_id',
         'destination_budget_id',
+        'destination_funding_source_id',
         'amount',
         'source_previous_amount',
         'source_new_amount',
@@ -61,6 +63,16 @@ class BudgetTransfer extends Model
     public function destinationBudget(): BelongsTo
     {
         return $this->belongsTo(Budget::class, 'destination_budget_id');
+    }
+
+    public function sourceFundingSource(): BelongsTo
+    {
+        return $this->belongsTo(FundingSource::class, 'source_funding_source_id');
+    }
+
+    public function destinationFundingSource(): BelongsTo
+    {
+        return $this->belongsTo(FundingSource::class, 'destination_funding_source_id');
     }
 
     public function creator(): BelongsTo

@@ -55,14 +55,40 @@ class BudgetTransfer extends Model
         return $this->belongsTo(School::class);
     }
 
-    public function sourceBudget(): BelongsTo
+    /**
+     * Rubro origen del traslado
+     * Nota: source_budget_id ahora almacena budget_item_id (el rubro)
+     */
+    public function sourceBudgetItem(): BelongsTo
     {
-        return $this->belongsTo(Budget::class, 'source_budget_id');
+        return $this->belongsTo(BudgetItem::class, 'source_budget_id');
     }
 
+    /**
+     * Rubro destino del traslado
+     * Nota: destination_budget_id ahora almacena budget_item_id (el rubro)
+     */
+    public function destinationBudgetItem(): BelongsTo
+    {
+        return $this->belongsTo(BudgetItem::class, 'destination_budget_id');
+    }
+
+    /**
+     * Mantener compatibilidad con código existente
+     * @deprecated Usar sourceBudgetItem() en su lugar
+     */
+    public function sourceBudget(): BelongsTo
+    {
+        return $this->sourceBudgetItem();
+    }
+
+    /**
+     * Mantener compatibilidad con código existente
+     * @deprecated Usar destinationBudgetItem() en su lugar
+     */
     public function destinationBudget(): BelongsTo
     {
-        return $this->belongsTo(Budget::class, 'destination_budget_id');
+        return $this->destinationBudgetItem();
     }
 
     public function sourceFundingSource(): BelongsTo

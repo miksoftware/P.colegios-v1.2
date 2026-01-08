@@ -65,6 +65,14 @@ class BudgetItem extends Model
     }
 
     /**
+     * Presupuestos asociados a este rubro
+     */
+    public function budgets(): HasMany
+    {
+        return $this->hasMany(Budget::class);
+    }
+
+    /**
      * Obtener código completo (cuenta + rubro)
      */
     public function getFullCodeAttribute(): string

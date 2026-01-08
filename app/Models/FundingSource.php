@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FundingSource extends Model
 {
@@ -13,6 +14,7 @@ class FundingSource extends Model
     protected $fillable = [
         'school_id',
         'budget_item_id',
+        'code',
         'name',
         'type',
         'description',
@@ -23,9 +25,24 @@ class FundingSource extends Model
         'is_active' => 'boolean',
     ];
 
+    /**
+     * Tipos de fuente de financiación según el Ministerio
+     */
     public const TYPES = [
-        'internal' => 'Interna',
-        'external' => 'Externa',
+        'sgp' => 'SGP - Sistema General de Participaciones',
+        'rp' => 'RP - Recursos Propios',
+        'rb' => 'RB - Recursos de Balance',
+        'other' => 'Otros',
+    ];
+
+    /**
+     * Códigos estándar del Ministerio de Educación
+     */
+    public const STANDARD_CODES = [
+        '1' => 'RP - Recursos Propios',
+        '2' => 'SGP - Sistema General de Participaciones',
+        '33' => 'RB RP - Recursos de Balance (Recursos Propios)',
+        '34' => 'RB SGP - Recursos de Balance (SGP)',
     ];
 
     protected static function getActivityModule(): string
@@ -35,39 +52,98 @@ class FundingSource extends Model
 
     protected function getLogDescription(): string
     {
-        return $this->name;
+        return "{$this->code} - {$this->name}";
     }
 
+    /**
+     * Colegio al que pertenece la fuente
+     */
     public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
     }
 
+    /**
+     * Rubro al que pertenece esta fuente de financiación
+     */
     public function budgetItem(): BelongsTo
     {
         return $this->belongsTo(BudgetItem::class);
     }
 
+    /**
+     * Presupuestos asociados a esta fuente
+     */
+    public function budgets(): HasMany
+    {
+        return $this->hasMany(Budget::class);
+    }
+
+    /**
+     * Ingresos registrados para esta fuente
+     */
+    public function incomes(): HasMany
+    {
+        return $this->hasMany(Income::class);
+    }
+
+    /**
+     * Obtener nombre del tipo
+     */
     public function getTypeNameAttribute(): string
     {
         return self::TYPES[$this->type] ?? $this->type;
     }
 
+    /**
+     * Color del badge según el tipo
+     */
     public function getTypeColorAttribute(): string
     {
-        return $this->type === 'internal'
-            ? 'bg-blue-100 text-blue-700'
-            : 'bg-purple-100 text-purple-700';
+        return match($this->type) {
+            'sgp' => 'bg-blue-100 text-blue-700',
+            'rp' => 'bg-green-100 text-green-700',
+            'rb' => 'bg-yellow-100 text-yellow-700',
+            default => 'bg-gray-100 text-gray-700',
+        };
     }
 
-    public function incomes(): \Illuminate\Database\Eloquent\Relations\HasMany
+    /**
+     * Código con nombre para mostrar en selects
+     */
+    public function getFullNameAttribute(): string
     {
-        return $this->hasMany(Income::class);
+        return "{$this->code} - {$this->name}";
     }
 
+    /**
+     * Total ejecutado (ingresos reales recibidos)
+     */
     public function getTotalExecutedAttribute(): float
     {
         return $this->incomes()->sum('amount');
+    }
+
+    /**
+     * Total presupuestado como ingreso para un año
+     */
+    public function getBudgetedIncomeForYear(int $year): float
+    {
+        return $this->budgets()
+            ->where('type', 'income')
+            ->where('fiscal_year', $year)
+            ->sum('current_amount');
+    }
+
+    /**
+     * Total presupuestado como gasto para un año
+     */
+    public function getBudgetedExpenseForYear(int $year): float
+    {
+        return $this->budgets()
+            ->where('type', 'expense')
+            ->where('fiscal_year', $year)
+            ->sum('current_amount');
     }
 
     /**
@@ -101,29 +177,46 @@ class FundingSource extends Model
         return $totalIncomes - $totalOutgoing + $totalIncoming;
     }
 
+    /**
+     * Scope para filtrar por colegio
+     */
     public function scopeForSchool($query, int $schoolId)
     {
         return $query->where('school_id', $schoolId);
     }
 
+    /**
+     * Scope para filtrar por rubro
+     */
+    public function scopeForBudgetItem($query, int $budgetItemId)
+    {
+        return $query->where('budget_item_id', $budgetItemId);
+    }
+
+    /**
+     * Scope para fuentes activas
+     */
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
     }
 
+    /**
+     * Scope para filtrar por tipo
+     */
     public function scopeByType($query, string $type)
     {
         return $query->where('type', $type);
     }
 
+    /**
+     * Scope para buscar por código o nombre
+     */
     public function scopeSearch($query, string $search)
     {
         return $query->where(function ($q) use ($search) {
-            $q->where('name', 'like', "%{$search}%")
-              ->orWhereHas('budgetItem', function ($q) use ($search) {
-                  $q->where('code', 'like', "%{$search}%")
-                    ->orWhere('name', 'like', "%{$search}%");
-              });
+            $q->where('code', 'like', "%{$search}%")
+              ->orWhere('name', 'like', "%{$search}%");
         });
     }
 }

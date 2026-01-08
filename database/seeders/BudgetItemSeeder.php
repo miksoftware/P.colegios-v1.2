@@ -11,9 +11,9 @@ class BudgetItemSeeder extends Seeder
 {
     public function run(): void
     {
-        // Obtener el primer colegio
-        $school = School::first();
-        if (!$school) {
+        // Obtener todos los colegios
+        $schools = School::all();
+        if ($schools->isEmpty()) {
             $this->command->warn('No hay colegios. Ejecuta SchoolSeeder primero.');
             return;
         }
@@ -58,27 +58,32 @@ class BudgetItemSeeder extends Seeder
             ['code' => 'INV-003', 'name' => 'Material Didáctico', 'description' => 'Adquisición de material didáctico'],
         ];
 
-        $accountIndex = 0;
         $accountCount = $auxiliaryAccounts->count();
 
-        foreach ($budgetItems as $item) {
-            // Rotar entre las cuentas auxiliares disponibles
-            $account = $auxiliaryAccounts[$accountIndex % $accountCount];
+        foreach ($schools as $school) {
+            $accountIndex = 0;
             
-            BudgetItem::firstOrCreate(
-                [
-                    'school_id' => $school->id,
-                    'code' => $item['code'],
-                ],
-                [
-                    'name' => $item['name'],
-                    'description' => $item['description'],
-                    'accounting_account_id' => $account->id,
-                    'is_active' => true,
-                ]
-            );
+            foreach ($budgetItems as $item) {
+                // Rotar entre las cuentas auxiliares disponibles
+                $account = $auxiliaryAccounts[$accountIndex % $accountCount];
+                
+                BudgetItem::firstOrCreate(
+                    [
+                        'school_id' => $school->id,
+                        'code' => $item['code'],
+                    ],
+                    [
+                        'name' => $item['name'],
+                        'description' => $item['description'],
+                        'accounting_account_id' => $account->id,
+                        'is_active' => true,
+                    ]
+                );
 
-            $accountIndex++;
+                $accountIndex++;
+            }
+            
+            $this->command->info("Rubros creados para: {$school->name}");
         }
 
         $this->command->info('Rubros presupuestales creados exitosamente.');

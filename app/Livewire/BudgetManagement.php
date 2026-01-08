@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Budget;
 use App\Models\BudgetItem;
 use App\Models\BudgetModification;
+use App\Models\FundingSource;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
@@ -20,6 +21,7 @@ class BudgetManagement extends Component
     public $filterType = '';
     public $filterYear = '';
     public $filterStatus = '';
+    public $filterFundingSource = '';
     public $perPage = 15;
 
     // Modal crear/editar presupuesto
@@ -28,8 +30,9 @@ class BudgetManagement extends Component
     public $budgetId = null;
 
     // Campos del formulario
-    public $budget_item_id = '';
     public $type = 'expense';
+    public $budget_item_id = '';
+    public $funding_source_id = '';
     public $initial_amount = '';
     public $fiscal_year = '';
     public $description = '';
@@ -51,28 +54,41 @@ class BudgetManagement extends Component
     public $showDeleteModal = false;
     public $itemToDelete = null;
 
-    // Rubros disponibles
+    // Rubros y fuentes disponibles
     public $budgetItems = [];
+    public $fundingSources = [];
 
     protected $queryString = [
         'search' => ['except' => ''],
         'filterType' => ['except' => ''],
         'filterYear' => ['except' => ''],
         'filterStatus' => ['except' => ''],
+        'filterFundingSource' => ['except' => ''],
     ];
 
     protected function rules()
     {
-        $uniqueRule = 'unique:budgets,budget_item_id';
-        if ($this->budgetId) {
-            $uniqueRule .= ',' . $this->budgetId . ',id,school_id,' . $this->schoolId . ',fiscal_year,' . $this->fiscal_year;
-        } else {
-            $uniqueRule .= ',NULL,id,school_id,' . $this->schoolId . ',fiscal_year,' . $this->fiscal_year;
-        }
+        // Validación única compuesta: rubro + fuente + año + tipo + colegio
+        $uniqueRule = function ($attribute, $value, $fail) {
+            $query = Budget::where('school_id', $this->schoolId)
+                ->where('budget_item_id', $this->budget_item_id)
+                ->where('funding_source_id', $this->funding_source_id)
+                ->where('fiscal_year', $this->fiscal_year)
+                ->where('type', $this->type);
+            
+            if ($this->budgetId) {
+                $query->where('id', '!=', $this->budgetId);
+            }
+            
+            if ($query->exists()) {
+                $fail('Ya existe un presupuesto con este rubro, fuente y tipo para el año fiscal seleccionado.');
+            }
+        };
 
         return [
-            'budget_item_id' => ['required', 'exists:budget_items,id', $uniqueRule],
             'type' => 'required|in:income,expense',
+            'budget_item_id' => ['required', 'exists:budget_items,id'],
+            'funding_source_id' => ['required', 'exists:funding_sources,id', $uniqueRule],
             'initial_amount' => 'required|numeric|min:0',
             'fiscal_year' => 'required|integer|min:2020|max:2100',
             'description' => 'nullable|string',
@@ -81,10 +97,10 @@ class BudgetManagement extends Component
     }
 
     protected $messages = [
+        'type.required' => 'Debe seleccionar el tipo (Ingreso o Gasto).',
         'budget_item_id.required' => 'Debe seleccionar un rubro.',
-        'budget_item_id.unique' => 'Ya existe un presupuesto para este rubro en el año fiscal seleccionado.',
-        'type.required' => 'Debe seleccionar el tipo.',
-        'initial_amount.required' => 'El monto inicial es obligatorio.',
+        'funding_source_id.required' => 'Debe seleccionar una fuente de financiación.',
+        'initial_amount.required' => 'El monto presupuestado es obligatorio.',
         'initial_amount.min' => 'El monto debe ser mayor o igual a 0.',
         'fiscal_year.required' => 'El año fiscal es obligatorio.',
     ];
@@ -113,6 +129,8 @@ class BudgetManagement extends Component
         $this->fiscal_year = date('Y');
         $this->filterYear = date('Y');
         $this->loadBudgetItems();
+        // Las fuentes se cargan cuando se selecciona un rubro
+        $this->fundingSources = [];
     }
 
     public function loadBudgetItems()
@@ -129,6 +147,52 @@ class BudgetManagement extends Component
             ->toArray();
     }
 
+    /**
+     * Cuando cambia el rubro seleccionado, cargar las fuentes de ese rubro
+     */
+    public function updatedBudgetItemId($value)
+    {
+        $this->funding_source_id = ''; // Reset fuente
+        $this->loadFundingSourcesForItem($value);
+    }
+
+    /**
+     * Cargar fuentes de financiación para un rubro específico
+     */
+    public function loadFundingSourcesForItem($budgetItemId)
+    {
+        if (empty($budgetItemId)) {
+            $this->fundingSources = [];
+            return;
+        }
+
+        $this->fundingSources = FundingSource::forSchool($this->schoolId)
+            ->forBudgetItem($budgetItemId)
+            ->active()
+            ->orderBy('code')
+            ->get()
+            ->map(fn($source) => [
+                'id' => $source->id,
+                'name' => "{$source->code} - {$source->name}",
+            ])
+            ->toArray();
+    }
+
+    /**
+     * @deprecated Las fuentes ahora se cargan por rubro
+     */
+    public function loadFundingSources()
+    {
+        $this->fundingSources = FundingSource::forSchool($this->schoolId)
+            ->active()
+            ->orderBy('code')
+            ->get()
+            ->map(fn($source) => [
+                'id' => $source->id,
+                'name' => "{$source->code} - {$source->name}",
+            ])
+            ->toArray();
+    }
 
     public function updatingSearch()
     {
@@ -138,17 +202,22 @@ class BudgetManagement extends Component
     public function getBudgetsProperty()
     {
         return Budget::forSchool($this->schoolId)
-            ->with(['budgetItem.accountingAccount', 'modifications'])
+            ->with(['budgetItem.accountingAccount', 'fundingSource', 'modifications'])
             ->when($this->search, fn($q) => $q->search($this->search))
             ->when($this->filterType, fn($q) => $q->byType($this->filterType))
             ->when($this->filterYear, fn($q) => $q->forYear($this->filterYear))
+            ->when($this->filterFundingSource, fn($q) => $q->byFundingSource($this->filterFundingSource))
             ->when($this->filterStatus !== '', function ($q) {
                 $q->where('is_active', $this->filterStatus === '1');
             })
+            ->orderBy('type')
             ->orderBy('created_at', 'desc')
             ->paginate($this->perPage);
     }
 
+    /**
+     * Obtener los años fiscales disponibles
+     */
     public function getAvailableYearsProperty()
     {
         $years = Budget::forSchool($this->schoolId)
@@ -163,6 +232,53 @@ class BudgetManagement extends Component
         
         rsort($years);
         return $years;
+    }
+
+    /**
+     * Calcular totales por tipo y fuente para el año seleccionado
+     */
+    public function getTotalsProperty()
+    {
+        $year = $this->filterYear ?: date('Y');
+        
+        $budgets = Budget::forSchool($this->schoolId)
+            ->forYear($year)
+            ->with('fundingSource')
+            ->get();
+
+        $totals = [
+            'income' => [],
+            'expense' => [],
+            'total_income' => 0,
+            'total_expense' => 0,
+            'balance' => 0,
+        ];
+
+        foreach ($budgets as $budget) {
+            $sourceCode = $budget->fundingSource->code ?? 'N/A';
+            $sourceName = $budget->fundingSource->name ?? 'Sin fuente';
+            
+            if (!isset($totals[$budget->type][$sourceCode])) {
+                $totals[$budget->type][$sourceCode] = [
+                    'name' => $sourceName,
+                    'initial' => 0,
+                    'current' => 0,
+                ];
+            }
+            
+            $totals[$budget->type][$sourceCode]['initial'] += $budget->initial_amount;
+            $totals[$budget->type][$sourceCode]['current'] += $budget->current_amount;
+            
+            if ($budget->type === 'income') {
+                $totals['total_income'] += $budget->current_amount;
+            } else {
+                $totals['total_expense'] += $budget->current_amount;
+            }
+        }
+
+        $totals['balance'] = $totals['total_income'] - $totals['total_expense'];
+
+        return $totals;
     }
 
     public function openCreateModal()
@@ -186,8 +302,13 @@ class BudgetManagement extends Component
         $budget = Budget::forSchool($this->schoolId)->findOrFail($id);
 
         $this->budgetId = $budget->id;
-        $this->budget_item_id = $budget->budget_item_id;
         $this->type = $budget->type;
+        $this->budget_item_id = $budget->budget_item_id;
+        
+        // Cargar las fuentes del rubro antes de asignar la fuente seleccionada
+        $this->loadFundingSourcesForItem($budget->budget_item_id);
+        
+        $this->funding_source_id = $budget->funding_source_id;
         $this->initial_amount = $budget->initial_amount;
         $this->fiscal_year = $budget->fiscal_year;
         $this->description = $budget->description;
@@ -210,6 +331,7 @@ class BudgetManagement extends Component
         $data = [
             'school_id' => $this->schoolId,
             'budget_item_id' => $this->budget_item_id,
+            'funding_source_id' => $this->funding_source_id,
             'type' => $this->type,
             'initial_amount' => $this->initial_amount,
             'current_amount' => $this->initial_amount,
@@ -246,7 +368,9 @@ class BudgetManagement extends Component
             return;
         }
 
-        $this->modificationBudget = Budget::forSchool($this->schoolId)->with('budgetItem')->findOrFail($id);
+        $this->modificationBudget = Budget::forSchool($this->schoolId)
+            ->with(['budgetItem', 'fundingSource'])
+            ->findOrFail($id);
         $this->resetModificationForm();
         $this->showModificationModal = true;
     }
@@ -306,7 +430,7 @@ class BudgetManagement extends Component
     public function openHistoryModal($id)
     {
         $this->historyBudget = Budget::forSchool($this->schoolId)
-            ->with(['budgetItem', 'modifications.creator'])
+            ->with(['budgetItem', 'fundingSource', 'modifications.creator'])
             ->findOrFail($id);
         $this->showHistoryModal = true;
     }
@@ -318,7 +442,9 @@ class BudgetManagement extends Component
             return;
         }
 
-        $this->itemToDelete = Budget::forSchool($this->schoolId)->with('budgetItem')->findOrFail($id);
+        $this->itemToDelete = Budget::forSchool($this->schoolId)
+            ->with(['budgetItem', 'fundingSource'])
+            ->findOrFail($id);
         $this->showDeleteModal = true;
     }
 
@@ -380,8 +506,9 @@ class BudgetManagement extends Component
     public function resetForm()
     {
         $this->budgetId = null;
-        $this->budget_item_id = '';
         $this->type = 'expense';
+        $this->budget_item_id = '';
+        $this->funding_source_id = '';
         $this->initial_amount = '';
         $this->fiscal_year = date('Y');
         $this->description = '';
@@ -401,7 +528,7 @@ class BudgetManagement extends Component
 
     public function clearFilters()
     {
-        $this->reset(['search', 'filterType', 'filterStatus']);
+        $this->reset(['search', 'filterType', 'filterStatus', 'filterFundingSource']);
         $this->filterYear = date('Y');
         $this->resetPage();
     }

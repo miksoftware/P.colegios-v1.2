@@ -14,6 +14,7 @@ class Budget extends Model
     protected $fillable = [
         'school_id',
         'budget_item_id',
+        'funding_source_id',
         'type',
         'initial_amount',
         'current_amount',
@@ -41,7 +42,8 @@ class Budget extends Model
 
     protected function getLogDescription(): string
     {
-        return "{$this->budgetItem->code} - {$this->budgetItem->name}";
+        $fundingSource = $this->fundingSource ? " [{$this->fundingSource->code}]" : '';
+        return "{$this->budgetItem->code} - {$this->budgetItem->name}{$fundingSource}";
     }
 
     public function school(): BelongsTo
@@ -52,6 +54,14 @@ class Budget extends Model
     public function budgetItem(): BelongsTo
     {
         return $this->belongsTo(BudgetItem::class);
+    }
+
+    /**
+     * Fuente de financiación asociada
+     */
+    public function fundingSource(): BelongsTo
+    {
+        return $this->belongsTo(FundingSource::class);
     }
 
     public function modifications(): HasMany
@@ -150,9 +160,22 @@ class Budget extends Model
 
     public function scopeSearch($query, string $search)
     {
-        return $query->whereHas('budgetItem', function ($q) use ($search) {
-            $q->where('code', 'like', "%{$search}%")
-              ->orWhere('name', 'like', "%{$search}%");
+        return $query->where(function ($q) use ($search) {
+            $q->whereHas('budgetItem', function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%");
+            })->orWhereHas('fundingSource', function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%");
+            });
         });
+    }
+
+    /**
+     * Scope para filtrar por fuente de financiación
+     */
+    public function scopeByFundingSource($query, int $fundingSourceId)
+    {
+        return $query->where('funding_source_id', $fundingSourceId);
     }
 }

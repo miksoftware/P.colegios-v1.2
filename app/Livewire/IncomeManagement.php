@@ -23,15 +23,15 @@ class IncomeManagement extends Component
     public $filterYear = '';
     public $filterBudgetItem = '';
     public $filterSource = '';
-    public $filterStatus = ''; // all, pending, partial, completed
+    public $filterStatus = '';
     public $perPage = 15;
 
-    // Modal Crear/Editar
+    // Modal Crear/Editar Ingreso
     public $showModal = false;
     public $isEditing = false;
     public $incomeId = null;
 
-    // Formulario
+    // Formulario Ingreso
     public $budget_item_id = '';
     public $funding_source_id = '';
     public $name = '';
@@ -43,17 +43,21 @@ class IncomeManagement extends Component
 
     // Info del presupuesto seleccionado
     public $selectedBudgetInfo = null;
-    public $adjustmentType = null; // 'addition', 'reduction', null
-    public $adjustmentAmount = 0;
-    public $showAdjustmentWarning = false;
+    public $exceedsAmount = 0;
+    public $showExceedsWarning = false;
 
     // Modal Confirmación Eliminar
     public $showDeleteModal = false;
     public $itemToDelete = null;
 
-    // Modal Marcar como Completado
+    // Modal Marcar como Completado (reducción)
     public $showCompleteModal = false;
     public $budgetToComplete = null;
+
+    // Modal Aplicar Adición Pendiente
+    public $showAdditionModal = false;
+    public $budgetForAddition = null;
+    public $additionReason = '';
 
     // Listas para selects
     public $budgetItems = [];
@@ -92,7 +96,7 @@ class IncomeManagement extends Component
 
     public function mount()
     {
-        abort_if(!auth()->user()->can('incomes.view'), 403, 'No tienes permisos para ver ingresos.');
+        abort_if(!auth()->user()->can('incomes.view'), 403);
         
         $this->schoolId = session('selected_school_id');
         
@@ -118,7 +122,6 @@ class IncomeManagement extends Component
 
     public function loadBudgetItems()
     {
-        // Cargar rubros que tienen presupuesto de ingreso para el año seleccionado
         $this->budgetItems = BudgetItem::forSchool($this->schoolId)
             ->active()
             ->whereHas('budgets', function($q) {
@@ -134,20 +137,14 @@ class IncomeManagement extends Component
             ->toArray();
     }
 
-    /**
-     * Cuando cambia el rubro seleccionado, cargar las fuentes de ese rubro con presupuesto de ingreso
-     */
     public function updatedBudgetItemId($value)
     {
         $this->funding_source_id = '';
         $this->selectedBudgetInfo = null;
-        $this->resetAdjustmentInfo();
+        $this->resetExceedsInfo();
         $this->loadFundingSourcesForItem($value);
     }
 
-    /**
-     * Cargar fuentes de financiación para un rubro específico que tengan presupuesto de ingreso
-     */
     public function loadFundingSourcesForItem($budgetItemId)
     {
         if (empty($budgetItemId)) {
@@ -185,13 +182,10 @@ class IncomeManagement extends Component
             ->toArray();
     }
 
-    /**
-     * Cuando cambia la fuente seleccionada, mostrar info del presupuesto
-     */
     public function updatedFundingSourceId($value)
     {
         $this->selectedBudgetInfo = null;
-        $this->resetAdjustmentInfo();
+        $this->resetExceedsInfo();
         
         if (empty($value)) return;
         
@@ -210,7 +204,6 @@ class IncomeManagement extends Component
                 ->whereYear('date', $this->filterYear)
                 ->sum('amount');
             
-            // Si estamos editando, excluir el ingreso actual del total recaudado
             if ($this->isEditing && $this->incomeId) {
                 $currentIncome = Income::find($this->incomeId);
                 if ($currentIncome && $currentIncome->funding_source_id == $value) {
@@ -225,57 +218,41 @@ class IncomeManagement extends Component
                 'pending' => (float) $budget->current_amount - (float) $collected,
             ];
             
-            // Autocompletar nombre con la fuente
             if (empty($this->name)) {
                 $this->name = "Recaudo {$fundingSource->name}";
             }
         }
     }
 
-    /**
-     * Cuando cambia el monto, calcular si hay ajuste necesario
-     */
     public function updatedAmount($value)
     {
-        $this->calculateAdjustment();
+        $this->calculateExceeds();
     }
 
-    /**
-     * Calcular si el ingreso generará una adición o reducción
-     */
-    public function calculateAdjustment()
+    public function calculateExceeds()
     {
-        $this->resetAdjustmentInfo();
+        $this->resetExceedsInfo();
         
         if (!$this->selectedBudgetInfo || empty($this->amount)) return;
         
         $amount = (float) $this->amount;
         $pending = $this->selectedBudgetInfo['pending'];
         
-        // Si el monto es mayor al pendiente → se necesita ADICIÓN
+        // Si el monto supera lo pendiente, calcular el exceso
         if ($amount > $pending && $pending >= 0) {
-            $this->adjustmentType = 'addition';
-            $this->adjustmentAmount = $amount - $pending;
-            $this->showAdjustmentWarning = true;
-        }
-        // Si el pendiente es positivo y el monto es menor, verificamos si después quedará pendiente
-        // No se requiere ajuste inmediato, solo al final cuando se complete todo
-        // Sin embargo, si el usuario ingresa un monto negativo de pendiente (ya recaudó más de lo presupuestado)
-        // o si está haciendo un ajuste parcial con monto menor
-        elseif ($pending < 0) {
-            // Ya se recaudó más de lo presupuestado, el presupuesto ya debería estar ajustado
-            $this->showAdjustmentWarning = false;
-        }
-        else {
-            $this->showAdjustmentWarning = false;
+            $this->exceedsAmount = $amount - $pending;
+            $this->showExceedsWarning = true;
+        } elseif ($pending < 0) {
+            // Ya hay exceso previo
+            $this->exceedsAmount = $amount;
+            $this->showExceedsWarning = true;
         }
     }
 
-    public function resetAdjustmentInfo()
+    public function resetExceedsInfo()
     {
-        $this->adjustmentType = null;
-        $this->adjustmentAmount = 0;
-        $this->showAdjustmentWarning = false;
+        $this->exceedsAmount = 0;
+        $this->showExceedsWarning = false;
     }
 
     public function updatingSearch() { $this->resetPage(); }
@@ -300,10 +277,12 @@ class IncomeManagement extends Component
                     ->whereYear('date', $this->filterYear)
                     ->sum('amount');
                 
-                $pending = $budget->current_amount - $collected;
-                $percentage = $budget->current_amount > 0 
-                    ? round(($collected / $budget->current_amount) * 100, 1) 
-                    : 0;
+                $budgeted = (float) $budget->current_amount;
+                $pending = $budgeted - $collected;
+                $percentage = $budgeted > 0 ? round(($collected / $budgeted) * 100, 1) : 0;
+                
+                // Calcular si hay adición pendiente (recaudado > presupuestado)
+                $pendingAddition = $collected > $budgeted ? $collected - $budgeted : 0;
                 
                 // Determinar estado
                 if ($collected == 0) {
@@ -319,18 +298,20 @@ class IncomeManagement extends Component
                     $statusLabel = 'Completo';
                     $statusColor = 'bg-green-100 text-green-700';
                 } else {
+                    // Recaudado > Presupuestado = Adición pendiente
                     $status = 'exceeded';
-                    $statusLabel = 'Excedido';
-                    $statusColor = 'bg-purple-100 text-purple-700';
+                    $statusLabel = 'Adición Pendiente';
+                    $statusColor = 'bg-orange-100 text-orange-700';
                 }
                 
                 return [
                     'id' => $budget->id,
                     'budget_item' => $budget->budgetItem,
                     'funding_source' => $budget->fundingSource,
-                    'budgeted' => (float) $budget->current_amount,
+                    'budgeted' => $budgeted,
                     'collected' => (float) $collected,
                     'pending' => (float) $pending,
+                    'pending_addition' => $pendingAddition,
                     'percentage' => $percentage,
                     'status' => $status,
                     'status_label' => $statusLabel,
@@ -344,7 +325,7 @@ class IncomeManagement extends Component
                 return $collection->filter(fn($item) => $item['budget_item']->id == $this->filterBudgetItem);
             })
             ->sortBy([
-                ['status', 'asc'], // Pendientes primero
+                ['status', 'asc'],
                 ['budget_item.code', 'asc'],
             ])
             ->values();
@@ -364,24 +345,23 @@ class IncomeManagement extends Component
 
     public function getSummaryProperty()
     {
-        // 1. Total Ingresos Presupuestados (Rubros tipo Income)
         $totalBudgeted = Budget::forSchool($this->schoolId)
             ->forYear($this->filterYear)
             ->byType('income')
             ->sum('current_amount');
 
-        // 2. Total Ejecutado (Recaudado)
         $totalExecuted = Income::forSchool($this->schoolId)
             ->forYear($this->filterYear)
             ->sum('amount');
 
         $percentage = $totalBudgeted > 0 ? ($totalExecuted / $totalBudgeted) * 100 : 0;
 
-        // 3. Contar estados
         $pendingBudgets = $this->pendingBudgets;
         $countPending = $pendingBudgets->where('status', 'pending')->count();
         $countPartial = $pendingBudgets->where('status', 'partial')->count();
         $countCompleted = $pendingBudgets->where('status', 'completed')->count();
+        $countExceeded = $pendingBudgets->where('status', 'exceeded')->count();
+        $totalPendingAddition = $pendingBudgets->sum('pending_addition');
 
         return [
             'budgeted' => $totalBudgeted,
@@ -391,6 +371,8 @@ class IncomeManagement extends Component
             'count_pending' => $countPending,
             'count_partial' => $countPartial,
             'count_completed' => $countCompleted,
+            'count_exceeded' => $countExceeded,
+            'total_pending_addition' => $totalPendingAddition,
         ];
     }
 
@@ -419,9 +401,6 @@ class IncomeManagement extends Component
         return $years;
     }
 
-    /**
-     * Abrir modal desde la tabla de pendientes
-     */
     public function registerIncomeFor($budgetId)
     {
         if (!auth()->user()->can('incomes.create')) {
@@ -436,11 +415,6 @@ class IncomeManagement extends Component
         $this->loadFundingSourcesForItem($budget->budget_item_id);
         $this->funding_source_id = $budget->funding_source_id;
         $this->updatedFundingSourceId($budget->funding_source_id);
-        
-        // Sugerir el monto pendiente
-        if ($this->selectedBudgetInfo && $this->selectedBudgetInfo['pending'] > 0) {
-            $this->amount = $this->selectedBudgetInfo['pending'];
-        }
         
         $this->showModal = true;
     }
@@ -467,10 +441,7 @@ class IncomeManagement extends Component
         
         $this->incomeId = $income->id;
         $this->budget_item_id = $income->fundingSource->budget_item_id;
-        
-        // Cargar las fuentes del rubro antes de asignar la fuente seleccionada
         $this->loadFundingSourcesForItem($income->fundingSource->budget_item_id);
-        
         $this->funding_source_id = $income->funding_source_id;
         $this->name = $income->name;
         $this->description = $income->description;
@@ -480,10 +451,8 @@ class IncomeManagement extends Component
         $this->transaction_reference = $income->transaction_reference;
 
         $this->isEditing = true;
-        
-        // Calcular info del presupuesto
         $this->updatedFundingSourceId($income->funding_source_id);
-        $this->calculateAdjustment();
+        $this->calculateExceeds();
         
         $this->showModal = true;
     }
@@ -517,43 +486,13 @@ class IncomeManagement extends Component
                 $message = 'Ingreso actualizado exitosamente.';
             } else {
                 $data['created_by'] = auth()->id();
-                $income = Income::create($data);
+                Income::create($data);
                 $message = 'Ingreso registrado exitosamente.';
             }
 
-            // Si hay ajuste necesario, crear la modificación presupuestal
-            if ($this->showAdjustmentWarning && $this->adjustmentType && $this->adjustmentAmount > 0 && $this->selectedBudgetInfo) {
-                $budget = Budget::find($this->selectedBudgetInfo['budget_id']);
-                
-                if ($budget) {
-                    $previousAmount = $budget->current_amount;
-                    $newAmount = $this->adjustmentType === 'addition' 
-                        ? $previousAmount + $this->adjustmentAmount
-                        : $previousAmount - $this->adjustmentAmount;
-                    
-                    // Crear modificación presupuestal
-                    BudgetModification::create([
-                        'budget_id' => $budget->id,
-                        'modification_number' => $budget->getNextModificationNumber(),
-                        'type' => $this->adjustmentType,
-                        'amount' => $this->adjustmentAmount,
-                        'previous_amount' => $previousAmount,
-                        'new_amount' => $newAmount,
-                        'reason' => "Ajuste automático por registro de ingreso real. " . 
-                                   ($this->adjustmentType === 'addition' 
-                                       ? "Ingreso mayor al presupuestado." 
-                                       : "Ingreso menor al presupuestado."),
-                        'document_number' => $this->transaction_reference,
-                        'document_date' => $this->date,
-                        'created_by' => auth()->id(),
-                    ]);
-                    
-                    // Recalcular el presupuesto
-                    $budget->recalculateCurrentAmount();
-                    
-                    $adjustmentTypeName = $this->adjustmentType === 'addition' ? 'adición' : 'reducción';
-                    $message .= " Se realizó una {$adjustmentTypeName} de $" . number_format($this->adjustmentAmount, 0, ',', '.') . " al presupuesto.";
-                }
+            // NO crear adición automática - solo informar si hay exceso
+            if ($this->showExceedsWarning && $this->exceedsAmount > 0) {
+                $message .= ' ⚠️ El recaudo excede el presupuesto. Recuerde aplicar la adición cuando sea aprobada.';
             }
 
             DB::commit();
@@ -564,6 +503,113 @@ class IncomeManagement extends Component
             DB::rollBack();
             $this->dispatch('toast', message: 'Error al guardar: ' . $e->getMessage(), type: 'error');
         }
+    }
+
+    /**
+     * Abrir modal para aplicar adición pendiente
+     */
+    public function openAdditionModal($budgetId)
+    {
+        if (!auth()->user()->can('budgets.modify')) {
+            $this->dispatch('toast', message: 'No tienes permisos para modificar presupuestos.', type: 'error');
+            return;
+        }
+
+        $budget = Budget::forSchool($this->schoolId)
+            ->with(['budgetItem', 'fundingSource'])
+            ->findOrFail($budgetId);
+
+        $collected = Income::forSchool($this->schoolId)
+            ->where('funding_source_id', $budget->funding_source_id)
+            ->whereYear('date', $this->filterYear)
+            ->sum('amount');
+
+        $pendingAddition = $collected - $budget->current_amount;
+
+        if ($pendingAddition <= 0) {
+            $this->dispatch('toast', message: 'No hay adición pendiente para este presupuesto.', type: 'info');
+            return;
+        }
+
+        $this->budgetForAddition = [
+            'id' => $budget->id,
+            'budget_item_code' => $budget->budgetItem->code,
+            'budget_item_name' => $budget->budgetItem->name,
+            'funding_source_code' => $budget->fundingSource->code,
+            'funding_source_name' => $budget->fundingSource->name,
+            'current_budgeted' => (float) $budget->current_amount,
+            'collected' => (float) $collected,
+            'pending_addition' => $pendingAddition,
+        ];
+
+        $this->additionReason = '';
+        $this->showAdditionModal = true;
+    }
+
+    /**
+     * Aplicar la adición pendiente al presupuesto
+     */
+    public function applyAddition()
+    {
+        if (!auth()->user()->can('budgets.modify')) {
+            $this->dispatch('toast', message: 'No tienes permisos para modificar presupuestos.', type: 'error');
+            return;
+        }
+
+        $this->validate([
+            'additionReason' => 'required|string|min:10',
+        ], [
+            'additionReason.required' => 'Debe ingresar una justificación para la adición.',
+            'additionReason.min' => 'La justificación debe tener al menos 10 caracteres.',
+        ]);
+
+        if (!$this->budgetForAddition) {
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
+            $budget = Budget::forSchool($this->schoolId)->findOrFail($this->budgetForAddition['id']);
+            $additionAmount = $this->budgetForAddition['pending_addition'];
+
+            $previousAmount = $budget->current_amount;
+            $newAmount = $previousAmount + $additionAmount;
+
+            BudgetModification::create([
+                'budget_id' => $budget->id,
+                'modification_number' => $budget->getNextModificationNumber(),
+                'type' => 'addition',
+                'amount' => $additionAmount,
+                'previous_amount' => $previousAmount,
+                'new_amount' => $newAmount,
+                'reason' => $this->additionReason,
+                'document_number' => null,
+                'document_date' => now(),
+                'created_by' => auth()->id(),
+            ]);
+
+            $budget->recalculateCurrentAmount();
+
+            DB::commit();
+
+            $this->dispatch('toast', 
+                message: "Adición de $" . number_format($additionAmount, 0, ',', '.') . " aplicada exitosamente.", 
+                type: 'success'
+            );
+
+            $this->closeAdditionModal();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error al procesar: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function closeAdditionModal()
+    {
+        $this->showAdditionModal = false;
+        $this->budgetForAddition = null;
+        $this->additionReason = '';
     }
 
     public function confirmDelete($id)
@@ -600,7 +646,7 @@ class IncomeManagement extends Component
     }
 
     /**
-     * Mostrar modal para marcar presupuesto como completado
+     * Mostrar modal para marcar presupuesto como completado (reducción)
      */
     public function confirmComplete($budgetId)
     {
@@ -613,7 +659,6 @@ class IncomeManagement extends Component
             ->with(['budgetItem', 'fundingSource'])
             ->findOrFail($budgetId);
 
-        // Calcular el monto pendiente
         $collected = Income::forSchool($this->schoolId)
             ->where('funding_source_id', $budget->funding_source_id)
             ->whereYear('date', $this->filterYear)
@@ -622,7 +667,7 @@ class IncomeManagement extends Component
         $pending = $budget->current_amount - $collected;
 
         if ($pending <= 0) {
-            $this->dispatch('toast', message: 'Este presupuesto ya está completo.', type: 'info');
+            $this->dispatch('toast', message: 'Este presupuesto ya está completo o excedido.', type: 'info');
             return;
         }
 
@@ -640,9 +685,6 @@ class IncomeManagement extends Component
         $this->showCompleteModal = true;
     }
 
-    /**
-     * Marcar presupuesto como completado creando una reducción
-     */
     public function markAsComplete()
     {
         if (!auth()->user()->can('budgets.modify')) {
@@ -659,7 +701,6 @@ class IncomeManagement extends Component
             $budget = Budget::forSchool($this->schoolId)->findOrFail($this->budgetToComplete['id']);
             $pendingAmount = $this->budgetToComplete['pending'];
 
-            // Crear la modificación de reducción
             $previousAmount = $budget->current_amount;
             $newAmount = $previousAmount - $pendingAmount;
 
@@ -678,13 +719,12 @@ class IncomeManagement extends Component
                 'created_by' => auth()->id(),
             ]);
 
-            // Recalcular el presupuesto
             $budget->recalculateCurrentAmount();
 
             DB::commit();
 
             $this->dispatch('toast', 
-                message: "Presupuesto marcado como completo. Se aplicó una reducción de $" . number_format($pendingAmount, 0, ',', '.'), 
+                message: "Presupuesto cerrado. Se aplicó una reducción de $" . number_format($pendingAmount, 0, ',', '.'), 
                 type: 'success'
             );
 
@@ -696,9 +736,6 @@ class IncomeManagement extends Component
         }
     }
 
-    /**
-     * Cerrar modal de completar
-     */
     public function closeCompleteModal()
     {
         $this->showCompleteModal = false;
@@ -719,7 +756,7 @@ class IncomeManagement extends Component
         $this->fundingSources = [];
         $this->selectedBudgetInfo = null;
         $this->isEditing = false;
-        $this->resetAdjustmentInfo();
+        $this->resetExceedsInfo();
         $this->resetValidation();
     }
 

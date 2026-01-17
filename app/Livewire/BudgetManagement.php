@@ -9,36 +9,32 @@ use App\Models\FundingSource;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class BudgetManagement extends Component
 {
     use WithPagination;
 
     public $schoolId;
-
-    // Búsqueda y filtros
     public $search = '';
-    public $filterType = '';
     public $filterYear = '';
     public $filterStatus = '';
     public $filterFundingSource = '';
-    public $perPage = 15;
+    public $perPage = 10;
 
-    // Modal crear/editar presupuesto
     public $showModal = false;
     public $isEditing = false;
     public $budgetId = null;
-
-    // Campos del formulario
-    public $type = 'expense';
     public $budget_item_id = '';
-    public $funding_source_id = '';
     public $initial_amount = '';
     public $fiscal_year = '';
     public $description = '';
     public $is_active = true;
+    public $useMultipleSources = false;
+    public $selectedFundingSourceId = '';
+    public $fundingSourceAmounts = [];
 
-    // Modal de modificación
     public $showModificationModal = false;
     public $modificationBudget = null;
     public $modification_type = 'addition';
@@ -46,21 +42,18 @@ class BudgetManagement extends Component
     public $modification_reason = '';
     public $modification_document_number = '';
 
-    // Modal de historial
     public $showHistoryModal = false;
     public $historyBudget = null;
 
-    // Modal de eliminación
     public $showDeleteModal = false;
     public $itemToDelete = null;
 
-    // Rubros y fuentes disponibles
     public $budgetItems = [];
     public $fundingSources = [];
+    public $allFundingSources = [];
 
     protected $queryString = [
         'search' => ['except' => ''],
-        'filterType' => ['except' => ''],
         'filterYear' => ['except' => ''],
         'filterStatus' => ['except' => ''],
         'filterFundingSource' => ['except' => ''],
@@ -68,46 +61,34 @@ class BudgetManagement extends Component
 
     protected function rules()
     {
-        // Validación única compuesta: rubro + fuente + año + tipo + colegio
-        $uniqueRule = function ($attribute, $value, $fail) {
-            $query = Budget::where('school_id', $this->schoolId)
-                ->where('budget_item_id', $this->budget_item_id)
-                ->where('funding_source_id', $this->funding_source_id)
-                ->where('fiscal_year', $this->fiscal_year)
-                ->where('type', $this->type);
-            
-            if ($this->budgetId) {
-                $query->where('id', '!=', $this->budgetId);
-            }
-            
-            if ($query->exists()) {
-                $fail('Ya existe un presupuesto con este rubro, fuente y tipo para el año fiscal seleccionado.');
-            }
-        };
-
-        return [
-            'type' => 'required|in:income,expense',
-            'budget_item_id' => ['required', 'exists:budget_items,id'],
-            'funding_source_id' => ['required', 'exists:funding_sources,id', $uniqueRule],
-            'initial_amount' => 'required|numeric|min:0',
+        $rules = [
+            'budget_item_id' => 'required|exists:budget_items,id',
+            'initial_amount' => 'required|numeric|min:0.01',
             'fiscal_year' => 'required|integer|min:2020|max:2100',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
         ];
+
+        if ($this->useMultipleSources && !$this->isEditing) {
+            $rules['fundingSourceAmounts'] = 'required|array|min:1';
+        } else {
+            $rules['selectedFundingSourceId'] = 'required|exists:funding_sources,id';
+        }
+
+        return $rules;
     }
 
     protected $messages = [
-        'type.required' => 'Debe seleccionar el tipo (Ingreso o Gasto).',
         'budget_item_id.required' => 'Debe seleccionar un rubro.',
-        'funding_source_id.required' => 'Debe seleccionar una fuente de financiación.',
         'initial_amount.required' => 'El monto presupuestado es obligatorio.',
-        'initial_amount.min' => 'El monto debe ser mayor o igual a 0.',
+        'initial_amount.min' => 'El monto debe ser mayor a 0.',
         'fiscal_year.required' => 'El año fiscal es obligatorio.',
+        'selectedFundingSourceId.required' => 'Debe seleccionar una fuente de financiación.',
     ];
 
     public function mount()
     {
-        abort_if(!auth()->user()->can('budgets.view'), 403, 'No tienes permisos para ver presupuestos.');
+        abort_if(!auth()->user()->can('budgets.view'), 403);
         
         $this->schoolId = session('selected_school_id');
         
@@ -126,39 +107,42 @@ class BudgetManagement extends Component
             }
         }
 
+        // Asegurar que schoolId sea un entero
+        $this->schoolId = (int) $this->schoolId;
+
         $this->fiscal_year = date('Y');
         $this->filterYear = date('Y');
         $this->loadBudgetItems();
-        // Las fuentes se cargan cuando se selecciona un rubro
-        $this->fundingSources = [];
+        $this->loadAllFundingSources();
     }
 
     public function loadBudgetItems()
     {
         $this->budgetItems = BudgetItem::forSchool($this->schoolId)
             ->active()
-            ->with('accountingAccount')
             ->orderBy('code')
             ->get()
-            ->map(fn($item) => [
-                'id' => $item->id,
-                'name' => "{$item->code} - {$item->name}",
-            ])
+            ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
             ->toArray();
     }
 
-    /**
-     * Cuando cambia el rubro seleccionado, cargar las fuentes de ese rubro
-     */
+    public function loadAllFundingSources()
+    {
+        $this->allFundingSources = FundingSource::forSchool($this->schoolId)
+            ->active()
+            ->orderBy('code')
+            ->get()
+            ->map(fn($s) => ['id' => $s->id, 'name' => "{$s->code} - {$s->name}"])
+            ->toArray();
+    }
+
     public function updatedBudgetItemId($value)
     {
-        $this->funding_source_id = ''; // Reset fuente
+        $this->selectedFundingSourceId = '';
+        $this->fundingSourceAmounts = [];
         $this->loadFundingSourcesForItem($value);
     }
 
-    /**
-     * Cargar fuentes de financiación para un rubro específico
-     */
     public function loadFundingSourcesForItem($budgetItemId)
     {
         if (empty($budgetItemId)) {
@@ -171,27 +155,20 @@ class BudgetManagement extends Component
             ->active()
             ->orderBy('code')
             ->get()
-            ->map(fn($source) => [
-                'id' => $source->id,
-                'name' => "{$source->code} - {$source->name}",
+            ->map(fn($s) => [
+                'id' => $s->id,
+                'code' => $s->code,
+                'name' => $s->name,
+                'full_name' => "{$s->code} - {$s->name}",
+                'type' => $s->type,
+                'type_name' => $s->type_name,
             ])
             ->toArray();
-    }
 
-    /**
-     * @deprecated Las fuentes ahora se cargan por rubro
-     */
-    public function loadFundingSources()
-    {
-        $this->fundingSources = FundingSource::forSchool($this->schoolId)
-            ->active()
-            ->orderBy('code')
-            ->get()
-            ->map(fn($source) => [
-                'id' => $source->id,
-                'name' => "{$source->code} - {$source->name}",
-            ])
-            ->toArray();
+        $this->fundingSourceAmounts = [];
+        foreach ($this->fundingSources as $source) {
+            $this->fundingSourceAmounts[$source['id']] = '';
+        }
     }
 
     public function updatingSearch()
@@ -199,85 +176,96 @@ class BudgetManagement extends Component
         $this->resetPage();
     }
 
-    public function getBudgetsProperty()
+    public function getGroupedBudgetsProperty()
     {
-        return Budget::forSchool($this->schoolId)
-            ->with(['budgetItem.accountingAccount', 'fundingSource', 'modifications'])
-            ->when($this->search, fn($q) => $q->search($this->search))
-            ->when($this->filterType, fn($q) => $q->byType($this->filterType))
-            ->when($this->filterYear, fn($q) => $q->forYear($this->filterYear))
-            ->when($this->filterFundingSource, fn($q) => $q->byFundingSource($this->filterFundingSource))
-            ->when($this->filterStatus !== '', function ($q) {
-                $q->where('is_active', $this->filterStatus === '1');
-            })
+        // Asegurar que schoolId esté establecido
+        if (!$this->schoolId) {
+            return new LengthAwarePaginator(collect([]), 0, $this->perPage, 1, [
+                'path' => request()->url(),
+                'pageName' => 'page',
+            ]);
+        }
+
+        $query = Budget::where('school_id', $this->schoolId)
+            ->with(['budgetItem', 'fundingSource', 'modifications']);
+        
+        if ($this->search) {
+            $query->search($this->search);
+        }
+        
+        if ($this->filterYear) {
+            $query->where('fiscal_year', (int) $this->filterYear);
+        }
+        
+        if ($this->filterFundingSource) {
+            $query->where('funding_source_id', (int) $this->filterFundingSource);
+        }
+        
+        if ($this->filterStatus !== '') {
+            $query->where('is_active', $this->filterStatus === '1');
+        }
+        
+        $budgets = $query->orderBy('budget_item_id')
+            ->orderBy('funding_source_id')
             ->orderBy('type')
-            ->orderBy('created_at', 'desc')
-            ->paginate($this->perPage);
+            ->get();
+
+        $grouped = [];
+        foreach ($budgets as $budget) {
+            $key = $budget->budget_item_id . '-' . $budget->funding_source_id;
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'key' => $key,
+                    'budget_item' => $budget->budgetItem,
+                    'funding_source' => $budget->fundingSource,
+                    'fiscal_year' => $budget->fiscal_year,
+                    'income' => null,
+                    'expense' => null,
+                ];
+            }
+            $grouped[$key][$budget->type] = $budget;
+        }
+
+        $collection = collect($grouped)->values();
+        
+        $page = (int) request()->get('page', 1);
+        if ($page < 1) $page = 1;
+        
+        $total = $collection->count();
+        $offset = ($page - 1) * $this->perPage;
+        $items = $collection->slice($offset, $this->perPage)->values();
+        
+        return new LengthAwarePaginator($items, $total, $this->perPage, $page, [
+            'path' => request()->url(),
+            'pageName' => 'page',
+        ]);
     }
 
-    /**
-     * Obtener los años fiscales disponibles
-     */
     public function getAvailableYearsProperty()
     {
-        $years = Budget::forSchool($this->schoolId)
-            ->distinct()
-            ->pluck('fiscal_year')
-            ->toArray();
-        
+        $years = Budget::forSchool($this->schoolId)->distinct()->pluck('fiscal_year')->toArray();
         $currentYear = (int) date('Y');
         if (!in_array($currentYear, $years)) {
             $years[] = $currentYear;
         }
-        
         rsort($years);
         return $years;
     }
 
-    /**
-     * Calcular totales por tipo y fuente para el año seleccionado
-     */
     public function getTotalsProperty()
     {
         $year = $this->filterYear ?: date('Y');
-        
-        $budgets = Budget::forSchool($this->schoolId)
-            ->forYear($year)
-            ->with('fundingSource')
-            ->get();
+        $budgets = Budget::forSchool($this->schoolId)->forYear($year)->get();
 
-        $totals = [
-            'income' => [],
-            'expense' => [],
-            'total_income' => 0,
-            'total_expense' => 0,
-            'balance' => 0,
-        ];
-
+        $totals = ['total_income' => 0, 'total_expense' => 0, 'balance' => 0];
         foreach ($budgets as $budget) {
-            $sourceCode = $budget->fundingSource->code ?? 'N/A';
-            $sourceName = $budget->fundingSource->name ?? 'Sin fuente';
-            
-            if (!isset($totals[$budget->type][$sourceCode])) {
-                $totals[$budget->type][$sourceCode] = [
-                    'name' => $sourceName,
-                    'initial' => 0,
-                    'current' => 0,
-                ];
-            }
-            
-            $totals[$budget->type][$sourceCode]['initial'] += $budget->initial_amount;
-            $totals[$budget->type][$sourceCode]['current'] += $budget->current_amount;
-            
             if ($budget->type === 'income') {
                 $totals['total_income'] += $budget->current_amount;
             } else {
                 $totals['total_expense'] += $budget->current_amount;
             }
         }
-
         $totals['balance'] = $totals['total_income'] - $totals['total_expense'];
-
         return $totals;
     }
 
@@ -287,7 +275,6 @@ class BudgetManagement extends Component
             $this->dispatch('toast', message: 'No tienes permisos para crear presupuestos.', type: 'error');
             return;
         }
-
         $this->resetForm();
         $this->showModal = true;
     }
@@ -300,20 +287,15 @@ class BudgetManagement extends Component
         }
 
         $budget = Budget::forSchool($this->schoolId)->findOrFail($id);
-
         $this->budgetId = $budget->id;
-        $this->type = $budget->type;
         $this->budget_item_id = $budget->budget_item_id;
-        
-        // Cargar las fuentes del rubro antes de asignar la fuente seleccionada
         $this->loadFundingSourcesForItem($budget->budget_item_id);
-        
-        $this->funding_source_id = $budget->funding_source_id;
+        $this->selectedFundingSourceId = $budget->funding_source_id;
         $this->initial_amount = $budget->initial_amount;
         $this->fiscal_year = $budget->fiscal_year;
         $this->description = $budget->description;
         $this->is_active = $budget->is_active;
-
+        $this->useMultipleSources = false;
         $this->isEditing = true;
         $this->showModal = true;
     }
@@ -328,39 +310,121 @@ class BudgetManagement extends Component
 
         $this->validate();
 
-        $data = [
-            'school_id' => $this->schoolId,
-            'budget_item_id' => $this->budget_item_id,
-            'funding_source_id' => $this->funding_source_id,
-            'type' => $this->type,
-            'initial_amount' => $this->initial_amount,
-            'current_amount' => $this->initial_amount,
-            'fiscal_year' => $this->fiscal_year,
-            'description' => $this->description,
-            'is_active' => $this->is_active,
-        ];
+        if ($this->useMultipleSources && !$this->isEditing) {
+            $totalAssigned = collect($this->fundingSourceAmounts)
+                ->filter(fn($a) => is_numeric($a) && $a > 0)
+                ->sum();
+            $totalBudget = (float) $this->initial_amount;
+            
+            if (abs($totalAssigned - $totalBudget) > 0.01) {
+                $this->addError('fundingSourceAmounts', 
+                    'La suma ($' . number_format($totalAssigned, 2) . ') debe ser igual al monto total ($' . number_format($totalBudget, 2) . ').');
+                return;
+            }
+
+            if ($totalAssigned <= 0) {
+                $this->addError('fundingSourceAmounts', 'Debe asignar monto a al menos una fuente.');
+                return;
+            }
+        }
 
         if ($this->isEditing) {
-            $budget = Budget::forSchool($this->schoolId)->findOrFail($this->budgetId);
-            
-            // Si cambia el monto inicial, recalcular el actual
-            if ($budget->initial_amount != $this->initial_amount) {
-                $data['current_amount'] = $this->initial_amount + $budget->total_additions - $budget->total_reductions;
-            } else {
-                unset($data['current_amount']);
-            }
-            
-            $budget->update($data);
-            $this->dispatch('toast', message: 'Presupuesto actualizado exitosamente.', type: 'success');
+            $this->updateBudget();
         } else {
-            Budget::create($data);
-            $this->dispatch('toast', message: 'Presupuesto creado exitosamente.', type: 'success');
+            $this->createBudgets();
         }
 
         $this->closeModal();
     }
 
-    // Modificaciones
+    protected function createBudgets()
+    {
+        DB::beginTransaction();
+        try {
+            $sourcesToCreate = [];
+
+            if ($this->useMultipleSources) {
+                foreach ($this->fundingSourceAmounts as $sourceId => $amount) {
+                    if (is_numeric($amount) && $amount > 0) {
+                        $sourcesToCreate[] = ['funding_source_id' => $sourceId, 'amount' => $amount];
+                    }
+                }
+            } else {
+                $sourcesToCreate[] = [
+                    'funding_source_id' => $this->selectedFundingSourceId,
+                    'amount' => $this->initial_amount,
+                ];
+            }
+
+            foreach ($sourcesToCreate as $sourceData) {
+                $exists = Budget::where('school_id', $this->schoolId)
+                    ->where('budget_item_id', $this->budget_item_id)
+                    ->where('funding_source_id', $sourceData['funding_source_id'])
+                    ->where('fiscal_year', $this->fiscal_year)
+                    ->exists();
+
+                if ($exists) {
+                    $source = FundingSource::find($sourceData['funding_source_id']);
+                    $this->addError('fundingSourceAmounts', "Ya existe presupuesto para '{$source->name}' en {$this->fiscal_year}.");
+                    DB::rollBack();
+                    return;
+                }
+
+                Budget::create([
+                    'school_id' => $this->schoolId,
+                    'budget_item_id' => $this->budget_item_id,
+                    'funding_source_id' => $sourceData['funding_source_id'],
+                    'type' => 'income',
+                    'initial_amount' => $sourceData['amount'],
+                    'current_amount' => $sourceData['amount'],
+                    'fiscal_year' => $this->fiscal_year,
+                    'description' => $this->description,
+                    'is_active' => $this->is_active,
+                ]);
+
+                Budget::create([
+                    'school_id' => $this->schoolId,
+                    'budget_item_id' => $this->budget_item_id,
+                    'funding_source_id' => $sourceData['funding_source_id'],
+                    'type' => 'expense',
+                    'initial_amount' => $sourceData['amount'],
+                    'current_amount' => $sourceData['amount'],
+                    'fiscal_year' => $this->fiscal_year,
+                    'description' => $this->description,
+                    'is_active' => $this->is_active,
+                ]);
+            }
+
+            DB::commit();
+            $this->dispatch('toast', message: 'Presupuesto creado exitosamente.', type: 'success');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+    protected function updateBudget()
+    {
+        $budget = Budget::forSchool($this->schoolId)->findOrFail($this->budgetId);
+        
+        $data = [
+            'budget_item_id' => $this->budget_item_id,
+            'funding_source_id' => $this->selectedFundingSourceId,
+            'initial_amount' => $this->initial_amount,
+            'fiscal_year' => $this->fiscal_year,
+            'description' => $this->description,
+            'is_active' => $this->is_active,
+        ];
+
+        if ($budget->initial_amount != $this->initial_amount) {
+            $data['current_amount'] = $this->initial_amount + $budget->total_additions - $budget->total_reductions
+                + $budget->total_creditos - $budget->total_contracreditos;
+        }
+        
+        $budget->update($data);
+        $this->dispatch('toast', message: 'Presupuesto actualizado.', type: 'success');
+    }
+
     public function openModificationModal($id)
     {
         if (!auth()->user()->can('budgets.modify')) {
@@ -375,6 +439,7 @@ class BudgetManagement extends Component
         $this->showModificationModal = true;
     }
 
+
     public function saveModification()
     {
         if (!auth()->user()->can('budgets.modify')) {
@@ -383,10 +448,8 @@ class BudgetManagement extends Component
         }
 
         $this->validate([
-            'modification_type' => 'required|in:addition,reduction',
             'modification_amount' => 'required|numeric|min:0.01',
             'modification_reason' => 'required|string|min:10',
-            'modification_document_number' => 'nullable|string|max:50',
         ], [
             'modification_amount.required' => 'El monto es obligatorio.',
             'modification_amount.min' => 'El monto debe ser mayor a 0.',
@@ -394,37 +457,43 @@ class BudgetManagement extends Component
             'modification_reason.min' => 'La razón debe tener al menos 10 caracteres.',
         ]);
 
-        // Validar que no quede negativo
-        if ($this->modification_type === 'reduction') {
-            if ($this->modification_amount > $this->modificationBudget->current_amount) {
-                $this->addError('modification_amount', 'El monto de reducción no puede ser mayor al saldo actual.');
-                return;
-            }
+        $budget = $this->modificationBudget;
+        $amount = (float) $this->modification_amount;
+
+        if ($this->modification_type === 'reduction' && $amount > $budget->current_amount) {
+            $this->addError('modification_amount', 'La reducción no puede ser mayor al saldo actual.');
+            return;
         }
 
-        $previousAmount = $this->modificationBudget->current_amount;
-        $newAmount = $this->modification_type === 'addition'
-            ? $previousAmount + $this->modification_amount
-            : $previousAmount - $this->modification_amount;
+        $previousAmount = $budget->current_amount;
+        $newAmount = $this->modification_type === 'addition' 
+            ? $previousAmount + $amount 
+            : $previousAmount - $amount;
 
-        BudgetModification::create([
-            'budget_id' => $this->modificationBudget->id,
-            'modification_number' => $this->modificationBudget->getNextModificationNumber(),
-            'type' => $this->modification_type,
-            'amount' => $this->modification_amount,
-            'previous_amount' => $previousAmount,
-            'new_amount' => $newAmount,
-            'reason' => $this->modification_reason,
-            'document_number' => $this->modification_document_number ?: null,
-            'document_date' => now(),
-            'created_by' => auth()->id(),
-        ]);
+        DB::beginTransaction();
+        try {
+            BudgetModification::create([
+                'budget_id' => $budget->id,
+                'modification_number' => $budget->getNextModificationNumber(),
+                'type' => $this->modification_type,
+                'amount' => $amount,
+                'previous_amount' => $previousAmount,
+                'new_amount' => $newAmount,
+                'reason' => $this->modification_reason,
+                'document_number' => $this->modification_document_number,
+                'document_date' => now(),
+                'created_by' => auth()->id(),
+            ]);
 
-        $this->modificationBudget->update(['current_amount' => $newAmount]);
+            $budget->update(['current_amount' => $newAmount]);
 
-        $typeName = $this->modification_type === 'addition' ? 'Adición' : 'Reducción';
-        $this->dispatch('toast', message: "{$typeName} registrada exitosamente.", type: 'success');
-        $this->closeModificationModal();
+            DB::commit();
+            $this->dispatch('toast', message: 'Modificación registrada exitosamente.', type: 'success');
+            $this->closeModificationModal();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+        }
     }
 
     public function openHistoryModal($id)
@@ -443,7 +512,7 @@ class BudgetManagement extends Component
         }
 
         $this->itemToDelete = Budget::forSchool($this->schoolId)
-            ->with(['budgetItem', 'fundingSource'])
+            ->with('budgetItem')
             ->findOrFail($id);
         $this->showDeleteModal = true;
     }
@@ -455,27 +524,36 @@ class BudgetManagement extends Component
             return;
         }
 
-        if ($this->itemToDelete) {
-            $name = $this->itemToDelete->budgetItem->name;
-            $this->itemToDelete->delete();
-            $this->dispatch('toast', message: "Presupuesto '{$name}' eliminado exitosamente.", type: 'success');
+        if (!$this->itemToDelete) {
+            return;
         }
 
-        $this->closeDeleteModal();
+        DB::beginTransaction();
+        try {
+            $this->itemToDelete->modifications()->delete();
+            $this->itemToDelete->delete();
+            
+            DB::commit();
+            $this->dispatch('toast', message: 'Presupuesto eliminado.', type: 'success');
+            $this->closeDeleteModal();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+        }
     }
 
     public function toggleStatus($id)
     {
         if (!auth()->user()->can('budgets.edit')) {
-            $this->dispatch('toast', message: 'No tienes permisos para modificar presupuestos.', type: 'error');
+            $this->dispatch('toast', message: 'No tienes permisos para cambiar el estado.', type: 'error');
             return;
         }
 
         $budget = Budget::forSchool($this->schoolId)->findOrFail($id);
         $budget->update(['is_active' => !$budget->is_active]);
-
+        
         $status = $budget->is_active ? 'activado' : 'desactivado';
-        $this->dispatch('toast', message: "Presupuesto {$status} exitosamente.", type: 'success');
+        $this->dispatch('toast', message: "Presupuesto {$status}.", type: 'success');
     }
 
     public function closeModal()
@@ -506,13 +584,15 @@ class BudgetManagement extends Component
     public function resetForm()
     {
         $this->budgetId = null;
-        $this->type = 'expense';
         $this->budget_item_id = '';
-        $this->funding_source_id = '';
         $this->initial_amount = '';
         $this->fiscal_year = date('Y');
         $this->description = '';
         $this->is_active = true;
+        $this->useMultipleSources = false;
+        $this->selectedFundingSourceId = '';
+        $this->fundingSourceAmounts = [];
+        $this->fundingSources = [];
         $this->isEditing = false;
         $this->resetValidation();
     }
@@ -528,8 +608,10 @@ class BudgetManagement extends Component
 
     public function clearFilters()
     {
-        $this->reset(['search', 'filterType', 'filterStatus', 'filterFundingSource']);
+        $this->search = '';
         $this->filterYear = date('Y');
+        $this->filterStatus = '';
+        $this->filterFundingSource = '';
         $this->resetPage();
     }
 

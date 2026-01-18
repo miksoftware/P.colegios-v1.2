@@ -85,6 +85,14 @@ class Budget extends Model
         return $this->hasMany(BudgetTransfer::class, 'destination_budget_id');
     }
 
+    /**
+     * Distribuciones de gasto asociadas a este presupuesto
+     */
+    public function distributions(): HasMany
+    {
+        return $this->hasMany(ExpenseDistribution::class);
+    }
+
     public function getTypeNameAttribute(): string
     {
         return self::TYPES[$this->type] ?? $this->type;

@@ -52,6 +52,14 @@ Route::get('incomes', App\Livewire\IncomeManagement::class)
     ->middleware(['auth', 'verified', 'can:incomes.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('incomes.index');
 
+Route::get('expense-codes', App\Livewire\ExpenseCodeManagement::class)
+    ->middleware(['auth', 'verified', 'can:expense_codes.view'])
+    ->name('expense-codes.index');
+
+Route::get('expenses', App\Livewire\ExpenseManagement::class)
+    ->middleware(['auth', 'verified', 'can:expenses.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('expenses.index');
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

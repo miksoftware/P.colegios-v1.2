@@ -107,9 +107,7 @@ class BudgetManagement extends Component
             }
         }
 
-        // Asegurar que schoolId sea un entero
         $this->schoolId = (int) $this->schoolId;
-
         $this->fiscal_year = date('Y');
         $this->filterYear = date('Y');
         $this->loadBudgetItems();
@@ -176,9 +174,23 @@ class BudgetManagement extends Component
         $this->resetPage();
     }
 
+    public function updatingFilterYear()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterStatus()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterFundingSource()
+    {
+        $this->resetPage();
+    }
+
     public function getGroupedBudgetsProperty()
     {
-        // Asegurar que schoolId esté establecido
         if (!$this->schoolId) {
             return new LengthAwarePaginator(collect([]), 0, $this->perPage, 1, [
                 'path' => request()->url(),
@@ -228,7 +240,8 @@ class BudgetManagement extends Component
 
         $collection = collect($grouped)->values();
         
-        $page = (int) request()->get('page', 1);
+        // Use Livewire's page tracking
+        $page = $this->getPage();
         if ($page < 1) $page = 1;
         
         $total = $collection->count();
@@ -317,13 +330,14 @@ class BudgetManagement extends Component
             $totalBudget = (float) $this->initial_amount;
             
             if (abs($totalAssigned - $totalBudget) > 0.01) {
-                $this->addError('fundingSourceAmounts', 
-                    'La suma ($' . number_format($totalAssigned, 2) . ') debe ser igual al monto total ($' . number_format($totalBudget, 2) . ').');
+                $formattedAssigned = number_format($totalAssigned, 2);
+                $formattedBudget = number_format($totalBudget, 2);
+                $this->dispatch('toast', message: "La suma asignada (\${$formattedAssigned}) debe ser igual al monto total (\${$formattedBudget}).", type: 'error');
                 return;
             }
 
             if ($totalAssigned <= 0) {
-                $this->addError('fundingSourceAmounts', 'Debe asignar monto a al menos una fuente.');
+                $this->dispatch('toast', message: 'Debe asignar monto a al menos una fuente.', type: 'error');
                 return;
             }
         }
@@ -331,13 +345,16 @@ class BudgetManagement extends Component
         if ($this->isEditing) {
             $this->updateBudget();
         } else {
-            $this->createBudgets();
+            $created = $this->createBudgets();
+            if (!$created) {
+                return; // Don't close modal if creation failed
+            }
         }
 
         $this->closeModal();
     }
 
-    protected function createBudgets()
+    protected function createBudgets(): bool
     {
         DB::beginTransaction();
         try {
@@ -365,9 +382,13 @@ class BudgetManagement extends Component
 
                 if ($exists) {
                     $source = FundingSource::find($sourceData['funding_source_id']);
-                    $this->addError('fundingSourceAmounts', "Ya existe presupuesto para '{$source->name}' en {$this->fiscal_year}.");
+                    $budgetItem = BudgetItem::find($this->budget_item_id);
                     DB::rollBack();
-                    return;
+                    $this->dispatch('toast', 
+                        message: "Ya existe un presupuesto para el rubro '{$budgetItem->name}' con la fuente '{$source->name}' en el año {$this->fiscal_year}.", 
+                        type: 'error'
+                    );
+                    return false;
                 }
 
                 Budget::create([
@@ -397,9 +418,11 @@ class BudgetManagement extends Component
 
             DB::commit();
             $this->dispatch('toast', message: 'Presupuesto creado exitosamente.', type: 'success');
+            return true;
         } catch (\Exception $e) {
             DB::rollBack();
             $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+            return false;
         }
     }
 
@@ -438,7 +461,6 @@ class BudgetManagement extends Component
         $this->resetModificationForm();
         $this->showModificationModal = true;
     }
-
 
     public function saveModification()
     {

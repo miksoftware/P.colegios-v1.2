@@ -93,6 +93,14 @@ class Budget extends Model
         return $this->hasMany(ExpenseDistribution::class);
     }
 
+    /**
+     * Detalle de CDPs que reservan de este presupuesto
+     */
+    public function cdpFundingSources(): HasMany
+    {
+        return $this->hasMany(CdpFundingSource::class);
+    }
+
     public function getTypeNameAttribute(): string
     {
         return self::TYPES[$this->type] ?? $this->type;

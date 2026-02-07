@@ -129,24 +129,25 @@ department_id, municipality_id, phone, mobile, email, bank_name,
 account_type, account_number, is_active, notes
 ```
 
-### BudgetItem (Rubro Presupuestal)
+### BudgetItem (Rubro Presupuestal) — GLOBAL
 ```php
 // Traits
 - LogsActivity
 
 // Relaciones
-- school(): BelongsTo
 - accountingAccount(): BelongsTo
 - fundingSources(): HasMany
+- budgets(): HasMany
+- cdps(): HasMany
 
 // Accessors
 - full_code: código de cuenta + código de rubro
 
 // Scopes
-- forSchool($schoolId), active(), search($search)
+- active(), search($search)
 
 // Campos fillable
-school_id, accounting_account_id, code, name, description, is_active
+accounting_account_id, code, name, description, is_active
 ```
 
 ### Budget (Presupuesto)
@@ -204,18 +205,19 @@ budget_id, modification_number, type, amount, previous_amount, new_amount,
 reason, document_number, document_date, created_by
 ```
 
-### FundingSource (Fuente de Financiación)
+### FundingSource (Fuente de Financiación) — GLOBAL
 ```php
 // Traits
 - LogsActivity
 
 // Relaciones
-- school(): BelongsTo
 - budgetItem(): BelongsTo
+- budgets(): HasMany
 - incomes(): HasMany
+- cdpFundingSources(): HasMany
 
 // Constantes
-TYPES = ['internal' => 'Interna', 'external' => 'Externa']
+TYPES = ['rp' => 'Recursos Propios', 'sgp' => 'SGP', 'rb' => 'Recursos de Balance']
 
 // Accessors
 - type_name, type_color
@@ -226,10 +228,10 @@ TYPES = ['internal' => 'Interna', 'external' => 'Externa']
 - getAvailableBalanceForYear(int $year): float
 
 // Scopes
-- forSchool($schoolId), active(), byType($type), search($search)
+- forBudgetItem($id), active(), byType($type), search($search)
 
 // Campos fillable
-school_id, budget_item_id, name, type, description, is_active
+budget_item_id, code, name, type, description, is_active
 ```
 
 ### Income (Ingreso Real)
@@ -278,6 +280,119 @@ destination_budget_id, destination_funding_source_id, amount,
 source_previous_amount, source_new_amount, destination_previous_amount,
 destination_new_amount, reason, document_number, document_date,
 fiscal_year, created_by
+```
+
+### ExpenseDistribution (Distribución de Gasto)
+```php
+// Traits
+- LogsActivity
+
+// Relaciones
+- school(): BelongsTo
+- budget(): BelongsTo (Budget)
+- expenseCode(): BelongsTo (ExpenseCode)
+- creator(): BelongsTo (User)
+- convocatorias(): HasMany (Convocatoria)
+
+// Scopes
+- forSchool($schoolId)
+
+// Campos fillable
+school_id, budget_id, expense_code_id, amount, description, created_by
+```
+
+### ExpenseCode (Código de Gasto)
+```php
+// Relaciones
+- distributions(): HasMany (ExpenseDistribution)
+
+// Scopes
+- active()
+
+// Campos fillable
+code, name, description, is_active
+```
+
+### Convocatoria (Convocatoria Precontractual)
+```php
+// Traits
+- LogsActivity
+
+// Relaciones
+- school(): BelongsTo
+- expenseDistribution(): BelongsTo (ExpenseDistribution, nullable)
+- creator(): BelongsTo (User)
+- cdps(): HasMany (Cdp)
+- proposals(): HasMany (Proposal)
+- selectedProposal(): HasOne (Proposal, where is_selected)
+
+// Constantes
+STATUSES = ['draft', 'open', 'evaluation', 'awarded', 'cancelled']
+STATUS_COLORS = [... Tailwind classes per status ...]
+
+// Métodos estáticos
+- getNextConvocatoriaNumber(int $schoolId, int $fiscalYear): int
+
+// Scopes
+- forSchool($schoolId), forYear($year), byStatus($status), search($search)
+
+// Campos fillable
+school_id, expense_distribution_id, convocatoria_number, fiscal_year,
+start_date, end_date, object, justification, assigned_budget,
+requires_multiple_cdps, status, evaluation_date, proposals_count, created_by
+```
+
+### Cdp (Certificado de Disponibilidad Presupuestal)
+```php
+// Traits
+- LogsActivity
+
+// Relaciones
+- school(): BelongsTo
+- convocatoria(): BelongsTo
+- budgetItem(): BelongsTo (BudgetItem)
+- creator(): BelongsTo (User)
+- fundingSources(): HasMany (CdpFundingSource)
+
+// Constantes
+STATUSES = ['active', 'used', 'cancelled']
+STATUS_COLORS = [... Tailwind classes per status ...]
+
+// Métodos estáticos
+- getNextCdpNumber(int $schoolId, int $fiscalYear): int
+- getTotalReservedForFundingSource(int $fundingSourceId, int $year): float
+
+// Campos fillable
+school_id, convocatoria_id, cdp_number, fiscal_year, budget_item_id,
+total_amount, status, created_by
+```
+
+### CdpFundingSource (Detalle CDP por Fuente)
+```php
+// Relaciones
+- cdp(): BelongsTo
+- fundingSource(): BelongsTo
+- budget(): BelongsTo (Budget)
+
+// Campos fillable
+cdp_id, funding_source_id, budget_id, amount, available_balance_at_creation
+```
+
+### Proposal (Propuesta de Proveedor)
+```php
+// Traits
+- LogsActivity
+
+// Relaciones
+- convocatoria(): BelongsTo
+- supplier(): BelongsTo
+
+// Accessors
+- supplier_document, supplier_address, supplier_phone
+
+// Campos fillable
+convocatoria_id, supplier_id, proposal_number, subtotal, iva,
+total, score, is_selected
 ```
 
 ### Department (Departamento)
@@ -439,6 +554,15 @@ old_values => array, new_values => array
 // Features: asignación de roles, vinculación a colegios
 ```
 
+#### ExpenseManagement
+```php
+// Funcionalidad: Distribución de presupuesto de gastos en códigos de gasto
+// Propiedades: filterYear, filterBudgetItem, search
+// Modales: distribuir, detalle, eliminar distribución
+// Features: resumen presupuestado/distribuido/disponible, sub-filas de distribuciones
+// Nota: ejecución directa removida (ahora pasa por etapa precontractual)
+```
+
 ---
 
 ## Middleware (`app/Http/Middleware/`)
@@ -485,6 +609,12 @@ old_values => array, new_values => array
 | funding_sources | school, budget_item, incomes | school_id+type |
 | incomes | school, funding_source, creator | school_id+date |
 | budget_transfers | school, budgets, funding_sources | school_id+year |
+| expense_codes | distributions | code |
+| expense_distributions | school, budget, expense_code | school_id+budget_id |
+| convocatorias | school, expense_distribution, cdps, proposals | school_id+number+year |
+| cdps | school, convocatoria, budget_item, funding_sources | school_id+number+year |
+| cdp_funding_sources | cdp, funding_source, budget | cdp_id+funding_source_id |
+| proposals | convocatoria, supplier | convocatoria_id+supplier_id |
 | departments | municipalities | - |
 | municipalities | department | department_id |
 | modules | permissions | name |
@@ -513,6 +643,10 @@ old_values => array, new_values => array
 2025_12_26_000001_create_budget_transfers_table.php
 2025_12_27_000001_create_incomes_table.php
 2026_01_03_000001_add_funding_source_to_budget_transfers.php
+2026_02_07_000001_create_convocatorias_table.php
+2026_02_07_000002_create_cdps_table.php
+2026_02_07_000003_create_cdp_funding_sources_table.php
+2026_02_07_000004_create_proposals_table.php
 ```
 
 ### Seeders
@@ -532,6 +666,8 @@ old_values => array, new_values => array
 | FundingSourcePermissionSeeder | Permisos de fuentes |
 | IncomePermissionSeeder | Permisos de ingresos |
 | BudgetTransferPermissionSeeder | Permisos de traslados |
+| ExpensePermissionSeeder | Permisos de gastos |
+| PrecontractualPermissionSeeder | Permisos de etapa precontractual |
 
 ---
 
@@ -560,6 +696,7 @@ GET /budgets            → BudgetManagement           [auth, can, EnsureSchool]
 GET /funding-sources    → FundingSourceManagement    [auth, can, EnsureSchool]
 GET /incomes            → IncomeManagement           [auth, can, EnsureSchool]
 GET /budget-transfers   → BudgetTransferManagement   [auth, can, EnsureSchool]
+GET /expenses           → ExpenseManagement          [auth, can, EnsureSchool]
 ```
 
 ### Middleware Stack

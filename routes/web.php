@@ -60,6 +60,10 @@ Route::get('expenses', App\Livewire\ExpenseManagement::class)
     ->middleware(['auth', 'verified', 'can:expenses.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('expenses.index');
 
+Route::get('precontractual', App\Livewire\PrecontractualManagement::class)
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.index');
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

@@ -116,8 +116,7 @@ class BudgetManagement extends Component
 
     public function loadBudgetItems()
     {
-        $this->budgetItems = BudgetItem::forSchool($this->schoolId)
-            ->active()
+        $this->budgetItems = BudgetItem::active()
             ->orderBy('code')
             ->get()
             ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
@@ -126,8 +125,7 @@ class BudgetManagement extends Component
 
     public function loadAllFundingSources()
     {
-        $this->allFundingSources = FundingSource::forSchool($this->schoolId)
-            ->active()
+        $this->allFundingSources = FundingSource::active()
             ->orderBy('code')
             ->get()
             ->map(fn($s) => ['id' => $s->id, 'name' => "{$s->code} - {$s->name}"])
@@ -148,8 +146,7 @@ class BudgetManagement extends Component
             return;
         }
 
-        $this->fundingSources = FundingSource::forSchool($this->schoolId)
-            ->forBudgetItem($budgetItemId)
+        $this->fundingSources = FundingSource::forBudgetItem($budgetItemId)
             ->active()
             ->orderBy('code')
             ->get()

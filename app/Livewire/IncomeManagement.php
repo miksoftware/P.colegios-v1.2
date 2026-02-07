@@ -122,8 +122,7 @@ class IncomeManagement extends Component
 
     public function loadBudgetItems()
     {
-        $this->budgetItems = BudgetItem::forSchool($this->schoolId)
-            ->active()
+        $this->budgetItems = BudgetItem::active()
             ->whereHas('budgets', function($q) {
                 $q->where('type', 'income')
                   ->where('fiscal_year', $this->filterYear);
@@ -152,8 +151,7 @@ class IncomeManagement extends Component
             return;
         }
 
-        $this->fundingSources = FundingSource::forSchool($this->schoolId)
-            ->forBudgetItem($budgetItemId)
+        $this->fundingSources = FundingSource::forBudgetItem($budgetItemId)
             ->active()
             ->whereHas('budgets', function($q) {
                 $q->where('type', 'income')

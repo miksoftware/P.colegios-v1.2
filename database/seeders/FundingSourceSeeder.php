@@ -4,14 +4,13 @@ namespace Database\Seeders;
 
 use App\Models\BudgetItem;
 use App\Models\FundingSource;
-use App\Models\School;
 use Illuminate\Database\Seeder;
 
 class FundingSourceSeeder extends Seeder
 {
     /**
      * Fuentes de financiación estándar según el Ministerio de Educación Nacional de Colombia
-     * Se crean para cada rubro de cada colegio
+     * Se crean globalmente para cada rubro presupuestal
      */
     protected array $standardSources = [
         [
@@ -42,32 +41,26 @@ class FundingSourceSeeder extends Seeder
 
     public function run(): void
     {
-        // Obtener todos los colegios
-        $schools = School::all();
+        // Obtener todos los rubros presupuestales (ahora globales)
+        $budgetItems = BudgetItem::all();
 
-        foreach ($schools as $school) {
-            // Obtener rubros del colegio
-            $budgetItems = BudgetItem::where('school_id', $school->id)->get();
-
-            foreach ($budgetItems as $budgetItem) {
-                foreach ($this->standardSources as $source) {
-                    FundingSource::firstOrCreate(
-                        [
-                            'school_id' => $school->id,
-                            'budget_item_id' => $budgetItem->id,
-                            'code' => $source['code'],
-                        ],
-                        [
-                            'name' => $source['name'],
-                            'type' => $source['type'],
-                            'description' => $source['description'],
-                            'is_active' => true,
-                        ]
-                    );
-                }
+        foreach ($budgetItems as $budgetItem) {
+            foreach ($this->standardSources as $source) {
+                FundingSource::firstOrCreate(
+                    [
+                        'budget_item_id' => $budgetItem->id,
+                        'code' => $source['code'],
+                    ],
+                    [
+                        'name' => $source['name'],
+                        'type' => $source['type'],
+                        'description' => $source['description'],
+                        'is_active' => true,
+                    ]
+                );
             }
-
-            $this->command->info("Fuentes de financiación creadas para {$budgetItems->count()} rubros de: {$school->name}");
         }
+
+        $this->command->info("Fuentes de financiación globales creadas para {$budgetItems->count()} rubros.");
     }
 }

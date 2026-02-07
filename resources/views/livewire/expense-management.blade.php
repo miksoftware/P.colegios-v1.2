@@ -4,12 +4,12 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900">Gestión de Gastos</h1>
-                <p class="text-gray-500 mt-1">Distribución y ejecución de presupuesto de gastos</p>
+                <p class="text-gray-500 mt-1">Distribución de presupuesto de gastos</p>
             </div>
         </div>
 
         {{-- Resumen General --}}
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                 <div class="flex items-center justify-between">
                     <div>
@@ -30,18 +30,6 @@
                     </div>
                     <div class="p-3 bg-purple-100 rounded-xl">
                         <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                    </div>
-                </div>
-            </div>
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-gray-500">Ejecutado</p>
-                        <p class="text-2xl font-bold text-green-600">${{ number_format($this->summary['executed'], 0, ',', '.') }}</p>
-                        <p class="text-xs text-gray-400 mt-1">{{ $this->summary['execution_percentage'] }}% de lo distribuido</p>
-                    </div>
-                    <div class="p-3 bg-green-100 rounded-xl">
-                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     </div>
                 </div>
             </div>
@@ -103,7 +91,6 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rubro / Fuente</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Presupuestado</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Distribuido</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ejecutado</th>
                             <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Progreso</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                         </tr>
@@ -112,10 +99,8 @@
                         @forelse($this->expenseBudgets as $budget)
                             @php
                                 $distributed = $budget->distributions->sum('amount');
-                                $executed = $budget->distributions->sum(fn($d) => $d->executions->sum('amount'));
                                 $availableToDistribute = $budget->current_amount - $distributed;
                                 $distributionPct = $budget->current_amount > 0 ? round(($distributed / $budget->current_amount) * 100, 1) : 0;
-                                $executionPct = $distributed > 0 ? round(($executed / $distributed) * 100, 1) : 0;
                             @endphp
                             <tr class="hover:bg-gray-50" wire:key="budget-{{ $budget->id }}">
                                 <td class="px-6 py-4">
@@ -131,19 +116,12 @@
                                         <div class="text-xs text-gray-400">Disponible: ${{ number_format($availableToDistribute, 0, ',', '.') }}</div>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-right">
-                                    <span class="font-medium text-green-600">${{ number_format($executed, 0, ',', '.') }}</span>
-                                </td>
                                 <td class="px-6 py-4">
-                                    <div class="w-full bg-gray-200 rounded-full h-2 mb-1">
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
                                         <div class="bg-purple-500 h-2 rounded-full" style="width: {{ min($distributionPct, 100) }}%"></div>
                                     </div>
-                                    <div class="w-full bg-gray-200 rounded-full h-2">
-                                        <div class="bg-green-500 h-2 rounded-full" style="width: {{ min($executionPct, 100) }}%"></div>
-                                    </div>
-                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                        <span>Dist: {{ $distributionPct }}%</span>
-                                        <span>Ejec: {{ $executionPct }}%</span>
+                                    <div class="text-xs text-gray-500 mt-1 text-center">
+                                        <span>{{ $distributionPct }}% distribuido</span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-right">
@@ -163,11 +141,6 @@
                             </tr>
                             {{-- Distribuciones del presupuesto --}}
                             @foreach($budget->distributions as $distribution)
-                                @php
-                                    $distExecuted = $distribution->executions->sum('amount');
-                                    $distAvailable = $distribution->amount - $distExecuted;
-                                    $realAvailable = $this->getAvailableForExecution($distribution);
-                                @endphp
                                 <tr class="bg-gray-50/50" wire:key="dist-{{ $distribution->id }}">
                                     <td class="px-6 py-3 pl-12">
                                         <div class="flex items-center gap-2">
@@ -182,34 +155,18 @@
                                         ${{ number_format($distribution->amount, 0, ',', '.') }}
                                     </td>
                                     <td class="px-6 py-3 text-right text-sm text-gray-500">-</td>
-                                    <td class="px-6 py-3 text-right text-sm">
-                                        <span class="text-green-600">${{ number_format($distExecuted, 0, ',', '.') }}</span>
-                                        @if($distAvailable > 0)
-                                            <div class="text-xs text-gray-400">Disp: ${{ number_format(min($distAvailable, $realAvailable), 0, ',', '.') }}</div>
-                                        @endif
-                                    </td>
-                                    <td class="px-6 py-3">
-                                        @php $distPct = $distribution->amount > 0 ? round(($distExecuted / $distribution->amount) * 100, 1) : 0; @endphp
-                                        <div class="w-full bg-gray-200 rounded-full h-1.5">
-                                            <div class="bg-green-500 h-1.5 rounded-full" style="width: {{ min($distPct, 100) }}%"></div>
-                                        </div>
-                                        <div class="text-xs text-gray-500 mt-1">{{ $distPct }}%</div>
-                                    </td>
+                                    <td class="px-6 py-3 text-sm text-center text-gray-400">-</td>
                                     <td class="px-6 py-3 text-right">
                                         <div class="flex items-center justify-end gap-1">
-                                            @can('expenses.execute')
-                                                @if($realAvailable > 0)
-                                                    <button wire:click="openExecuteModal({{ $distribution->id }})" class="p-1.5 text-green-600 hover:bg-green-50 rounded-lg text-xs" title="Ejecutar gasto">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                                                    </button>
-                                                @endif
+                                            @can('precontractual.create')
+                                                <a href="{{ route('precontractual.index', ['distribution_id' => $distribution->id]) }}" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Iniciar Precontractual">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                                </a>
                                             @endcan
                                             @can('expenses.delete')
-                                                @if($distribution->executions->count() === 0)
-                                                    <button wire:click="confirmDeleteDistribution({{ $distribution->id }})" class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Eliminar">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                                    </button>
-                                                @endif
+                                                <button wire:click="confirmDeleteDistribution({{ $distribution->id }})" class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Eliminar distribución">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
                                             @endcan
                                         </div>
                                     </td>
@@ -217,7 +174,7 @@
                             @endforeach
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                                <td colspan="5" class="px-6 py-12 text-center text-gray-500">
                                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                     <p class="mt-2">No hay presupuestos de gasto para este período</p>
                                     <p class="text-sm text-gray-400 mt-1">Cree un presupuesto tipo "Gasto" en el módulo de Presupuestos</p>
@@ -298,171 +255,6 @@
     </div>
     @endif
 
-    {{-- Modal Ejecutar --}}
-    @if($showExecuteModal && $selectedDistribution)
-    @php
-        $availableForExec = $this->getAvailableForExecution($selectedDistribution);
-    @endphp
-    <div class="fixed inset-0 z-50 overflow-y-auto">
-        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
-            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeExecuteModal"></div>
-            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-xl">
-                <form wire:submit="saveExecution">
-                    <div class="px-6 py-4 border-b border-gray-200 bg-green-50">
-                        <h3 class="text-lg font-bold text-green-900">Ejecutar Gasto</h3>
-                        <p class="text-sm text-green-700 font-mono">{{ $selectedDistribution->expenseCode?->code }}</p>
-                        <p class="text-sm text-green-600">{{ Str::limit($selectedDistribution->expenseCode?->name, 80) }}</p>
-                    </div>
-                    
-                    <div class="p-6 space-y-4">
-                        {{-- Info de disponibilidad --}}
-                        <div class="bg-gray-50 rounded-xl p-4 grid grid-cols-2 gap-3 text-sm">
-                            <div>
-                                <span class="text-gray-500">Distribuido:</span>
-                                <span class="font-semibold ml-2">${{ number_format($selectedDistribution->amount, 0, ',', '.') }}</span>
-                            </div>
-                            <div>
-                                <span class="text-gray-500">Ejecutado:</span>
-                                <span class="font-semibold text-green-600 ml-2">${{ number_format($selectedDistribution->total_executed, 0, ',', '.') }}</span>
-                            </div>
-                            <div class="col-span-2 pt-2 border-t">
-                                <span class="text-gray-500">Disponible para ejecutar:</span>
-                                <span class="font-bold text-blue-600 ml-2">${{ number_format($availableForExec, 0, ',', '.') }}</span>
-                                <p class="text-xs text-gray-400 mt-1">Basado en ingresos reales de la fuente</p>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Cuenta Contable <span class="text-red-500">*</span></label>
-                            <select wire:model="executeAccountingAccountId" class="w-full rounded-xl border-gray-300">
-                                <option value="">Seleccionar cuenta auxiliar...</option>
-                                @foreach($this->auxiliaryAccounts as $account)
-                                    <option value="{{ $account->id }}">{{ $account->code }} - {{ $account->name }}</option>
-                                @endforeach
-                            </select>
-                            @error('executeAccountingAccountId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
-                                Proveedor <span class="text-red-500">*</span>
-                                <button type="button" wire:click="openSupplierModal" class="ml-2 text-xs text-blue-600 hover:underline">+ Crear nuevo</button>
-                            </label>
-                            <select wire:model="executeSupplierId" class="w-full rounded-xl border-gray-300">
-                                <option value="">Seleccionar proveedor...</option>
-                                @foreach($this->suppliers as $supplier)
-                                    <option value="{{ $supplier->id }}">{{ $supplier->full_document }} - {{ $supplier->full_name }}</option>
-                                @endforeach
-                            </select>
-                            @error('executeSupplierId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Monto <span class="text-red-500">*</span></label>
-                                <div class="flex">
-                                    <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500">$</span>
-                                    <input type="number" wire:model="executeAmount" step="0.01" min="0.01" max="{{ $availableForExec }}" class="flex-1 rounded-r-xl border-gray-300" placeholder="0.00">
-                                </div>
-                                @error('executeAmount') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Fecha <span class="text-red-500">*</span></label>
-                                <input type="date" wire:model="executeDate" class="w-full rounded-xl border-gray-300">
-                                @error('executeDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nº Documento/Factura</label>
-                            <input type="text" wire:model="executeDocumentNumber" class="w-full rounded-xl border-gray-300" placeholder="Ej: FAC-001234">
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                            <textarea wire:model="executeDescription" rows="2" class="w-full rounded-xl border-gray-300" placeholder="Concepto del gasto..."></textarea>
-                        </div>
-                    </div>
-                    
-                    <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
-                        <button type="button" wire:click="closeExecuteModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700">Ejecutar Gasto</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    {{-- Modal Crear Proveedor Rápido --}}
-    @if($showSupplierModal)
-    <div class="fixed inset-0 z-[60] overflow-y-auto">
-        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
-            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeSupplierModal"></div>
-            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-md">
-                <form wire:submit="saveQuickSupplier">
-                    <div class="px-6 py-4 border-b border-gray-200">
-                        <h3 class="text-lg font-bold text-gray-900">Crear Proveedor Rápido</h3>
-                    </div>
-                    
-                    <div class="p-6 space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo Doc. <span class="text-red-500">*</span></label>
-                                <select wire:model.live="supplierDocumentType" class="w-full rounded-xl border-gray-300">
-                                    <option value="CC">Cédula</option>
-                                    <option value="NIT">NIT</option>
-                                    <option value="CE">Cédula Extranjería</option>
-                                    <option value="PA">Pasaporte</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Número <span class="text-red-500">*</span></label>
-                                <div class="flex gap-1">
-                                    <input type="text" wire:model.live="supplierDocumentNumber" class="flex-1 rounded-xl border-gray-300" placeholder="Número">
-                                    @if($supplierDocumentType === 'NIT' && $supplierDv)
-                                        <span class="inline-flex items-center px-2 bg-gray-100 rounded-xl text-sm text-gray-600">-{{ $supplierDv }}</span>
-                                    @endif
-                                </div>
-                                @error('supplierDocumentNumber') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre <span class="text-red-500">*</span></label>
-                                <input type="text" wire:model="supplierFirstName" class="w-full rounded-xl border-gray-300" placeholder="{{ $supplierPersonType === 'juridica' ? 'Razón Social' : 'Nombre' }}">
-                                @error('supplierFirstName') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Apellido <span class="text-red-500">*</span></label>
-                                <input type="text" wire:model="supplierFirstSurname" class="w-full rounded-xl border-gray-300" placeholder="{{ $supplierPersonType === 'juridica' ? '(Opcional)' : 'Apellido' }}">
-                                @error('supplierFirstSurname') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input type="email" wire:model="supplierEmail" class="w-full rounded-xl border-gray-300" placeholder="correo@ejemplo.com">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                                <input type="text" wire:model="supplierPhone" class="w-full rounded-xl border-gray-300" placeholder="3001234567">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
-                        <button type="button" wire:click="closeSupplierModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700">Crear Proveedor</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    @endif
-
     {{-- Modal Detalle --}}
     @if($showDetailModal && $detailBudget)
     <div class="fixed inset-0 z-50 overflow-y-auto">
@@ -485,9 +277,8 @@
                     {{-- Resumen --}}
                     @php
                         $totalDist = $detailBudget->distributions->sum('amount');
-                        $totalExec = $detailBudget->distributions->sum(fn($d) => $d->executions->sum('amount'));
                     @endphp
-                    <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="grid grid-cols-3 gap-4 mb-6">
                         <div class="bg-blue-50 rounded-xl p-4 text-center">
                             <p class="text-xs text-blue-600 uppercase">Presupuestado</p>
                             <p class="text-xl font-bold text-blue-700">${{ number_format($detailBudget->current_amount, 0, ',', '.') }}</p>
@@ -496,17 +287,13 @@
                             <p class="text-xs text-purple-600 uppercase">Distribuido</p>
                             <p class="text-xl font-bold text-purple-700">${{ number_format($totalDist, 0, ',', '.') }}</p>
                         </div>
-                        <div class="bg-green-50 rounded-xl p-4 text-center">
-                            <p class="text-xs text-green-600 uppercase">Ejecutado</p>
-                            <p class="text-xl font-bold text-green-700">${{ number_format($totalExec, 0, ',', '.') }}</p>
-                        </div>
                         <div class="bg-orange-50 rounded-xl p-4 text-center">
                             <p class="text-xs text-orange-600 uppercase">Sin Distribuir</p>
                             <p class="text-xl font-bold text-orange-700">${{ number_format($detailBudget->current_amount - $totalDist, 0, ',', '.') }}</p>
                         </div>
                     </div>
 
-                    {{-- Distribuciones y Ejecuciones --}}
+                    {{-- Distribuciones --}}
                     @forelse($detailBudget->distributions as $dist)
                         <div class="border rounded-xl mb-4 overflow-hidden">
                             <div class="bg-gray-50 px-4 py-3 flex justify-between items-center">
@@ -516,42 +303,12 @@
                                 </div>
                                 <div class="text-right">
                                     <span class="font-semibold">${{ number_format($dist->amount, 0, ',', '.') }}</span>
-                                    <span class="text-sm text-gray-500 ml-2">(Ejec: ${{ number_format($dist->executions->sum('amount'), 0, ',', '.') }})</span>
                                 </div>
                             </div>
-                            @if($dist->executions->count() > 0)
-                                <table class="w-full text-sm">
-                                    <thead class="bg-gray-100">
-                                        <tr>
-                                            <th class="px-4 py-2 text-left text-xs text-gray-500">Fecha</th>
-                                            <th class="px-4 py-2 text-left text-xs text-gray-500">Proveedor</th>
-                                            <th class="px-4 py-2 text-left text-xs text-gray-500">Cuenta</th>
-                                            <th class="px-4 py-2 text-left text-xs text-gray-500">Documento</th>
-                                            <th class="px-4 py-2 text-right text-xs text-gray-500">Monto</th>
-                                            <th class="px-4 py-2 text-right text-xs text-gray-500"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-100">
-                                        @foreach($dist->executions as $exec)
-                                            <tr>
-                                                <td class="px-4 py-2">{{ $exec->execution_date->format('d/m/Y') }}</td>
-                                                <td class="px-4 py-2">{{ $exec->supplier?->full_name }}</td>
-                                                <td class="px-4 py-2 font-mono text-xs">{{ $exec->accountingAccount?->code }}</td>
-                                                <td class="px-4 py-2">{{ $exec->document_number ?? '-' }}</td>
-                                                <td class="px-4 py-2 text-right font-medium">${{ number_format($exec->amount, 0, ',', '.') }}</td>
-                                                <td class="px-4 py-2 text-right">
-                                                    @can('expenses.delete')
-                                                        <button wire:click="confirmDeleteExecution({{ $exec->id }})" class="text-red-500 hover:text-red-700">
-                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                                        </button>
-                                                    @endcan
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            @else
-                                <p class="px-4 py-3 text-sm text-gray-500 text-center">Sin ejecuciones registradas</p>
+                            @if($dist->description)
+                                <div class="px-4 py-3 text-sm text-gray-600">
+                                    {{ $dist->description }}
+                                </div>
                             @endif
                         </div>
                     @empty
@@ -574,7 +331,7 @@
                         <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                     </div>
                     <h3 class="text-lg font-bold text-gray-900 text-center mb-2">
-                        Eliminar {{ $deleteType === 'distribution' ? 'Distribución' : 'Ejecución' }}
+                        Eliminar Distribución
                     </h3>
                     <p class="text-sm text-gray-500 text-center">¿Estás seguro? Esta acción no se puede deshacer.</p>
                 </div>

@@ -49,9 +49,7 @@ class BudgetItemManagement extends Component
     {
         $uniqueRule = 'unique:budget_items,code';
         if ($this->budgetItemId) {
-            $uniqueRule .= ',' . $this->budgetItemId . ',id,school_id,' . $this->schoolId;
-        } else {
-            $uniqueRule .= ',NULL,id,school_id,' . $this->schoolId;
+            $uniqueRule .= ',' . $this->budgetItemId;
         }
 
         return [
@@ -118,7 +116,7 @@ class BudgetItemManagement extends Component
 
     public function getBudgetItemsProperty()
     {
-        return BudgetItem::forSchool($this->schoolId)
+        return BudgetItem::query()
             ->with('accountingAccount')
             ->when($this->search, fn($q) => $q->search($this->search))
             ->when($this->filterStatus !== '', function ($q) {
@@ -147,7 +145,7 @@ class BudgetItemManagement extends Component
             return;
         }
 
-        $item = BudgetItem::forSchool($this->schoolId)->findOrFail($id);
+        $item = BudgetItem::findOrFail($id);
 
         $this->budgetItemId = $item->id;
         $this->code = $item->code;
@@ -178,7 +176,6 @@ class BudgetItemManagement extends Component
         }
 
         $data = [
-            'school_id' => $this->schoolId,
             'code' => strtoupper($this->code),
             'name' => $this->name,
             'description' => $this->description,
@@ -187,7 +184,7 @@ class BudgetItemManagement extends Component
         ];
 
         if ($this->isEditing) {
-            $item = BudgetItem::forSchool($this->schoolId)->findOrFail($this->budgetItemId);
+            $item = BudgetItem::findOrFail($this->budgetItemId);
             $item->update($data);
             $this->dispatch('toast', message: 'Rubro actualizado exitosamente.', type: 'success');
         } else {
@@ -205,7 +202,7 @@ class BudgetItemManagement extends Component
             return;
         }
 
-        $this->itemToDelete = BudgetItem::forSchool($this->schoolId)->findOrFail($id);
+        $this->itemToDelete = BudgetItem::findOrFail($id);
         $this->showDeleteModal = true;
     }
 
@@ -232,7 +229,7 @@ class BudgetItemManagement extends Component
             return;
         }
 
-        $item = BudgetItem::forSchool($this->schoolId)->findOrFail($id);
+        $item = BudgetItem::findOrFail($id);
         $item->update(['is_active' => !$item->is_active]);
 
         $status = $item->is_active ? 'activado' : 'desactivado';

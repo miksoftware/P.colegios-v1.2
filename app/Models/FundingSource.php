@@ -12,7 +12,6 @@ class FundingSource extends Model
     use LogsActivity;
 
     protected $fillable = [
-        'school_id',
         'budget_item_id',
         'code',
         'name',
@@ -56,14 +55,6 @@ class FundingSource extends Model
     }
 
     /**
-     * Colegio al que pertenece la fuente
-     */
-    public function school(): BelongsTo
-    {
-        return $this->belongsTo(School::class);
-    }
-
-    /**
      * Rubro al que pertenece esta fuente de financiación
      */
     public function budgetItem(): BelongsTo
@@ -85,6 +76,22 @@ class FundingSource extends Model
     public function incomes(): HasMany
     {
         return $this->hasMany(Income::class);
+    }
+
+    /**
+     * Detalle de CDPs que reservan de esta fuente
+     */
+    public function cdpFundingSources(): HasMany
+    {
+        return $this->hasMany(CdpFundingSource::class);
+    }
+
+    /**
+     * Total reservado por CDPs activos para esta fuente en un año fiscal
+     */
+    public function getTotalReservedByCdps(int $year): float
+    {
+        return Cdp::getTotalReservedForFundingSource($this->id, $year);
     }
 
     /**
@@ -175,14 +182,6 @@ class FundingSource extends Model
             ->sum('amount');
         
         return $totalIncomes - $totalOutgoing + $totalIncoming;
-    }
-
-    /**
-     * Scope para filtrar por colegio
-     */
-    public function scopeForSchool($query, int $schoolId)
-    {
-        return $query->where('school_id', $schoolId);
     }
 
     /**

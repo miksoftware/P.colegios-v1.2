@@ -164,10 +164,10 @@
                         </div>
                         
                         <!-- Presupuesto - Expandable -->
-                        <div x-data="{ presupuestoOpen: {{ request()->routeIs('budget.items') || request()->routeIs('budgets.index') || request()->routeIs('funding-sources.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') ? 'true' : 'false' }} }">
+                        <div x-data="{ presupuestoOpen: {{ request()->routeIs('budget.items') || request()->routeIs('budgets.index') || request()->routeIs('funding-sources.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') ? 'true' : 'false' }} }">
                             <button 
                                 @click="presupuestoOpen = !presupuestoOpen"
-                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('budget.items') || request()->routeIs('budgets.index') || request()->routeIs('funding-sources.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('budget.items') || request()->routeIs('budgets.index') || request()->routeIs('funding-sources.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
                             >
                                 <div class="flex items-center gap-3">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,6 +243,14 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
                                         </svg>
                                         Gastos
+                                    </a>
+                                @endcan
+                                @can('precontractual.view')
+                                    <a href="{{ route('precontractual.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('precontractual.index') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                        </svg>
+                                        Precontractual
                                     </a>
                                 @endcan
                             </div>

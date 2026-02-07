@@ -12,7 +12,6 @@ class BudgetItem extends Model
     use LogsActivity;
 
     protected $fillable = [
-        'school_id',
         'accounting_account_id',
         'code',
         'name',
@@ -41,14 +40,6 @@ class BudgetItem extends Model
     }
 
     /**
-     * Colegio al que pertenece
-     */
-    public function school(): BelongsTo
-    {
-        return $this->belongsTo(School::class);
-    }
-
-    /**
      * Cuenta contable auxiliar asociada
      */
     public function accountingAccount(): BelongsTo
@@ -73,20 +64,20 @@ class BudgetItem extends Model
     }
 
     /**
+     * CDPs asociados a este rubro
+     */
+    public function cdps(): HasMany
+    {
+        return $this->hasMany(Cdp::class);
+    }
+
+    /**
      * Obtener código completo (cuenta + rubro)
      */
     public function getFullCodeAttribute(): string
     {
         $accountCode = $this->accountingAccount?->code ?? '';
         return $accountCode ? "{$accountCode}-{$this->code}" : $this->code;
-    }
-
-    /**
-     * Scope para filtrar por colegio
-     */
-    public function scopeForSchool($query, int $schoolId)
-    {
-        return $query->where('school_id', $schoolId);
     }
 
     /**

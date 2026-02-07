@@ -45,8 +45,7 @@ class FundingSourceManagement extends Component
     {
         // Código único por colegio y rubro
         $uniqueRule = function ($attribute, $value, $fail) {
-            $query = FundingSource::where('school_id', $this->schoolId)
-                ->where('budget_item_id', $this->budget_item_id)
+            $query = FundingSource::where('budget_item_id', $this->budget_item_id)
                 ->where('code', $value);
             
             if ($this->fundingSourceId) {
@@ -102,8 +101,7 @@ class FundingSourceManagement extends Component
 
     public function loadBudgetItems()
     {
-        $this->budgetItems = BudgetItem::forSchool($this->schoolId)
-            ->active()
+        $this->budgetItems = BudgetItem::active()
             ->orderBy('code')
             ->get()
             ->map(fn($item) => [
@@ -120,7 +118,7 @@ class FundingSourceManagement extends Component
 
     public function getFundingSourcesProperty()
     {
-        return FundingSource::forSchool($this->schoolId)
+        return FundingSource::query()
             ->with('budgetItem')
             ->when($this->search, fn ($q) => $q->search($this->search))
             ->when($this->filterType, fn ($q) => $q->byType($this->filterType))
@@ -150,7 +148,7 @@ class FundingSourceManagement extends Component
             return;
         }
 
-        $source = FundingSource::forSchool($this->schoolId)->findOrFail($id);
+        $source = FundingSource::findOrFail($id);
 
         $this->fundingSourceId = $source->id;
         $this->budget_item_id = $source->budget_item_id;
@@ -175,7 +173,6 @@ class FundingSourceManagement extends Component
         $this->validate();
 
         $data = [
-            'school_id' => $this->schoolId,
             'budget_item_id' => $this->budget_item_id,
             'code' => $this->code,
             'name' => $this->name,
@@ -185,7 +182,7 @@ class FundingSourceManagement extends Component
         ];
 
         if ($this->isEditing) {
-            $source = FundingSource::forSchool($this->schoolId)->findOrFail($this->fundingSourceId);
+            $source = FundingSource::findOrFail($this->fundingSourceId);
             $source->update($data);
             $this->dispatch('toast', message: 'Fuente actualizada exitosamente.', type: 'success');
         } else {
@@ -203,7 +200,7 @@ class FundingSourceManagement extends Component
             return;
         }
 
-        $this->itemToDelete = FundingSource::forSchool($this->schoolId)->findOrFail($id);
+        $this->itemToDelete = FundingSource::findOrFail($id);
         
         // Verificar si tiene presupuestos asociados
         if ($this->itemToDelete->budgets()->count() > 0) {
@@ -238,7 +235,7 @@ class FundingSourceManagement extends Component
             return;
         }
 
-        $source = FundingSource::forSchool($this->schoolId)->findOrFail($id);
+        $source = FundingSource::findOrFail($id);
         $source->update(['is_active' => !$source->is_active]);
 
         $status = $source->is_active ? 'activada' : 'desactivada';

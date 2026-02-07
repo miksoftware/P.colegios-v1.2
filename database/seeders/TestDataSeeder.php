@@ -36,7 +36,7 @@ class TestDataSeeder extends Seeder
             $accountId = $auxiliaryAccounts[$index % count($auxiliaryAccounts)]->id ?? null;
             
             BudgetItem::updateOrCreate(
-                ['school_id' => $schoolId, 'code' => $item['code']],
+                ['code' => $item['code']],
                 [
                     'accounting_account_id' => $accountId,
                     'name' => $item['name'],
@@ -162,14 +162,12 @@ class TestDataSeeder extends Seeder
         ];
 
         foreach ($fundingSources as $fs) {
-            $budgetItem = BudgetItem::where('school_id', $schoolId)
-                ->where('code', $fs['budget_item_code'])
+            $budgetItem = BudgetItem::where('code', $fs['budget_item_code'])
                 ->first();
 
             if ($budgetItem) {
                 \App\Models\FundingSource::updateOrCreate(
                     [
-                        'school_id' => $schoolId,
                         'budget_item_id' => $budgetItem->id,
                         'code' => $fs['code'],
                     ],

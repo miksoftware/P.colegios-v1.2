@@ -61,6 +61,14 @@ class ExpenseDistribution extends Model
         return $this->hasMany(ExpenseExecution::class);
     }
 
+    /**
+     * Convocatorias generadas desde esta distribución
+     */
+    public function convocatorias(): HasMany
+    {
+        return $this->hasMany(Convocatoria::class);
+    }
+
     // Monto total ejecutado
     public function getTotalExecutedAttribute(): float
     {

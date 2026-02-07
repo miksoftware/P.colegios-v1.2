@@ -107,8 +107,7 @@ class BudgetTransferManagement extends Component
     public function loadBudgetItems()
     {
         // Cargar rubros que tienen fuentes de financiación con saldo
-        $this->budgetItems = BudgetItem::forSchool($this->schoolId)
-            ->whereHas('fundingSources', function($q) {
+        $this->budgetItems = BudgetItem::whereHas('fundingSources', function($q) {
                 $q->active();
             })
             ->orderBy('code')
@@ -133,8 +132,7 @@ class BudgetTransferManagement extends Component
 
     public function loadSourceFundingSources($budgetItemId)
     {
-        $sources = FundingSource::forSchool($this->schoolId)
-            ->where('budget_item_id', $budgetItemId)
+        $sources = FundingSource::where('budget_item_id', $budgetItemId)
             ->active()
             ->with('budgetItem')
             ->get();
@@ -179,8 +177,7 @@ class BudgetTransferManagement extends Component
 
     public function loadDestinationFundingSources($budgetItemId)
     {
-        $sources = FundingSource::forSchool($this->schoolId)
-            ->where('budget_item_id', $budgetItemId)
+        $sources = FundingSource::where('budget_item_id', $budgetItemId)
             ->active()
             ->with('budgetItem')
             ->get();
@@ -281,8 +278,8 @@ class BudgetTransferManagement extends Component
         $this->validate();
 
         // Obtener fuentes de financiación
-        $sourceFundingSource = FundingSource::forSchool($this->schoolId)->findOrFail($this->source_funding_source_id);
-        $destinationFundingSource = FundingSource::forSchool($this->schoolId)->findOrFail($this->destination_funding_source_id);
+        $sourceFundingSource = FundingSource::findOrFail($this->source_funding_source_id);
+        $destinationFundingSource = FundingSource::findOrFail($this->destination_funding_source_id);
 
         // Calcular saldo disponible de la fuente origen
         $sourceBalance = $sourceFundingSource->getAvailableBalanceForYear($this->filterYear);

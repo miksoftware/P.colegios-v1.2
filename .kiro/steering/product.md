@@ -48,14 +48,34 @@ Colegio (School)
    └── Mover recursos entre fuentes (crédito/contracrédito)
 ```
 
-### Flujo de Gastos (Fase 3 - Pendiente)
+### Flujo de Gastos (Fase 3 - En progreso)
 
 ```
 1. PRESUPUESTO DE GASTOS
    └── Crear Rubro → Crear Fuente → Crear Presupuesto tipo "expense"
    
-2. EJECUCIÓN DE GASTOS (Por definir)
-   └── CDP → RP → Orden de Pago → Egreso
+2. DISTRIBUCIÓN DE GASTOS (Implementado)
+   └── Distribuir presupuesto en códigos de gasto (ExpenseDistribution)
+
+3. ETAPA PRECONTRACTUAL (Data layer implementado, UI pendiente)
+   ├── Convocatoria (nace desde la distribución de gastos)
+   │   ├── Número consecutivo por colegio/año
+   │   ├── Objeto, justificación, presupuesto asignado
+   │   └── Fechas de inicio y fin
+   ├── CDP (Certificado de Disponibilidad Presupuestal)
+   │   ├── Reserva dinero del saldo disponible de la fuente de financiación
+   │   ├── Vinculado a rubro presupuestal + fuentes de financiación
+   │   └── Si hay ingresos reales, reserva de ahí; si no, del presupuestado
+   └── Evaluación de Propuestas
+       ├── Proveedores presentan propuestas con subtotal, IVA, total
+       ├── Puntuación y selección de propuesta ganadora
+       └── Adjudicación de la convocatoria
+
+4. ETAPA CONTRACTUAL (Pendiente)
+   └── RP (Registro Presupuestal) → Contrato → Orden de Pago
+
+5. ETAPA POSTCONTRACTUAL (Pendiente)
+   └── Ejecución del gasto → Egreso
 ```
 
 ---
@@ -269,10 +289,10 @@ Nivel 1: Clase (código 1 dígito) - Ej: "1 - ACTIVO"
 ---
 
 ### 8. Rubros Presupuestales (`/budget-items`)
-**Propósito**: Definir los rubros (líneas) presupuestales vinculados a cuentas contables auxiliares.
+**Propósito**: Definir los rubros (líneas) presupuestales vinculados a cuentas contables auxiliares. Son **globales** (compartidos entre todos los colegios).
 
 **Funcionalidades**:
-- CRUD de rubros presupuestales por colegio
+- CRUD de rubros presupuestales globales
 - Selección de cuenta contable auxiliar (nivel 5)
 - Filtros por estado y cuenta contable
 - Búsqueda por código y nombre
@@ -280,16 +300,15 @@ Nivel 1: Clase (código 1 dígito) - Ej: "1 - ACTIVO"
 **Campos del Rubro**:
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
-| school_id | FK | Colegio propietario |
 | accounting_account_id | FK | Cuenta auxiliar vinculada |
-| code | string | Código único por colegio |
+| code | string | Código único global |
 | name | string | Nombre del rubro |
 | description | text | Descripción opcional |
 | is_active | boolean | Estado |
 
 **Reglas de Negocio**:
-- Rubro pertenece a un colegio específico
-- Código único por colegio (no global)
+- Rubros son globales, compartidos por todos los colegios
+- Código único globalmente
 - Solo puede vincularse a cuentas auxiliares (nivel 5) con `allows_movement = true`
 - Código se guarda en mayúsculas
 
@@ -361,7 +380,7 @@ current_amount = initial_amount
 ---
 
 ### 10. Fuentes de Financiación (`/funding-sources`)
-**Propósito**: Definir fuentes de donde provienen los recursos del presupuesto.
+**Propósito**: Definir fuentes de donde provienen los recursos del presupuesto. Son **globales** (compartidas entre todos los colegios).
 
 **Funcionalidades**:
 - CRUD de fuentes de financiación
@@ -372,8 +391,8 @@ current_amount = initial_amount
 **Campos**:
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
-| school_id | FK | Colegio |
 | budget_item_id | FK | Rubro presupuestal |
+| code | string | Código único por rubro |
 | name | string | Nombre de la fuente |
 | type | enum | `internal` (Interna) o `external` (Externa) |
 | description | text | Descripción |
@@ -387,7 +406,9 @@ available_balance = SUM(incomes)
 ```
 
 **Reglas de Negocio**:
-- Fuente pertenece a un colegio y un rubro
+- Fuentes son globales, compartidas por todos los colegios
+- Fuente pertenece a un rubro presupuestal
+- Código único por rubro (budget_item_id + code)
 - Saldo puede calcularse por año fiscal específico
 
 **Permisos**: `funding_sources.view`, `funding_sources.create`, `funding_sources.edit`, `funding_sources.delete`
@@ -542,7 +563,135 @@ completados = COUNT(budgets WHERE recaudado >= current_amount)
 
 ---
 
-### 13. Registro de Actividad (`/activity-logs`)
+### 13. Gastos (`/expenses`)
+**Propósito**: Distribución de presupuesto de gastos en códigos de gasto (categorías específicas de gasto).
+
+**Funcionalidades**:
+- Listado de presupuestos tipo "expense" con distribuciones inline
+- Distribuir presupuesto en códigos de gasto (muchos-a-uno)
+- Vista de detalle con resumen de distribuciones
+- Filtros por año, rubro presupuestal, búsqueda
+- Resumen: Presupuestado, Distribuido, Sin Distribuir
+
+**Distribución de Gastos**:
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| school_id | FK | Colegio |
+| budget_id | FK | Presupuesto de gasto |
+| expense_code_id | FK | Código de gasto |
+| amount | decimal(15,2) | Monto distribuido |
+| description | text | Descripción opcional |
+| created_by | FK | Usuario creador |
+
+**Reglas de Negocio**:
+- Un código de gasto solo puede aparecer una vez por presupuesto
+- La suma de distribuciones no puede exceder el monto del presupuesto
+- No se puede eliminar una distribución que tenga convocatorias asociadas
+- La ejecución directa fue removida (ahora pasa por etapa precontractual)
+
+**Permisos**: `expenses.view`, `expenses.distribute`, `expenses.delete`
+
+---
+
+### 14. Etapa Precontractual (`/precontractual` - UI pendiente)
+**Propósito**: Gestión de convocatorias, CDPs y evaluación de propuestas antes de la contratación.
+
+**Subentidades**:
+
+#### Convocatoria
+```
+Nace desde una distribución de gastos.
+Define el objeto a contratar, justificación, presupuesto y plazos.
+```
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| school_id | FK | Colegio |
+| expense_distribution_id | FK (nullable) | Distribución origen |
+| convocatoria_number | int | Consecutivo por colegio/año |
+| fiscal_year | int | Vigencia fiscal |
+| start_date | date | Fecha de apertura |
+| end_date | date | Fecha de cierre |
+| object | text | Objeto a contratar |
+| justification | text | Necesidad a satisfacer |
+| assigned_budget | decimal(15,2) | Presupuesto asignado |
+| requires_multiple_cdps | boolean | Si requiere múltiples CDPs |
+| status | enum | draft, open, evaluation, awarded, cancelled |
+| evaluation_date | date | Fecha de evaluación |
+| proposals_count | int | Cantidad de propuestas recibidas |
+| created_by | FK | Usuario creador |
+
+**Estados de Convocatoria**:
+| Estado | Descripción | Color |
+|--------|-------------|-------|
+| draft | Borrador | Gris |
+| open | Abierta | Azul |
+| evaluation | En evaluación | Amarillo |
+| awarded | Adjudicada | Verde |
+| cancelled | Cancelada | Rojo |
+
+#### CDP (Certificado de Disponibilidad Presupuestal)
+```
+Reserva dinero de la fuente de financiación para garantizar disponibilidad.
+Un CDP se vincula a UN rubro presupuestal pero puede usar MÚLTIPLES fuentes.
+```
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| school_id | FK | Colegio |
+| convocatoria_id | FK | Convocatoria asociada |
+| cdp_number | int | Consecutivo por colegio/año |
+| fiscal_year | int | Vigencia fiscal |
+| budget_item_id | FK | Rubro presupuestal |
+| total_amount | decimal(15,2) | Monto total del CDP |
+| status | enum | active, used, cancelled |
+| created_by | FK | Usuario creador |
+
+**Detalle por Fuente de Financiación (CdpFundingSource)**:
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| cdp_id | FK | CDP padre |
+| funding_source_id | FK | Fuente de financiación |
+| budget_id | FK | Budget record (item+fuente+tipo) |
+| amount | decimal(15,2) | Monto a reservar de esta fuente |
+| available_balance_at_creation | decimal(15,2) | Snapshot del saldo disponible al crear |
+
+**Lógica de Reserva del CDP**:
+```
+Disponible en fuente = Ingresos Reales - CDPs activos existentes
+Si no hay ingresos reales → Reserva del monto presupuestado
+CDP reserva el monto, reduciendo el saldo disponible de la fuente
+```
+
+#### Propuesta
+```
+Proveedores presentan propuestas para una convocatoria.
+Se evalúan con puntuación y se selecciona la ganadora.
+```
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| convocatoria_id | FK | Convocatoria |
+| supplier_id | FK | Proveedor |
+| proposal_number | int | Número de propuesta |
+| subtotal | decimal(15,2) | Subtotal |
+| iva | decimal(15,2) | IVA |
+| total | decimal(15,2) | Total |
+| score | decimal(5,2) | Puntuación de evaluación |
+| is_selected | boolean | Si es la propuesta ganadora |
+
+**Reglas de Negocio Precontractual**:
+- Convocatoria_number es único por colegio + año fiscal
+- CDP_number es único por colegio + año fiscal
+- Un proveedor solo puede presentar UNA propuesta por convocatoria
+- Solo una propuesta puede tener is_selected = true por convocatoria
+- CDP no puede reservar más de lo disponible en la fuente
+
+**Permisos**: `precontractual.view`, `precontractual.create`, `precontractual.edit`, `precontractual.delete`, `precontractual.evaluate`
+
+---
+
+### 15. Registro de Actividad (`/activity-logs`)
 **Propósito**: Auditoría completa de todas las operaciones del sistema.
 
 **Funcionalidades**:
@@ -644,6 +793,8 @@ public function scopeForSchool($query, int $schoolId)
 | funding_sources | view, create, edit, delete |
 | incomes | view, create, edit, delete |
 | budget_transfers | view, create |
+| expenses | view, distribute, delete |
+| precontractual | view, create, edit, delete, evaluate |
 
 ### Roles Predefinidos
 - **Admin**: Todos los permisos + gestión multi-colegio

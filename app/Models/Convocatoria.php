@@ -98,6 +98,11 @@ class Convocatoria extends Model
         return $this->hasOne(Proposal::class)->where('is_selected', true);
     }
 
+    public function contract(): HasOne
+    {
+        return $this->hasOne(Contract::class);
+    }
+
     // Accessors
 
     public function getFormattedNumberAttribute(): string

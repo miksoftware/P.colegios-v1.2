@@ -64,6 +64,10 @@ Route::get('precontractual', App\Livewire\PrecontractualManagement::class)
     ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('precontractual.index');
 
+Route::get('contractual/{convocatoria_id?}', App\Livewire\ContractualManagement::class)
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.index');
+
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

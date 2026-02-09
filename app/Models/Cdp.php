@@ -6,6 +6,7 @@ use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Cdp extends Model
 {
@@ -77,6 +78,11 @@ class Cdp extends Model
     public function fundingSources(): HasMany
     {
         return $this->hasMany(CdpFundingSource::class);
+    }
+
+    public function contractRp(): HasOne
+    {
+        return $this->hasOne(ContractRp::class);
     }
 
     // Accessors

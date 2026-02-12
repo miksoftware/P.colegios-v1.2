@@ -92,6 +92,11 @@ class Contract extends Model
         return $this->hasMany(ContractRp::class);
     }
 
+    public function paymentOrders(): HasMany
+    {
+        return $this->hasMany(PaymentOrder::class);
+    }
+
     // ── Accessors ─────────────────────────────────────────────
     public function getFormattedNumberAttribute(): string
     {

@@ -133,17 +133,12 @@ class ContractualManagement extends Component
 
     public function viewDetail($id)
     {
-        $this->contract = Contract::with([
-            'convocatoria.cdps.budgetItem',
-            'convocatoria.cdps.fundingSources.fundingSource',
-            'convocatoria.selectedProposal',
-            'supplier.department',
-            'supplier.municipality',
-            'supervisor',
-            'creator',
-            'rps.cdp.budgetItem',
-            'rps.fundingSources.fundingSource',
-        ])->forSchool($this->schoolId)->findOrFail($id);
+        // Verificar que el contrato existe y pertenece al colegio
+        $exists = Contract::forSchool($this->schoolId)->where('id', $id)->exists();
+        if (!$exists) {
+            $this->dispatch('toast', message: 'Contrato no encontrado.', type: 'error');
+            return;
+        }
 
         $this->contractId = $id;
         $this->currentView = 'detail';
@@ -458,18 +453,20 @@ class ContractualManagement extends Component
 
     public function changeStatus()
     {
-        if (!$this->contract || !$this->newStatus) return;
+        if (!$this->contractId || !$this->newStatus) return;
 
-        $allowed = $this->getAllowedStatuses($this->contract->status);
+        $contract = Contract::forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        $allowed = $this->getAllowedStatuses($contract->status);
         if (!in_array($this->newStatus, $allowed)) {
             $this->dispatch('toast', message: 'Cambio de estado no permitido.', type: 'error');
             return;
         }
 
-        $this->contract->update(['status' => $this->newStatus]);
+        $contract->update(['status' => $this->newStatus]);
         $this->showStatusModal = false;
         $this->dispatch('toast', message: 'Estado actualizado a ' . Contract::STATUSES[$this->newStatus] . '.', type: 'success');
-        $this->viewDetail($this->contract->id);
+        $this->viewDetail($this->contractId);
     }
 
     public function getAllowedStatuses(string $current): array
@@ -498,9 +495,11 @@ class ContractualManagement extends Component
 
     public function deleteContract()
     {
-        if (!$this->contract) return;
+        if (!$this->contractId) return;
 
-        if ($this->contract->status !== 'draft') {
+        $contract = Contract::with('rps')->forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        if ($contract->status !== 'draft') {
             $this->dispatch('toast', message: 'Solo se pueden eliminar contratos en estado borrador.', type: 'error');
             $this->showDeleteModal = false;
             return;
@@ -509,11 +508,11 @@ class ContractualManagement extends Component
         DB::beginTransaction();
         try {
             // Revertir CDPs a estado activo
-            foreach ($this->contract->rps as $rp) {
+            foreach ($contract->rps as $rp) {
                 Cdp::where('id', $rp->cdp_id)->update(['status' => 'active']);
             }
 
-            $this->contract->delete();
+            $contract->delete();
             DB::commit();
 
             $this->dispatch('toast', message: 'Contrato eliminado.', type: 'success');
@@ -560,6 +559,21 @@ class ContractualManagement extends Component
     #[Layout('layouts.app')]
     public function render()
     {
+        // Recargar contrato fresco en cada render para evitar problemas de serialización
+        if ($this->currentView === 'detail' && $this->contractId) {
+            $this->contract = Contract::with([
+                'convocatoria.cdps.budgetItem',
+                'convocatoria.cdps.fundingSources.fundingSource',
+                'convocatoria.selectedProposal',
+                'supplier.department',
+                'supplier.municipality',
+                'supervisor',
+                'creator',
+                'rps.cdp.budgetItem',
+                'rps.fundingSources.fundingSource',
+            ])->forSchool($this->schoolId)->find($this->contractId);
+        }
+
         return view('livewire.contractual-management', [
             'contracts' => $this->contracts,
             'summary'   => $this->summary,

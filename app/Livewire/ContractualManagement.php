@@ -441,13 +441,13 @@ class ContractualManagement extends Component
     // CAMBIO DE ESTADO
     // ══════════════════════════════════════════════════════════
 
-    public function openStatusModal()
+    public function openStatusModal($status = null)
     {
         if (!auth()->user()->can('contractual.edit')) {
             $this->dispatch('toast', message: 'Sin permisos.', type: 'error');
             return;
         }
-        $this->newStatus = '';
+        $this->newStatus = $status ?? '';
         $this->showStatusModal = true;
     }
 

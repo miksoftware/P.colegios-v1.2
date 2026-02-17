@@ -526,12 +526,42 @@
                                 @if($contract->iva > 0) | IVA: ${{ number_format($contract->iva, 0, ',', '.') }} @endif
                             </p>
 
-                            {{-- Botones de acción --}}
+                            {{-- Botones de acción según estado --}}
                             <div class="mt-4 flex flex-wrap gap-2 justify-end">
                                 @can('contractual.edit')
-                                    @if(count($this->getAllowedStatuses($contract->status)) > 0)
-                                        <button wire:click="openStatusModal" class="px-3 py-1.5 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors">
-                                            Cambiar Estado
+                                    @if($contract->status === 'draft')
+                                        <button wire:click="openStatusModal('active')" class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                                            Activar Contrato
+                                        </button>
+                                    @elseif($contract->status === 'active')
+                                        <button wire:click="openStatusModal('in_execution')" class="px-3 py-1.5 text-sm bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
+                                            Pasar a Ejecución
+                                        </button>
+                                        <button wire:click="openStatusModal('suspended')" class="px-3 py-1.5 text-sm bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors">
+                                            Suspender
+                                        </button>
+                                        <button wire:click="openStatusModal('terminated')" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+                                            Terminar
+                                        </button>
+                                    @elseif($contract->status === 'in_execution')
+                                        <button wire:click="openStatusModal('completed')" class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                                            Finalizar
+                                        </button>
+                                        <button wire:click="openStatusModal('suspended')" class="px-3 py-1.5 text-sm bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors">
+                                            Suspender
+                                        </button>
+                                        <button wire:click="openStatusModal('terminated')" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+                                            Terminar
+                                        </button>
+                                    @elseif($contract->status === 'suspended')
+                                        <button wire:click="openStatusModal('active')" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                            Reactivar
+                                        </button>
+                                        <button wire:click="openStatusModal('in_execution')" class="px-3 py-1.5 text-sm bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
+                                            Pasar a Ejecución
+                                        </button>
+                                        <button wire:click="openStatusModal('terminated')" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+                                            Terminar
                                         </button>
                                     @endif
                                 @endcan
@@ -658,27 +688,45 @@
 
     {{-- ==================== MODALES ==================== --}}
 
-    {{-- Modal Cambio de Estado --}}
-    @if($showStatusModal && $contract)
+    {{-- Modal Confirmación de Cambio de Estado --}}
+    @if($showStatusModal && $contract && $newStatus)
     <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" wire:click.self="$set('showStatusModal', false)">
         <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Cambiar Estado del Contrato</h3>
-            <p class="text-sm text-gray-500 mb-4">Estado actual: <span class="font-semibold">{{ $contract->status_name }}</span></p>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nuevo Estado</label>
-                <select wire:model="newStatus" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                    <option value="">-- Seleccione --</option>
-                    @foreach($this->getAllowedStatuses($contract->status) as $status)
-                        <option value="{{ $status }}">{{ \App\Models\Contract::STATUSES[$status] ?? $status }}</option>
-                    @endforeach
-                </select>
+            <div class="text-center">
+                @php
+                    $iconConfigs = [
+                        'active' => ['bg' => 'bg-green-100', 'text' => 'text-green-600', 'icon' => 'M5 13l4 4L19 7'],
+                        'in_execution' => ['bg' => 'bg-yellow-100', 'text' => 'text-yellow-600', 'icon' => 'M13 10V3L4 14h7v7l9-11h-7z'],
+                        'completed' => ['bg' => 'bg-green-100', 'text' => 'text-green-600', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
+                        'suspended' => ['bg' => 'bg-orange-100', 'text' => 'text-orange-600', 'icon' => 'M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+                        'terminated' => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'icon' => 'M6 18L18 6M6 6l12 12'],
+                    ];
+                    $cfg = $iconConfigs[$newStatus] ?? ['bg' => 'bg-indigo-100', 'text' => 'text-indigo-600', 'icon' => 'M5 13l4 4L19 7'];
+                    $btnColors = match($newStatus) {
+                        'active', 'completed' => 'bg-green-600 hover:bg-green-700',
+                        'in_execution' => 'bg-yellow-500 hover:bg-yellow-600',
+                        'suspended' => 'bg-orange-500 hover:bg-orange-600',
+                        'terminated' => 'bg-red-600 hover:bg-red-700',
+                        default => 'bg-indigo-600 hover:bg-indigo-700',
+                    };
+                @endphp
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full {{ $cfg['bg'] }} mb-4">
+                    <svg class="h-6 w-6 {{ $cfg['text'] }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $cfg['icon'] }}"/></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Confirmar Cambio de Estado</h3>
+                <p class="text-sm text-gray-500 mb-1">El Contrato N° <span class="font-semibold">{{ $contract->formatted_number }}</span> pasará de:</p>
+                <p class="text-sm mb-4">
+                    <span class="font-semibold text-gray-700">{{ $contract->status_name }}</span>
+                    <svg class="inline w-4 h-4 text-gray-400 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                    <span class="font-bold text-indigo-600">{{ \App\Models\Contract::STATUSES[$newStatus] ?? $newStatus }}</span>
+                </p>
             </div>
-            <div class="flex justify-end gap-3">
+            <div class="flex justify-center gap-3">
                 <button wire:click="$set('showStatusModal', false)" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
                     Cancelar
                 </button>
-                <button wire:click="changeStatus" class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors" {{ !$newStatus ? 'disabled' : '' }}>
-                    Confirmar
+                <button wire:click="changeStatus" class="px-4 py-2 text-white rounded-xl transition-colors {{ $btnColors }}">
+                    Sí, confirmar
                 </button>
             </div>
         </div>

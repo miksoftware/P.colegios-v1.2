@@ -13,8 +13,11 @@ class RubrosFuentesSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Limpiar toda la data presupuestal existente
-        $this->cleanDatabase();
+        // Solo limpiar si se pasa --force (para instala fresh)
+        // En deploy normal, se usa firstOrCreate (idempotente)
+        if ($this->command->option('force') ?? false) {
+            $this->cleanDatabase();
+        }
 
         // 2. Crear cuentas contables necesarias (si no existen)
         $accounts = $this->createAccountingAccounts();
@@ -22,7 +25,7 @@ class RubrosFuentesSeeder extends Seeder
         // 3. Crear rubros con sus fuentes de financiación
         $this->createBudgetItemsWithSources($accounts);
 
-        $this->command->info('✅ Rubros y fuentes de financiación del FSE creados exitosamente.');
+        $this->command->info('✅ Rubros y fuentes de financiación del FSE creados/verificados exitosamente.');
     }
 
     /**
@@ -516,24 +519,30 @@ class RubrosFuentesSeeder extends Seeder
         foreach ($rubros as $rubro) {
             $accountId = $accounts[$rubro['account']] ?? null;
 
-            $budgetItem = BudgetItem::create([
-                'code' => $rubro['code'],
-                'name' => $rubro['name'],
-                'description' => $rubro['description'],
-                'accounting_account_id' => $accountId,
-                'is_active' => true,
-            ]);
+            $budgetItem = BudgetItem::firstOrCreate(
+                ['code' => $rubro['code']],
+                [
+                    'name' => $rubro['name'],
+                    'description' => $rubro['description'],
+                    'accounting_account_id' => $accountId,
+                    'is_active' => true,
+                ]
+            );
             $rubroCount++;
 
             foreach ($rubro['sources'] as $source) {
-                FundingSource::create([
-                    'budget_item_id' => $budgetItem->id,
-                    'code' => $source['code'],
-                    'name' => $source['name'],
-                    'type' => $source['type'],
-                    'description' => "Fuente {$source['code']} - {$source['name']} para {$rubro['name']}",
-                    'is_active' => true,
-                ]);
+                FundingSource::firstOrCreate(
+                    [
+                        'budget_item_id' => $budgetItem->id,
+                        'code' => $source['code'],
+                    ],
+                    [
+                        'name' => $source['name'],
+                        'type' => $source['type'],
+                        'description' => "Fuente {$source['code']} - {$source['name']} para {$rubro['name']}",
+                        'is_active' => true,
+                    ]
+                );
                 $fuenteCount++;
             }
         }

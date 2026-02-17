@@ -1242,11 +1242,13 @@ class MunicipalitySeeder extends Seeder
             
             if ($department) {
                 foreach ($deptMunicipalities as $municipality) {
-                    Municipality::create([
-                        'name' => $municipality['name'],
-                        'dian_code' => $municipality['dian_code'],
-                        'department_id' => $department->id,
-                    ]);
+                    Municipality::firstOrCreate(
+                        ['dian_code' => $municipality['dian_code']],
+                        [
+                            'name' => $municipality['name'],
+                            'department_id' => $department->id,
+                        ]
+                    );
                 }
             }
         }

@@ -46,7 +46,10 @@ class DepartmentSeeder extends Seeder
         ];
 
         foreach ($departments as $department) {
-            Department::create($department);
+            Department::firstOrCreate(
+                ['dian_code' => $department['dian_code']],
+                $department
+            );
         }
     }
 }

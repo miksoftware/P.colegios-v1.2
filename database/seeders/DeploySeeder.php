@@ -42,6 +42,7 @@ class DeploySeeder extends Seeder
         $this->call(PrecontractualPermissionSeeder::class);
         $this->call(ContractualPermissionSeeder::class);
         $this->call(PostcontractualPermissionSeeder::class);
+        $this->call(BankPermissionSeeder::class);
 
         // ── 4. Datos contables y presupuestales (rubros, fuentes, cuentas) ──
         $this->command->info('[4/5] 💰 Rubros, fuentes y cuentas contables...');

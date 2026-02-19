@@ -32,6 +32,10 @@ Route::get('suppliers', App\Livewire\SupplierManagement::class)
     ->middleware(['auth', 'verified', 'can:suppliers.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('suppliers.index');
 
+Route::get('banks', App\Livewire\BankManagement::class)
+    ->middleware(['auth', 'verified', 'can:banks.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('banks.index');
+
 Route::get('budget-items', App\Livewire\BudgetItemManagement::class)
     ->middleware(['auth', 'verified', 'can:budget_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('budget.items');

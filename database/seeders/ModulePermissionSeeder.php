@@ -117,10 +117,22 @@ class ModulePermissionSeeder extends Seeder
                 ],
             ],
             [
+                'name' => 'banks',
+                'display_name' => 'Bancos',
+                'icon' => 'credit-card',
+                'order' => 9,
+                'permissions' => [
+                    ['name' => 'banks.view', 'display_name' => 'Ver Bancos'],
+                    ['name' => 'banks.create', 'display_name' => 'Crear Bancos'],
+                    ['name' => 'banks.edit', 'display_name' => 'Editar Bancos'],
+                    ['name' => 'banks.delete', 'display_name' => 'Eliminar Bancos'],
+                ],
+            ],
+            [
                 'name' => 'budget_items',
                 'display_name' => 'Rubros Presupuestales',
                 'icon' => 'rectangle-stack',
-                'order' => 9,
+                'order' => 10,
                 'permissions' => [
                     ['name' => 'budget_items.view', 'display_name' => 'Ver Rubros'],
                     ['name' => 'budget_items.create', 'display_name' => 'Crear Rubros'],
@@ -132,7 +144,7 @@ class ModulePermissionSeeder extends Seeder
                 'name' => 'funding_sources',
                 'display_name' => 'Fuentes de Financiación',
                 'icon' => 'banknotes',
-                'order' => 10,
+                'order' => 11,
                 'permissions' => [
                     ['name' => 'funding_sources.view', 'display_name' => 'Ver Fuentes'],
                     ['name' => 'funding_sources.create', 'display_name' => 'Crear Fuentes'],
@@ -144,7 +156,7 @@ class ModulePermissionSeeder extends Seeder
                 'name' => 'budgets',
                 'display_name' => 'Presupuesto Inicial',
                 'icon' => 'chart-pie',
-                'order' => 11,
+                'order' => 12,
                 'permissions' => [
                     ['name' => 'budgets.view', 'display_name' => 'Ver Presupuesto'],
                     ['name' => 'budgets.create', 'display_name' => 'Crear Presupuesto'],
@@ -157,7 +169,7 @@ class ModulePermissionSeeder extends Seeder
                 'name' => 'budget_transfers',
                 'display_name' => 'Traslados Presupuestales',
                 'icon' => 'arrows-right-left',
-                'order' => 12,
+                'order' => 13,
                 'permissions' => [
                     ['name' => 'budget_transfers.view', 'display_name' => 'Ver Traslados'],
                     ['name' => 'budget_transfers.create', 'display_name' => 'Crear Traslados'],
@@ -169,7 +181,7 @@ class ModulePermissionSeeder extends Seeder
                 'name' => 'incomes',
                 'display_name' => 'Ingresos',
                 'icon' => 'currency-dollar',
-                'order' => 13,
+                'order' => 14,
                 'permissions' => [
                     ['name' => 'incomes.view', 'display_name' => 'Ver Ingresos'],
                     ['name' => 'incomes.create', 'display_name' => 'Registrar Ingresos'],
@@ -226,6 +238,10 @@ class ModulePermissionSeeder extends Seeder
             'suppliers.view',
             'suppliers.create',
             'suppliers.edit',
+            // Bancos
+            'banks.view',
+            'banks.create',
+            'banks.edit',
             // Presupuesto
             'budget_items.view',
             'budget_items.create',
@@ -251,6 +267,8 @@ class ModulePermissionSeeder extends Seeder
             'school_info.view',
             'accounting_accounts.view',
             'suppliers.view',
+            // Bancos (solo lectura)
+            'banks.view',
             // Presupuesto (solo lectura)
             'budget_items.view',
             'funding_sources.view',

@@ -42,7 +42,7 @@
                     </div>
 
                     <!-- Navigation -->
-                    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto" x-data="{ registroOpen: {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') || request()->routeIs('accounting.accounts') || request()->routeIs('expense-codes.index') || request()->routeIs('activity.logs') || request()->routeIs('suppliers.index') || request()->routeIs('banks.index') ? 'true' : 'false' }} }">
+                    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto" x-data="{ registroOpen: {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') || request()->routeIs('accounting.accounts') || request()->routeIs('expense-codes.index') || request()->routeIs('activity.logs') || request()->routeIs('suppliers.index') || request()->routeIs('banks.index') || request()->routeIs('budget.items') || request()->routeIs('funding-sources.index') ? 'true' : 'false' }} }">>
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-4 py-3 text-sm font-semibold {{ request()->routeIs('dashboard') ? 'text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl shadow-lg shadow-blue-500/30' : 'text-gray-700 hover:bg-gray-100 rounded-xl' }} transition-all">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
@@ -54,7 +54,7 @@
                         <div>
                             <button 
                                 @click="registroOpen = !registroOpen"
-                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') || request()->routeIs('accounting.accounts') || request()->routeIs('expense-codes.index') || request()->routeIs('activity.logs') || request()->routeIs('suppliers.index') || request()->routeIs('banks.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') || request()->routeIs('accounting.accounts') || request()->routeIs('expense-codes.index') || request()->routeIs('activity.logs') || request()->routeIs('suppliers.index') || request()->routeIs('banks.index') || request()->routeIs('budget.items') || request()->routeIs('funding-sources.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
                             >
                                 <div class="flex items-center gap-3">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -169,14 +169,32 @@
                                         Bancos
                                     </a>
                                 @endcan
+
+                                @can('budget_items.view')
+                                    <a href="{{ route('budget.items') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('budget.items') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                        </svg>
+                                        Rubros
+                                    </a>
+                                @endcan
+
+                                @can('funding_sources.view')
+                                    <a href="{{ route('funding-sources.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('funding-sources.index') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                        </svg>
+                                        Fuentes de Financiación
+                                    </a>
+                                @endcan
                             </div>
                         </div>
                         
                         <!-- Presupuesto - Expandable -->
-                        <div x-data="{ presupuestoOpen: {{ request()->routeIs('budget.items') || request()->routeIs('budgets.index') || request()->routeIs('funding-sources.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') || request()->routeIs('contractual.index') || request()->routeIs('postcontractual.index') ? 'true' : 'false' }} }">
+                        <div x-data="{ presupuestoOpen: {{ request()->routeIs('budgets.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') || request()->routeIs('contractual.index') || request()->routeIs('postcontractual.index') ? 'true' : 'false' }} }">
                             <button 
                                 @click="presupuestoOpen = !presupuestoOpen"
-                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('budget.items') || request()->routeIs('budgets.index') || request()->routeIs('funding-sources.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') || request()->routeIs('contractual.index') || request()->routeIs('postcontractual.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('budgets.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') || request()->routeIs('contractual.index') || request()->routeIs('postcontractual.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
                             >
                                 <div class="flex items-center gap-3">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -206,28 +224,12 @@
                                 x-transition:leave-end="opacity-0 transform -translate-y-2"
                                 class="mt-1 ml-4 space-y-1"
                             >
-                                @can('budget_items.view')
-                                    <a href="{{ route('budget.items') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('budget.items') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
-                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                                        </svg>
-                                        Rubros
-                                    </a>
-                                @endcan
                                 @can('budgets.view')
                                     <a href="{{ route('budgets.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('budgets.index') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
                                         <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                         </svg>
                                         Presupuesto Inicial
-                                    </a>
-                                @endcan
-                                @can('funding_sources.view')
-                                    <a href="{{ route('funding-sources.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('funding-sources.index') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
-                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
-                                        </svg>
-                                        Fuentes de Financiación
                                     </a>
                                 @endcan
                                 @can('budget_transfers.view')

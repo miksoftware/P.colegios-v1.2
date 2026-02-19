@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Income extends Model
 {
@@ -17,8 +18,6 @@ class Income extends Model
         'description',
         'amount',
         'date',
-        'payment_method',
-        'transaction_reference',
         'created_by',
     ];
 
@@ -52,6 +51,11 @@ class Income extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(IncomeBankAccount::class);
+    }
+
     public function scopeForSchool($query, int $schoolId)
     {
         return $query->where('school_id', $schoolId);
@@ -67,8 +71,10 @@ class Income extends Model
         return $query->where(function ($q) use ($search) {
             $q->where('name', 'like', "%{$search}%")
               ->orWhere('description', 'like', "%{$search}%")
-              ->orWhere('transaction_reference', 'like', "%{$search}%")
               ->orWhereHas('fundingSource', function ($sub) use ($search) {
+                  $sub->where('name', 'like', "%{$search}%");
+              })
+              ->orWhereHas('bankAccounts.bank', function ($sub) use ($search) {
                   $sub->where('name', 'like', "%{$search}%");
               });
         });

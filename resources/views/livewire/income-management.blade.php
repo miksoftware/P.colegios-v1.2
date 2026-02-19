@@ -255,7 +255,7 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Concepto</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rubro / Fuente</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Método</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Banco / Cuenta</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                     </tr>
@@ -271,11 +271,6 @@
                             @if($income->description)
                                 <div class="text-sm text-gray-500">{{ Str::limit($income->description, 40) }}</div>
                             @endif
-                            @if($income->transaction_reference)
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 mt-1">
-                                    Ref: {{ $income->transaction_reference }}
-                                </span>
-                            @endif
                         </td>
                         <td class="px-6 py-4">
                             @if($income->fundingSource->budgetItem)
@@ -285,8 +280,15 @@
                                 {{ $income->fundingSource->name }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
-                            {{ $income->payment_method ?? '-' }}
+                        <td class="px-6 py-4">
+                            @foreach($income->bankAccounts as $ba)
+                                <div class="text-sm {{ !$loop->first ? 'mt-1 pt-1 border-t border-gray-100' : '' }}">
+                                    <span class="font-medium text-gray-700">{{ $ba->bank->name }}</span>
+                                    <div class="text-xs text-gray-500">{{ $ba->bankAccount->account_type_name }} - {{ $ba->bankAccount->account_number }}
+                                        <span class="text-green-600 font-medium">${{ number_format($ba->amount, 0, ',', '.') }}</span>
+                                    </div>
+                                </div>
+                            @endforeach
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-green-600">
                             ${{ number_format($income->amount, 0, ',', '.') }}
@@ -405,11 +407,12 @@
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Monto del Ingreso *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Monto Total del Ingreso *</label>
                             <div class="flex">
                                 <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
-                                <input type="number" wire:model.live.debounce.500ms="amount" step="0.01" min="0" class="flex-1 rounded-r-xl border-gray-300" placeholder="0.00">
+                                <input type="number" wire:model="amount" step="0.01" min="0" class="flex-1 rounded-r-xl border-gray-300 bg-gray-50 text-gray-600" readonly placeholder="Se calcula automáticamente">
                             </div>
+                            <p class="text-xs text-gray-400 mt-1">Se calcula de la suma de las cuentas bancarias</p>
                             @error('amount') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                         </div>
                         <div>
@@ -440,22 +443,85 @@
                     </div>
                     @endif
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Método de Pago</label>
-                            <select wire:model="payment_method" class="w-full rounded-xl border-gray-300">
-                                <option value="">Seleccione...</option>
-                                <option value="transferencia">Transferencia</option>
-                                <option value="efectivo">Efectivo</option>
-                                <option value="cheque">Cheque</option>
-                                <option value="consignacion">Consignación</option>
-                                <option value="otro">Otro</option>
-                            </select>
+                    {{-- Distribución a Cuentas Bancarias --}}
+                    <div class="border border-gray-200 rounded-xl p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-sm font-semibold text-gray-700">Cuentas Bancarias *</label>
+                            <button type="button" wire:click="addBankAccountLine" class="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 transition-colors">
+                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                Agregar Cuenta
+                            </button>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Referencia</label>
-                            <input type="text" wire:model="transaction_reference" class="w-full rounded-xl border-gray-300" placeholder="Ej: TRX-12345">
+
+                        @foreach($bankAccountLines as $index => $line)
+                        <div class="grid grid-cols-12 gap-2 items-start {{ !$loop->first ? 'pt-3 border-t border-gray-100' : '' }}">
+                            {{-- Banco --}}
+                            <div class="col-span-4">
+                                @if($loop->first)
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">Banco</label>
+                                @endif
+                                <select wire:model.live="bankAccountLines.{{ $index }}.bank_id" class="w-full rounded-lg border-gray-300 text-sm @error('bankAccountLines.'.$index.'.bank_id') border-red-500 @enderror">
+                                    <option value="">Seleccione banco...</option>
+                                    @foreach($availableBanks as $bank)
+                                        <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
+                                    @endforeach
+                                </select>
+                                @error('bankAccountLines.'.$index.'.bank_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            </div>
+                            {{-- Cuenta --}}
+                            <div class="col-span-4">
+                                @if($loop->first)
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">Cuenta</label>
+                                @endif
+                                <select wire:model="bankAccountLines.{{ $index }}.bank_account_id" class="w-full rounded-lg border-gray-300 text-sm @error('bankAccountLines.'.$index.'.bank_account_id') border-red-500 @enderror" {{ empty($line['bank_id']) ? 'disabled' : '' }}>
+                                    <option value="">Seleccione cuenta...</option>
+                                    @foreach($lineAccounts[$index] ?? [] as $acc)
+                                        <option value="{{ $acc['id'] }}">{{ ucfirst($acc['account_type']) }} - {{ $acc['account_number'] }}</option>
+                                    @endforeach
+                                </select>
+                                @error('bankAccountLines.'.$index.'.bank_account_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            </div>
+                            {{-- Monto --}}
+                            <div class="col-span-3">
+                                @if($loop->first)
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">Monto</label>
+                                @endif
+                                <div class="flex">
+                                    <span class="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-xs">$</span>
+                                    <input type="number" wire:model.live.debounce.500ms="bankAccountLines.{{ $index }}.amount" step="0.01" min="0" class="flex-1 rounded-r-lg border-gray-300 text-sm @error('bankAccountLines.'.$index.'.amount') border-red-500 @enderror" placeholder="0.00">
+                                </div>
+                                @error('bankAccountLines.'.$index.'.amount') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            </div>
+                            {{-- Eliminar --}}
+                            <div class="col-span-1 flex items-end">
+                                @if($loop->first)
+                                    <div class="mb-1 h-4"></div>
+                                @endif
+                                @if(count($bankAccountLines) > 1)
+                                    <button type="button" wire:click="removeBankAccountLine({{ $index }})" class="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Eliminar línea">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                    </button>
+                                @endif
+                            </div>
                         </div>
+                        @endforeach
+
+                        @if(count($bankAccountLines) > 1)
+                        <div class="flex justify-end pt-2 border-t border-gray-100">
+                            <div class="text-sm text-gray-600">
+                                Total líneas: <span class="font-bold text-gray-900">${{ number_format(collect($bankAccountLines)->sum(fn($l) => (float)($l['amount'] ?? 0)), 0, ',', '.') }}</span>
+                                @if($amount && abs(collect($bankAccountLines)->sum(fn($l) => (float)($l['amount'] ?? 0)) - (float)$amount) > 0.01)
+                                    <span class="text-red-500 text-xs ml-2">⚠ No coincide con el monto total</span>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
+
+                        @error('bankAccountLines') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="flex justify-end gap-3 pt-4 border-t">

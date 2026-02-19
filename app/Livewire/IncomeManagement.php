@@ -3,10 +3,12 @@
 namespace App\Livewire;
 
 use App\Models\Budget;
+use App\Models\Bank;
 use App\Models\BudgetItem;
 use App\Models\BudgetModification;
 use App\Models\FundingSource;
 use App\Models\Income;
+use App\Models\IncomeBankAccount;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
@@ -38,8 +40,11 @@ class IncomeManagement extends Component
     public $description = '';
     public $amount = '';
     public $date = '';
-    public $payment_method = '';
-    public $transaction_reference = '';
+
+    // Líneas de cuentas bancarias
+    public $bankAccountLines = [];
+    public $availableBanks = [];
+    public $lineAccounts = []; // Cuentas por línea
 
     // Info del presupuesto seleccionado
     public $selectedBudgetInfo = null;
@@ -80,8 +85,10 @@ class IncomeManagement extends Component
             'description' => 'nullable|string',
             'amount' => 'required|numeric|min:0.01',
             'date' => 'required|date',
-            'payment_method' => 'nullable|string|in:transferencia,efectivo,cheque,consignacion,otro',
-            'transaction_reference' => 'nullable|string|max:255',
+            'bankAccountLines' => 'required|array|min:1',
+            'bankAccountLines.*.bank_id' => 'required|exists:banks,id',
+            'bankAccountLines.*.bank_account_id' => 'required|exists:bank_accounts,id',
+            'bankAccountLines.*.amount' => 'required|numeric|min:0.01',
         ];
     }
 
@@ -92,6 +99,12 @@ class IncomeManagement extends Component
         'amount.required' => 'El monto es obligatorio.',
         'amount.min' => 'El monto debe ser mayor a 0.',
         'date.required' => 'La fecha es obligatoria.',
+        'bankAccountLines.required' => 'Debe agregar al menos una cuenta bancaria.',
+        'bankAccountLines.min' => 'Debe agregar al menos una cuenta bancaria.',
+        'bankAccountLines.*.bank_id.required' => 'Debe seleccionar un banco.',
+        'bankAccountLines.*.bank_account_id.required' => 'Debe seleccionar una cuenta.',
+        'bankAccountLines.*.amount.required' => 'El monto de la línea es obligatorio.',
+        'bankAccountLines.*.amount.min' => 'El monto debe ser mayor a 0.',
     ];
 
     public function mount()
@@ -118,6 +131,70 @@ class IncomeManagement extends Component
         $this->filterYear = date('Y');
         $this->date = date('Y-m-d');
         $this->loadBudgetItems();
+        $this->loadAvailableBanks();
+    }
+
+    public function loadAvailableBanks()
+    {
+        $this->availableBanks = Bank::forSchool($this->schoolId)
+            ->active()
+            ->orderBy('name')
+            ->get()
+            ->toArray();
+    }
+
+    public function addBankAccountLine()
+    {
+        $this->bankAccountLines[] = [
+            'bank_id' => '',
+            'bank_account_id' => '',
+            'amount' => '',
+        ];
+    }
+
+    public function removeBankAccountLine($index)
+    {
+        unset($this->bankAccountLines[$index]);
+        unset($this->lineAccounts[$index]);
+        $this->bankAccountLines = array_values($this->bankAccountLines);
+        $this->lineAccounts = array_values($this->lineAccounts);
+    }
+
+    public function updatedBankAccountLines($value, $key)
+    {
+        // key format: "0.bank_id" or "0.bank_account_id" or "0.amount"
+        $parts = explode('.', $key);
+        if (count($parts) === 2 && $parts[1] === 'bank_id') {
+            $index = (int) $parts[0];
+            $bankId = $value;
+            // Reset account for this line
+            $this->bankAccountLines[$index]['bank_account_id'] = '';
+            // Load accounts for this bank
+            if ($bankId) {
+                $this->lineAccounts[$index] = \App\Models\BankAccount::where('bank_id', $bankId)
+                    ->active()
+                    ->orderBy('account_number')
+                    ->get()
+                    ->toArray();
+            } else {
+                $this->lineAccounts[$index] = [];
+            }
+        }
+
+        // Recalcular monto total si cambian los montos de líneas
+        if (count($parts) === 2 && $parts[1] === 'amount') {
+            $this->recalculateAmountFromLines();
+        }
+    }
+
+    public function recalculateAmountFromLines()
+    {
+        $total = 0;
+        foreach ($this->bankAccountLines as $line) {
+            $total += (float) ($line['amount'] ?? 0);
+        }
+        $this->amount = $total > 0 ? $total : '';
+        $this->calculateExceeds();
     }
 
     public function loadBudgetItems()
@@ -332,7 +409,7 @@ class IncomeManagement extends Component
     public function getIncomesProperty()
     {
         return Income::forSchool($this->schoolId)
-            ->with(['fundingSource.budgetItem', 'creator'])
+            ->with(['fundingSource.budgetItem', 'creator', 'bankAccounts.bank', 'bankAccounts.bankAccount'])
             ->when($this->filterYear, fn($q) => $q->forYear($this->filterYear))
             ->when($this->filterBudgetItem, fn($q) => $q->whereHas('fundingSource', fn($sub) => $sub->where('budget_item_id', $this->filterBudgetItem)))
             ->when($this->filterSource, fn($q) => $q->where('funding_source_id', $this->filterSource))
@@ -435,7 +512,7 @@ class IncomeManagement extends Component
             return;
         }
 
-        $income = Income::forSchool($this->schoolId)->with('fundingSource')->findOrFail($id);
+        $income = Income::forSchool($this->schoolId)->with(['fundingSource', 'bankAccounts'])->findOrFail($id);
         
         $this->incomeId = $income->id;
         $this->budget_item_id = $income->fundingSource->budget_item_id;
@@ -445,8 +522,25 @@ class IncomeManagement extends Component
         $this->description = $income->description;
         $this->amount = $income->amount;
         $this->date = $income->date->format('Y-m-d');
-        $this->payment_method = $income->payment_method;
-        $this->transaction_reference = $income->transaction_reference;
+
+        // Cargar líneas de cuentas bancarias
+        $this->bankAccountLines = [];
+        $this->lineAccounts = [];
+        foreach ($income->bankAccounts as $i => $ba) {
+            $this->bankAccountLines[] = [
+                'bank_id' => (string) $ba->bank_id,
+                'bank_account_id' => (string) $ba->bank_account_id,
+                'amount' => $ba->amount,
+            ];
+            $this->lineAccounts[$i] = \App\Models\BankAccount::where('bank_id', $ba->bank_id)
+                ->active()
+                ->orderBy('account_number')
+                ->get()
+                ->toArray();
+        }
+        if (empty($this->bankAccountLines)) {
+            $this->addBankAccountLine();
+        }
 
         $this->isEditing = true;
         $this->updatedFundingSourceId($income->funding_source_id);
@@ -465,6 +559,13 @@ class IncomeManagement extends Component
 
         $this->validate();
 
+        // Validar que la suma de líneas coincida con el monto total
+        $linesTotal = collect($this->bankAccountLines)->sum(fn($l) => (float) ($l['amount'] ?? 0));
+        if (abs($linesTotal - (float) $this->amount) > 0.01) {
+            $this->dispatch('toast', message: 'La suma de las líneas bancarias ($' . number_format($linesTotal, 0, ',', '.') . ') no coincide con el monto total ($' . number_format($this->amount, 0, ',', '.') . ').', type: 'error');
+            return;
+        }
+
         DB::beginTransaction();
         try {
             $data = [
@@ -474,18 +575,28 @@ class IncomeManagement extends Component
                 'description' => $this->description,
                 'amount' => $this->amount,
                 'date' => $this->date,
-                'payment_method' => $this->payment_method ?: null,
-                'transaction_reference' => $this->transaction_reference,
             ];
 
             if ($this->isEditing) {
                 $income = Income::forSchool($this->schoolId)->findOrFail($this->incomeId);
                 $income->update($data);
+                // Reemplazar líneas bancarias
+                $income->bankAccounts()->delete();
                 $message = 'Ingreso actualizado exitosamente.';
             } else {
                 $data['created_by'] = auth()->id();
-                Income::create($data);
+                $income = Income::create($data);
                 $message = 'Ingreso registrado exitosamente.';
+            }
+
+            // Crear líneas bancarias
+            foreach ($this->bankAccountLines as $line) {
+                IncomeBankAccount::create([
+                    'income_id' => $income->id,
+                    'bank_id' => $line['bank_id'],
+                    'bank_account_id' => $line['bank_account_id'],
+                    'amount' => $line['amount'],
+                ]);
             }
 
             // NO crear adición automática - solo informar si hay exceso
@@ -749,8 +860,9 @@ class IncomeManagement extends Component
         $this->description = '';
         $this->amount = '';
         $this->date = date('Y-m-d');
-        $this->payment_method = '';
-        $this->transaction_reference = '';
+        $this->bankAccountLines = [];
+        $this->lineAccounts = [];
+        $this->addBankAccountLine();
         $this->fundingSources = [];
         $this->selectedBudgetInfo = null;
         $this->isEditing = false;

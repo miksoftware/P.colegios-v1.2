@@ -1,3 +1,7 @@
+/* Ancho personalizado para el modal de ingresos reales */
+.custom-max-w-45rem {
+	max-width: 45rem !important;
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

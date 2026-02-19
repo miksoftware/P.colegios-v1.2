@@ -5,12 +5,7 @@
                 <h1 class="text-3xl font-bold text-gray-900">Ingresos Reales</h1>
                 <p class="text-gray-500 mt-1">Gestión del recaudo y seguimiento presupuestal</p>
             </div>
-            @can('incomes.create')
-            <button wire:click="openCreateModal" class="inline-flex items-center px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Registrar Ingreso
-            </button>
-            @endcan
+            {{-- Botón Registrar Ingreso eliminado por requerimiento --}}
         </div>
 
         <!-- Summary Cards -->
@@ -323,7 +318,7 @@
     <div class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
             <div class="fixed inset-0 bg-gray-500/75" wire:click="closeModal"></div>
-            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-lg">
+            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full custom-max-w-45rem">
                 <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
                     <div class="flex items-center justify-between">
                         <div>
@@ -405,7 +400,7 @@
                         <textarea wire:model="description" rows="2" class="w-full rounded-xl border-gray-300" placeholder="Descripción opcional..."></textarea>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Monto Total del Ingreso *</label>
                             <div class="flex">
@@ -445,7 +440,7 @@
 
                     {{-- Distribución a Cuentas Bancarias --}}
                     <div class="border border-gray-200 rounded-xl p-4 space-y-3">
-                        <div class="flex items-center justify-between">
+                        <div class="flex items-center justify-between flex-wrap gap-2">
                             <label class="block text-sm font-semibold text-gray-700">Cuentas Bancarias *</label>
                             <button type="button" wire:click="addBankAccountLine" class="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 transition-colors">
                                 <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -456,7 +451,7 @@
                         </div>
 
                         @foreach($bankAccountLines as $index => $line)
-                        <div class="grid grid-cols-12 gap-2 items-start {{ !$loop->first ? 'pt-3 border-t border-gray-100' : '' }}">
+                        <div class="grid grid-cols-12 gap-2 items-end {{ !$loop->first ? 'pt-3 border-t border-gray-100' : '' }}">
                             {{-- Banco --}}
                             <div class="col-span-4">
                                 @if($loop->first)
@@ -484,13 +479,13 @@
                                 @error('bankAccountLines.'.$index.'.bank_account_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                             </div>
                             {{-- Monto --}}
-                            <div class="col-span-3">
+                            <div class="col-span-3 flex flex-col justify-end">
                                 @if($loop->first)
                                     <label class="block text-xs font-medium text-gray-500 mb-1">Monto</label>
                                 @endif
                                 <div class="flex">
                                     <span class="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-xs">$</span>
-                                    <input type="number" wire:model.live.debounce.500ms="bankAccountLines.{{ $index }}.amount" step="0.01" min="0" class="flex-1 rounded-r-lg border-gray-300 text-sm @error('bankAccountLines.'.$index.'.amount') border-red-500 @enderror" placeholder="0.00">
+                                    <input type="number" wire:model.live.debounce.500ms="bankAccountLines.{{ $index }}.amount" step="0.01" min="0" class="flex-1 rounded-r-lg border-gray-300 text-sm @error('bankAccountLines.'.$index.'.amount') border-red-500 @enderror" placeholder="0.00" style="min-width:0;">
                                 </div>
                                 @error('bankAccountLines.'.$index.'.amount') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                             </div>

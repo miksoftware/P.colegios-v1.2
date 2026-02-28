@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Contract extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'school_id',
         'convocatoria_id',
@@ -17,6 +20,10 @@ class Contract extends Model
         'execution_place',
         'start_date',
         'end_date',
+        'original_end_date',
+        'extension_days',
+        'extension_document_path',
+        'extension_date',
         'duration_days',
         'object',
         'justification',
@@ -25,17 +32,29 @@ class Contract extends Model
         'subtotal',
         'iva',
         'total',
+        'original_total',
+        'addition_amount',
+        'addition_document_path',
+        'addition_date',
         'payment_method',
         'status',
+        'annulment_reason',
+        'annulment_date',
         'created_by',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
+        'original_end_date' => 'date',
+        'extension_date' => 'datetime',
+        'addition_date' => 'datetime',
+        'annulment_date' => 'datetime',
         'subtotal' => 'decimal:2',
         'iva' => 'decimal:2',
         'total' => 'decimal:2',
+        'original_total' => 'decimal:2',
+        'addition_amount' => 'decimal:2',
     ];
 
     // ── Constants ─────────────────────────────────────────────
@@ -57,9 +76,20 @@ class Contract extends Model
         'active'       => 'Activo',
         'in_execution' => 'En Ejecución',
         'completed'    => 'Finalizado',
-        'terminated'   => 'Terminado',
+        'annulled'     => 'Anulado',
         'suspended'    => 'Suspendido',
     ];
+
+    // ── Activity Log ─────────────────────────────────────────
+    protected static function getActivityModule(): string
+    {
+        return 'contractual';
+    }
+
+    protected function getLogDescription(): string
+    {
+        return 'Contrato #' . $this->formatted_number;
+    }
 
     // ── Relationships ─────────────────────────────────────────
     public function school(): BelongsTo
@@ -125,7 +155,7 @@ class Contract extends Model
             'active'       => 'blue',
             'in_execution' => 'yellow',
             'completed'    => 'green',
-            'terminated'   => 'red',
+            'annulled'     => 'red',
             'suspended'    => 'orange',
             default        => 'gray',
         };
@@ -169,5 +199,25 @@ class Contract extends Model
             ->max('contract_number');
 
         return ($max ?? 0) + 1;
+    }
+
+    /**
+     * Máximo que se puede adicionar: 50% del valor inicial contratado menos lo ya adicionado.
+     */
+    public function getMaxAdditionAttribute(): float
+    {
+        $initialTotal = (float) ($this->original_total ?? $this->total);
+        $alreadyAdded = (float) $this->addition_amount;
+        return max(0, ($initialTotal * 0.5) - $alreadyAdded);
+    }
+
+    /**
+     * Verifica si el contrato tiene órdenes de pago no anuladas.
+     */
+    public function hasPaymentOrders(): bool
+    {
+        return $this->paymentOrders()
+            ->where('status', '!=', 'cancelled')
+            ->exists();
     }
 }

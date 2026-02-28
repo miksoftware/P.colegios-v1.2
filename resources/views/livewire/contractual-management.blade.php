@@ -123,6 +123,7 @@
                                                 'in_execution' => 'bg-yellow-100 text-yellow-700',
                                                 'completed' => 'bg-green-100 text-green-700',
                                                 'terminated' => 'bg-red-100 text-red-700',
+                                                'annulled' => 'bg-red-100 text-red-700',
                                                 'suspended' => 'bg-orange-100 text-orange-700',
                                             ];
                                         @endphp
@@ -231,18 +232,34 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Lugar de Ejecución</label>
                             <input type="text" wire:model="executionPlace" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Ej: Sede principal del colegio">
                         </div>
-                        <div>
+                        <div x-data="{
+                            init() {
+                                flatpickr(this.$refs.startInput, {
+                                    dateFormat: 'Y-m-d',
+                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                    onChange: (selectedDates, dateStr) => { $wire.set('startDate', dateStr); }
+                                });
+                            }
+                        }">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Inicio *</label>
-                            <input type="date" wire:model.live="startDate" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                            <input type="text" x-ref="startInput" value="{{ $startDate }}" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white" placeholder="Seleccionar fecha..." readonly>
                         </div>
-                        <div>
+                        <div x-data="{
+                            init() {
+                                flatpickr(this.$refs.endInput, {
+                                    dateFormat: 'Y-m-d',
+                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                    onChange: (selectedDates, dateStr) => { $wire.set('endDate', dateStr); }
+                                });
+                            }
+                        }">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Terminación *</label>
-                            <input type="date" wire:model.live="endDate" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                            <input type="text" x-ref="endInput" value="{{ $endDate }}" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white" placeholder="Seleccionar fecha..." readonly>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Duración del Contrato (días)</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Duración del Contrato (días hábiles)</label>
                             <input type="number" value="{{ $durationDays }}" class="w-full rounded-xl border-gray-300 bg-gray-50" disabled>
-                            <p class="text-xs text-gray-400 mt-1">Se calcula automáticamente según las fechas</p>
+                            <p class="text-xs text-gray-400 mt-1">Solo días hábiles (lunes a viernes)</p>
                         </div>
                     </div>
 
@@ -493,6 +510,7 @@
                                         'in_execution' => 'bg-yellow-100 text-yellow-700',
                                         'completed' => 'bg-green-100 text-green-700',
                                         'terminated' => 'bg-red-100 text-red-700',
+                                        'annulled' => 'bg-red-100 text-red-700',
                                         'suspended' => 'bg-orange-100 text-orange-700',
                                     ];
                                 @endphp
@@ -509,9 +527,42 @@
                                 <span><strong>Lugar:</strong> {{ $contract->execution_place ?: 'N/D' }}</span>
                                 <span><strong>Inicio:</strong> {{ $contract->start_date?->format('d/m/Y') }}</span>
                                 <span><strong>Fin:</strong> {{ $contract->end_date?->format('d/m/Y') }}</span>
-                                <span><strong>Duración:</strong> {{ $contract->duration_days }} días</span>
+                                <span><strong>Duración:</strong> {{ $contract->duration_days }} días hábiles</span>
                                 <span><strong>Año fiscal:</strong> {{ $contract->fiscal_year }}</span>
                             </div>
+                            @if($contract->extension_days > 0)
+                                <div class="mt-2 bg-indigo-50 rounded-lg px-3 py-2 text-sm">
+                                    <span class="font-medium text-indigo-700">Prórroga:</span>
+                                    <span class="text-indigo-600">+{{ $contract->extension_days }} días hábiles</span>
+                                    @if($contract->original_end_date)
+                                        <span class="text-gray-500 ml-2">(Fecha original: {{ $contract->original_end_date->format('d/m/Y') }})</span>
+                                    @endif
+                                    @if($contract->extension_document_path)
+                                        <a href="{{ Storage::url($contract->extension_document_path) }}" target="_blank" class="ml-2 text-indigo-600 underline hover:text-indigo-800">Ver Otrosí</a>
+                                    @endif
+                                </div>
+                            @endif
+                            @if($contract->addition_amount > 0)
+                                <div class="mt-2 bg-emerald-50 rounded-lg px-3 py-2 text-sm">
+                                    <span class="font-medium text-emerald-700">Adición:</span>
+                                    <span class="text-emerald-600">${{ number_format($contract->addition_amount, 0, ',', '.') }}</span>
+                                    @if($contract->original_total)
+                                        <span class="text-gray-500 ml-2">(Valor original: ${{ number_format($contract->original_total, 0, ',', '.') }})</span>
+                                    @endif
+                                    @if($contract->addition_document_path)
+                                        <a href="{{ Storage::url($contract->addition_document_path) }}" target="_blank" class="ml-2 text-emerald-600 underline hover:text-emerald-800">Ver Otrosí</a>
+                                    @endif
+                                </div>
+                            @endif
+                            @if($contract->status === 'annulled')
+                                <div class="mt-2 bg-red-50 rounded-lg px-3 py-2 text-sm">
+                                    <span class="font-medium text-red-700">Anulado:</span>
+                                    <span class="text-red-600">{{ $contract->annulment_reason }}</span>
+                                    @if($contract->annulment_date)
+                                        <span class="text-gray-500 ml-2">({{ $contract->annulment_date->format('d/m/Y H:i') }})</span>
+                                    @endif
+                                </div>
+                            @endif
                             <div class="mt-2 flex flex-wrap gap-4 text-sm text-gray-500">
                                 <span><strong>Convocatoria:</strong> #{{ $contract->convocatoria?->formatted_number }}</span>
                                 <span><strong>Forma de pago:</strong> {{ $contract->payment_method_name }}</span>
@@ -537,21 +588,33 @@
                                         <button wire:click="openStatusModal('in_execution')" class="px-3 py-1.5 text-sm bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
                                             Pasar a Ejecución
                                         </button>
+                                        <button wire:click="openExtensionModal" class="px-3 py-1.5 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors">
+                                            Prórroga
+                                        </button>
+                                        <button wire:click="openAdditionModal" class="px-3 py-1.5 text-sm bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors">
+                                            Adición de Recursos
+                                        </button>
                                         <button wire:click="openStatusModal('suspended')" class="px-3 py-1.5 text-sm bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors">
                                             Suspender
                                         </button>
-                                        <button wire:click="openStatusModal('terminated')" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
-                                            Terminar
+                                        <button wire:click="openAnnulModal" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+                                            Anular
                                         </button>
                                     @elseif($contract->status === 'in_execution')
                                         <button wire:click="openStatusModal('completed')" class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
                                             Finalizar
                                         </button>
+                                        <button wire:click="openExtensionModal" class="px-3 py-1.5 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors">
+                                            Prórroga
+                                        </button>
+                                        <button wire:click="openAdditionModal" class="px-3 py-1.5 text-sm bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors">
+                                            Adición de Recursos
+                                        </button>
                                         <button wire:click="openStatusModal('suspended')" class="px-3 py-1.5 text-sm bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors">
                                             Suspender
                                         </button>
-                                        <button wire:click="openStatusModal('terminated')" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
-                                            Terminar
+                                        <button wire:click="openAnnulModal" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+                                            Anular
                                         </button>
                                     @elseif($contract->status === 'suspended')
                                         <button wire:click="openStatusModal('active')" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
@@ -560,8 +623,8 @@
                                         <button wire:click="openStatusModal('in_execution')" class="px-3 py-1.5 text-sm bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
                                             Pasar a Ejecución
                                         </button>
-                                        <button wire:click="openStatusModal('terminated')" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
-                                            Terminar
+                                        <button wire:click="openAnnulModal" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+                                            Anular
                                         </button>
                                     @endif
                                 @endcan
@@ -700,6 +763,7 @@
                         'completed' => ['bg' => 'bg-green-100', 'text' => 'text-green-600', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
                         'suspended' => ['bg' => 'bg-orange-100', 'text' => 'text-orange-600', 'icon' => 'M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z'],
                         'terminated' => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'icon' => 'M6 18L18 6M6 6l12 12'],
+                        'annulled' => ['bg' => 'bg-red-100', 'text' => 'text-red-600', 'icon' => 'M6 18L18 6M6 6l12 12'],
                     ];
                     $cfg = $iconConfigs[$newStatus] ?? ['bg' => 'bg-indigo-100', 'text' => 'text-indigo-600', 'icon' => 'M5 13l4 4L19 7'];
                     $btnColors = match($newStatus) {
@@ -707,6 +771,7 @@
                         'in_execution' => 'bg-yellow-500 hover:bg-yellow-600',
                         'suspended' => 'bg-orange-500 hover:bg-orange-600',
                         'terminated' => 'bg-red-600 hover:bg-red-700',
+                        'annulled' => 'bg-red-600 hover:bg-red-700',
                         default => 'bg-indigo-600 hover:bg-indigo-700',
                     };
                 @endphp
@@ -752,6 +817,219 @@
                     Sí, eliminar
                 </button>
             </div>
+        </div>
+    </div>
+    @endif
+
+    {{-- Modal Anular Contrato --}}
+    @if($showAnnulModal && $contract)
+    <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" wire:click.self="$set('showAnnulModal', false)">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div class="px-6 py-4 border-b bg-red-50">
+                <h3 class="text-lg font-bold text-red-900">Anular Contrato</h3>
+                <p class="text-sm text-red-700">Contrato N° {{ $contract->formatted_number }}</p>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="bg-red-50 rounded-lg p-3 text-sm text-red-700">
+                    Esta acción es irreversible. El contrato quedará en estado anulado permanentemente.
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Razón de anulación <span class="text-red-500">*</span></label>
+                    <textarea wire:model="annulmentReason" rows="3" class="w-full rounded-xl border-gray-300 focus:border-red-500 focus:ring-red-500" placeholder="Describa la razón de la anulación (mín. 10 caracteres)..."></textarea>
+                    @error('annulmentReason') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                <button wire:click="$set('showAnnulModal', false)" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
+                <button wire:click="annulContract" class="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700">Anular Contrato</button>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    {{-- Modal Prórroga --}}
+    @if($showExtensionModal && $contract)
+    <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" wire:click.self="$set('showExtensionModal', false)">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full">
+            <form wire:submit="saveExtension">
+                <div class="px-6 py-4 border-b bg-indigo-50">
+                    <h3 class="text-lg font-bold text-indigo-900">Prórroga de Tiempo</h3>
+                    <p class="text-sm text-indigo-700">Contrato N° {{ $contract->formatted_number }}</p>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="bg-blue-50 rounded-lg p-3 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Fecha de terminación actual:</span>
+                            <span class="font-semibold text-blue-700">{{ $contract->end_date->format('d/m/Y') }}</span>
+                        </div>
+                        @if($contract->original_end_date)
+                            <div class="flex justify-between mt-1">
+                                <span class="text-gray-600">Fecha original:</span>
+                                <span class="text-gray-500">{{ $contract->original_end_date->format('d/m/Y') }}</span>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div x-data="{
+                        init() {
+                            if (window.flatpickr) {
+                                flatpickr(this.$refs.extDateInput, {
+                                    dateFormat: 'Y-m-d',
+                                    minDate: '{{ $contract->end_date->addDay()->format("Y-m-d") }}',
+                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                    onChange: (selectedDates, dateStr) => { $wire.set('extensionNewEndDate', dateStr); }
+                                });
+                            }
+                        }
+                    }">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nueva fecha de terminación <span class="text-red-500">*</span></label>
+                        <input type="text" x-ref="extDateInput" value="{{ $extensionNewEndDate }}" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white" placeholder="Seleccionar nueva fecha..." readonly>
+                        @error('extensionNewEndDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Documento Otrosí <span class="text-red-500">*</span></label>
+                        <input type="file" wire:model="extensionDocument" accept=".pdf,.doc,.docx" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                        <p class="text-xs text-gray-400 mt-1">PDF, DOC o DOCX. Máximo 10MB.</p>
+                        @error('extensionDocument') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+                <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                    <button type="button" wire:click="$set('showExtensionModal', false)" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700">
+                        <span wire:loading.remove wire:target="saveExtension">Registrar Prórroga</span>
+                        <span wire:loading wire:target="saveExtension">Guardando...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
+
+    {{-- Modal Adición de Recursos --}}
+    @if($showAdditionModal && $contract)
+    <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" wire:click.self="$set('showAdditionModal', false)">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full">
+            <form wire:submit="saveAddition">
+                <div class="px-6 py-4 border-b bg-emerald-50">
+                    <h3 class="text-lg font-bold text-emerald-900">Adición de Recursos</h3>
+                    <p class="text-sm text-emerald-700">Contrato N° {{ $contract->formatted_number }}</p>
+                </div>
+                <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                    <div class="bg-emerald-50 rounded-lg p-3 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Valor actual del contrato:</span>
+                            <span class="font-semibold text-emerald-700">${{ number_format($contract->total, 0, ',', '.') }}</span>
+                        </div>
+                        @if($contract->original_total)
+                            <div class="flex justify-between mt-1">
+                                <span class="text-gray-600">Valor original:</span>
+                                <span class="text-gray-500">${{ number_format($contract->original_total, 0, ',', '.') }}</span>
+                            </div>
+                        @endif
+                        <div class="flex justify-between mt-1">
+                            <span class="text-gray-600">Máximo adición permitida (50%):</span>
+                            <span class="font-bold text-emerald-700">${{ number_format($contract->max_addition, 0, ',', '.') }}</span>
+                        </div>
+                        @if($contract->addition_amount > 0)
+                            <div class="flex justify-between mt-1">
+                                <span class="text-gray-600">Ya adicionado:</span>
+                                <span class="text-orange-600">${{ number_format($contract->addition_amount, 0, ',', '.') }}</span>
+                            </div>
+                        @endif
+                    </div>
+
+                    {{-- Rubro presupuestal --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rubro Presupuestal <span class="text-red-500">*</span></label>
+                        <select wire:model.live="additionCdpBudgetItemId" wire:change="onAdditionBudgetItemSelected" class="w-full rounded-xl border-gray-300">
+                            <option value="">Seleccionar rubro...</option>
+                            @foreach($additionBudgetItems as $item)
+                                <option value="{{ $item['id'] }}">{{ $item['name'] }}</option>
+                            @endforeach
+                        </select>
+                        @error('additionCdpBudgetItemId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
+                    {{-- Fuentes disponibles --}}
+                    @if(count($additionAvailableFundingSources) > 0)
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Fuentes Disponibles</label>
+                            <div class="space-y-2">
+                                @foreach($additionAvailableFundingSources as $afs)
+                                    @if(!collect($additionCdpFundingSources)->contains('id', $afs['id']))
+                                        <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                                            <div>
+                                                <span class="text-sm font-medium">{{ $afs['name'] }}</span>
+                                                <span class="text-xs text-gray-500 ml-2">Disponible: ${{ number_format($afs['available'], 0, ',', '.') }}</span>
+                                            </div>
+                                            <button type="button" wire:click="addAdditionFundingSource({{ $afs['id'] }})" class="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-lg hover:bg-emerald-200">
+                                                + Agregar
+                                            </button>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @elseif($additionCdpBudgetItemId)
+                        <div class="bg-yellow-50 rounded-lg p-3 text-sm text-yellow-700">
+                            No hay fuentes con saldo disponible. Verifique que existan ingresos reales registrados.
+                        </div>
+                    @endif
+
+                    {{-- Fuentes seleccionadas --}}
+                    @if(count($additionCdpFundingSources) > 0)
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Fuentes Seleccionadas</label>
+                            <div class="space-y-3">
+                                @foreach($additionCdpFundingSources as $index => $fs)
+                                    <div class="border rounded-lg p-3">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <span class="text-sm font-medium">{{ $fs['name'] }}</span>
+                                            <button type="button" wire:click="removeAdditionFundingSource({{ $index }})" class="text-red-500 hover:text-red-700">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            </button>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-gray-500">Monto:</span>
+                                            <div class="flex flex-1">
+                                                <span class="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
+                                                <input type="number" wire:model="additionCdpFundingSources.{{ $index }}.amount" step="0.01" min="0.01" max="{{ $fs['available'] }}" class="flex-1 min-w-0 rounded-r-lg border-gray-300 text-sm" placeholder="0.00">
+                                            </div>
+                                            <span class="text-xs text-gray-400 shrink-0">/ ${{ number_format($fs['available'], 0, ',', '.') }}</span>
+                                        </div>
+                                        @error("additionCdpFundingSources.{$index}.amount") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                                    </div>
+                                @endforeach
+                            </div>
+                            @php $totalAdd = collect($additionCdpFundingSources)->sum(fn($fs) => (float) ($fs['amount'] ?? 0)); @endphp
+                            <div class="mt-3 pt-3 border-t flex justify-between items-center">
+                                <span class="font-medium text-gray-700">Total adición</span>
+                                <span class="text-lg font-bold {{ $totalAdd > ($contract->max_addition ?? 0) ? 'text-red-600' : 'text-emerald-600' }}">${{ number_format($totalAdd, 0, ',', '.') }}</span>
+                            </div>
+                            @if($totalAdd > ($contract->max_addition ?? 0))
+                                <p class="text-xs text-red-600 text-right">Excede el máximo permitido</p>
+                            @endif
+                        </div>
+                    @endif
+                    @error('additionCdpFundingSources') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+
+                    {{-- Documento Otrosí --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Documento Otrosí <span class="text-red-500">*</span></label>
+                        <input type="file" wire:model="additionDocument" accept=".pdf,.doc,.docx" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+                        <p class="text-xs text-gray-400 mt-1">PDF, DOC o DOCX. Máximo 10MB.</p>
+                        @error('additionDocument') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+                <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                    <button type="button" wire:click="$set('showAdditionModal', false)" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700" {{ count($additionCdpFundingSources) === 0 ? 'disabled' : '' }}>
+                        <span wire:loading.remove wire:target="saveAddition">Registrar Adición</span>
+                        <span wire:loading wire:target="saveAddition">Guardando...</span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
     @endif

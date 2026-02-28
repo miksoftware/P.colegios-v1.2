@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Budget;
+use App\Models\BudgetItem;
 use App\Models\Cdp;
 use App\Models\CdpFundingSource;
 use App\Models\Contract;
@@ -15,11 +16,13 @@ use App\Models\User;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
+use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\DB;
 
 class ContractualManagement extends Component
 {
     use WithPagination;
+    use WithFileUploads;
 
     public $schoolId;
     public $filterYear;
@@ -66,6 +69,24 @@ class ContractualManagement extends Component
 
     // Modal Eliminar
     public $showDeleteModal = false;
+
+    // Modal Anular
+    public $showAnnulModal = false;
+    public $annulmentReason = '';
+
+    // Modal Prórroga
+    public $showExtensionModal = false;
+    public $extensionNewEndDate = '';
+    public $extensionDocument = null;
+
+    // Modal Adición de Recursos
+    public $showAdditionModal = false;
+    public $additionAmount = '';
+    public $additionDocument = null;
+    public $additionCdpBudgetItemId = '';
+    public $additionCdpFundingSources = [];
+    public $additionAvailableFundingSources = [];
+    public $additionBudgetItems = [];
 
     protected $queryString = [
         'filterYear'   => ['except' => ''],
@@ -247,11 +268,11 @@ class ContractualManagement extends Component
             $this->contractTotal = $proposal->total;
         }
 
-        // Cargar CDPs con sus fuentes
+        // Cargar CDPs activos con sus fuentes (excluir anulados)
         $this->cdpsData = [];
         $this->rpAssignments = [];
 
-        foreach ($convocatoria->cdps as $cdp) {
+        foreach ($convocatoria->cdps->where('status', 'active') as $cdp) {
             $cdpFundingSources = [];
             foreach ($cdp->fundingSources as $fs) {
                 $cdpFundingSources[] = [
@@ -309,7 +330,23 @@ class ContractualManagement extends Component
             try {
                 $start = \Carbon\Carbon::parse($this->startDate);
                 $end   = \Carbon\Carbon::parse($this->endDate);
-                $this->durationDays = max(0, $start->diffInDays($end));
+
+                if ($end->lte($start)) {
+                    $this->durationDays = 0;
+                    return;
+                }
+
+                // Contar solo días hábiles (lunes a viernes)
+                $days = 0;
+                $current = $start->copy();
+                while ($current->lte($end)) {
+                    if ($current->isWeekday()) {
+                        $days++;
+                    }
+                    $current->addDay();
+                }
+
+                $this->durationDays = $days;
             } catch (\Exception $e) {
                 $this->durationDays = 0;
             }
@@ -473,9 +510,9 @@ class ContractualManagement extends Component
     {
         return match ($current) {
             'draft'        => ['active'],
-            'active'       => ['in_execution', 'suspended', 'terminated'],
-            'in_execution' => ['completed', 'suspended', 'terminated'],
-            'suspended'    => ['active', 'in_execution', 'terminated'],
+            'active'       => ['in_execution', 'suspended'],
+            'in_execution' => ['completed', 'suspended'],
+            'suspended'    => ['active', 'in_execution'],
             default        => [],
         };
     }
@@ -518,6 +555,377 @@ class ContractualManagement extends Component
             $this->dispatch('toast', message: 'Contrato eliminado.', type: 'success');
             $this->showDeleteModal = false;
             $this->backToList();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ANULAR CONTRATO
+    // ══════════════════════════════════════════════════════════
+
+    public function openAnnulModal()
+    {
+        if (!auth()->user()->can('contractual.edit')) {
+            $this->dispatch('toast', message: 'Sin permisos.', type: 'error');
+            return;
+        }
+
+        if (!$this->contractId) return;
+
+        $contract = Contract::with('paymentOrders')->forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        if ($contract->hasPaymentOrders()) {
+            $this->dispatch('toast', message: 'No se puede anular un contrato que tiene órdenes de pago asociadas.', type: 'error');
+            return;
+        }
+
+        if (in_array($contract->status, ['annulled', 'completed'])) {
+            $this->dispatch('toast', message: 'Este contrato no se puede anular en su estado actual.', type: 'error');
+            return;
+        }
+
+        $this->annulmentReason = '';
+        $this->showAnnulModal = true;
+    }
+
+    public function annulContract()
+    {
+        if (!$this->contractId) return;
+
+        $this->validate([
+            'annulmentReason' => 'required|min:10|max:500',
+        ], [
+            'annulmentReason.required' => 'La razón de anulación es obligatoria.',
+            'annulmentReason.min' => 'La razón debe tener al menos 10 caracteres.',
+        ]);
+
+        $contract = Contract::with('paymentOrders')->forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        if ($contract->hasPaymentOrders()) {
+            $this->dispatch('toast', message: 'No se puede anular: tiene órdenes de pago.', type: 'error');
+            $this->showAnnulModal = false;
+            return;
+        }
+
+        $contract->update([
+            'status' => 'annulled',
+            'annulment_reason' => $this->annulmentReason,
+            'annulment_date' => now(),
+        ]);
+
+        $this->showAnnulModal = false;
+        $this->dispatch('toast', message: 'Contrato anulado exitosamente.', type: 'success');
+        $this->viewDetail($this->contractId);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // PRÓRROGA DE TIEMPO
+    // ══════════════════════════════════════════════════════════
+
+    public function openExtensionModal()
+    {
+        if (!auth()->user()->can('contractual.edit')) {
+            $this->dispatch('toast', message: 'Sin permisos.', type: 'error');
+            return;
+        }
+
+        if (!$this->contractId) return;
+
+        $contract = Contract::forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        if (!in_array($contract->status, ['active', 'in_execution'])) {
+            $this->dispatch('toast', message: 'Solo se puede prorrogar contratos activos o en ejecución.', type: 'error');
+            return;
+        }
+
+        $this->extensionNewEndDate = $contract->end_date->format('Y-m-d');
+        $this->extensionDocument = null;
+        $this->showExtensionModal = true;
+    }
+
+    public function saveExtension()
+    {
+        if (!$this->contractId) return;
+
+        $contract = Contract::forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        $this->validate([
+            'extensionNewEndDate' => 'required|date|after:' . $contract->end_date->format('Y-m-d'),
+            'extensionDocument' => 'required|file|mimes:pdf,doc,docx|max:10240',
+        ], [
+            'extensionNewEndDate.required' => 'La nueva fecha de terminación es obligatoria.',
+            'extensionNewEndDate.after' => 'La nueva fecha debe ser posterior a la fecha actual de terminación (' . $contract->end_date->format('d/m/Y') . ').',
+            'extensionDocument.required' => 'El documento Otrosí es obligatorio.',
+            'extensionDocument.mimes' => 'El documento debe ser PDF, DOC o DOCX.',
+            'extensionDocument.max' => 'El documento no puede superar 10MB.',
+        ]);
+
+        $newEnd = \Carbon\Carbon::parse($this->extensionNewEndDate);
+        $oldEnd = $contract->end_date;
+
+        // Calcular días hábiles de extensión
+        $extensionDays = 0;
+        $current = $oldEnd->copy()->addDay();
+        while ($current->lte($newEnd)) {
+            if ($current->isWeekday()) {
+                $extensionDays++;
+            }
+            $current->addDay();
+        }
+
+        // Recalcular duración total en días hábiles
+        $start = $contract->start_date;
+        $totalDays = 0;
+        $cur = $start->copy();
+        while ($cur->lte($newEnd)) {
+            if ($cur->isWeekday()) {
+                $totalDays++;
+            }
+            $cur->addDay();
+        }
+
+        // Guardar documento
+        $path = $this->extensionDocument->store('contracts/extensions', 'public');
+
+        DB::transaction(function () use ($contract, $newEnd, $extensionDays, $totalDays, $path) {
+            $contract->update([
+                'original_end_date' => $contract->original_end_date ?? $contract->end_date,
+                'end_date' => $newEnd,
+                'extension_days' => $contract->extension_days + $extensionDays,
+                'extension_document_path' => $path,
+                'extension_date' => now(),
+                'duration_days' => $totalDays,
+            ]);
+        });
+
+        $this->showExtensionModal = false;
+        $this->extensionDocument = null;
+        $this->dispatch('toast', message: "Prórroga registrada: +{$extensionDays} días hábiles.", type: 'success');
+        $this->viewDetail($this->contractId);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ADICIÓN DE RECURSOS
+    // ══════════════════════════════════════════════════════════
+
+    public function openAdditionModal()
+    {
+        if (!auth()->user()->can('contractual.edit')) {
+            $this->dispatch('toast', message: 'Sin permisos.', type: 'error');
+            return;
+        }
+
+        if (!$this->contractId) return;
+
+        $contract = Contract::with('rps.cdp.budgetItem', 'convocatoria.cdps.budgetItem')
+            ->forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        if (!in_array($contract->status, ['active', 'in_execution'])) {
+            $this->dispatch('toast', message: 'Solo se puede adicionar recursos a contratos activos o en ejecución.', type: 'error');
+            return;
+        }
+
+        if ($contract->max_addition <= 0) {
+            $this->dispatch('toast', message: 'Este contrato ya alcanzó el máximo de adición permitido (50% del valor inicial).', type: 'error');
+            return;
+        }
+
+        // Cargar rubros del contrato (de los CDPs de la convocatoria)
+        $budgetItemIds = $contract->convocatoria->cdps
+            ->where('status', '!=', 'cancelled')
+            ->pluck('budget_item_id')
+            ->unique();
+
+        $this->additionBudgetItems = \App\Models\BudgetItem::active()
+            ->whereIn('id', $budgetItemIds)
+            ->orderBy('code')
+            ->get()
+            ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
+            ->toArray();
+
+        $this->additionAmount = '';
+        $this->additionDocument = null;
+        $this->additionCdpBudgetItemId = '';
+        $this->additionCdpFundingSources = [];
+        $this->additionAvailableFundingSources = [];
+
+        if (count($this->additionBudgetItems) === 1) {
+            $this->additionCdpBudgetItemId = $this->additionBudgetItems[0]['id'];
+            $this->onAdditionBudgetItemSelected();
+        }
+
+        $this->showAdditionModal = true;
+    }
+
+    public function onAdditionBudgetItemSelected()
+    {
+        $this->additionCdpFundingSources = [];
+        $this->additionAvailableFundingSources = [];
+
+        if (empty($this->additionCdpBudgetItemId)) return;
+
+        $contract = Contract::forSchool($this->schoolId)->findOrFail($this->contractId);
+        $maxAddition = $contract->max_addition;
+
+        $sources = FundingSource::where('budget_item_id', $this->additionCdpBudgetItemId)
+            ->active()
+            ->get();
+
+        $this->additionAvailableFundingSources = $sources->map(function ($source) use ($maxAddition) {
+            $balance = $source->getAvailableBalanceForYear((int) $this->filterYear);
+            $reserved = Cdp::getTotalReservedForFundingSource($source->id, (int) $this->filterYear);
+            $sourceAvailable = max(0, $balance - $reserved);
+
+            // Limitar al máximo de adición permitido para el contrato
+            $available = min($sourceAvailable, $maxAddition);
+
+            $budget = Budget::forSchool($this->schoolId)
+                ->where('funding_source_id', $source->id)
+                ->where('budget_item_id', $this->additionCdpBudgetItemId)
+                ->where('fiscal_year', $this->filterYear)
+                ->where('type', 'expense')
+                ->first();
+
+            return [
+                'id' => $source->id,
+                'name' => $source->code . ' - ' . $source->name,
+                'type' => $source->type_name,
+                'available' => $available,
+                'budget_id' => $budget?->id,
+            ];
+        })->filter(fn($s) => $s['available'] > 0)->values()->toArray();
+    }
+
+    public function addAdditionFundingSource($sourceId)
+    {
+        $source = collect($this->additionAvailableFundingSources)->firstWhere('id', $sourceId);
+        if (!$source) return;
+
+        if (collect($this->additionCdpFundingSources)->contains('id', $sourceId)) {
+            $this->dispatch('toast', message: 'Esta fuente ya fue agregada.', type: 'error');
+            return;
+        }
+
+        $this->additionCdpFundingSources[] = [
+            'id' => $source['id'],
+            'name' => $source['name'],
+            'available' => $source['available'],
+            'budget_id' => $source['budget_id'],
+            'amount' => '',
+        ];
+    }
+
+    public function removeAdditionFundingSource($index)
+    {
+        unset($this->additionCdpFundingSources[$index]);
+        $this->additionCdpFundingSources = array_values($this->additionCdpFundingSources);
+    }
+
+    public function saveAddition()
+    {
+        if (!$this->contractId) return;
+
+        $contract = Contract::forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        $this->validate([
+            'additionDocument' => 'required|file|mimes:pdf,doc,docx|max:10240',
+            'additionCdpBudgetItemId' => 'required',
+            'additionCdpFundingSources' => 'required|array|min:1',
+            'additionCdpFundingSources.*.amount' => 'required|numeric|min:0.01',
+        ], [
+            'additionDocument.required' => 'El documento Otrosí es obligatorio.',
+            'additionDocument.mimes' => 'El documento debe ser PDF, DOC o DOCX.',
+            'additionCdpBudgetItemId.required' => 'Seleccione un rubro.',
+            'additionCdpFundingSources.required' => 'Agregue al menos una fuente.',
+            'additionCdpFundingSources.*.amount.required' => 'Ingrese un monto.',
+            'additionCdpFundingSources.*.amount.min' => 'El monto debe ser mayor a 0.',
+        ]);
+
+        $totalAddition = collect($this->additionCdpFundingSources)->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
+
+        if ($totalAddition > $contract->max_addition) {
+            $this->dispatch('toast', message: 'El monto excede el máximo permitido (50% del valor inicial). Máximo: $' . number_format($contract->max_addition, 0, ',', '.'), type: 'error');
+            return;
+        }
+
+        // Validar montos vs disponibles
+        foreach ($this->additionCdpFundingSources as $i => $fs) {
+            if ((float) $fs['amount'] > (float) $fs['available']) {
+                $this->addError("additionCdpFundingSources.{$i}.amount", 'Excede el saldo disponible.');
+                return;
+            }
+        }
+
+        $path = $this->additionDocument->store('contracts/additions', 'public');
+        $year = (int) $this->filterYear;
+
+        DB::beginTransaction();
+        try {
+            // Crear CDP de adición
+            $cdp = Cdp::create([
+                'school_id' => $this->schoolId,
+                'convocatoria_id' => $contract->convocatoria_id,
+                'cdp_number' => Cdp::getNextCdpNumber($this->schoolId, $year),
+                'fiscal_year' => $year,
+                'budget_item_id' => $this->additionCdpBudgetItemId,
+                'total_amount' => $totalAddition,
+                'status' => 'used',
+                'created_by' => auth()->id(),
+            ]);
+
+            foreach ($this->additionCdpFundingSources as $fs) {
+                $source = FundingSource::find($fs['id']);
+                CdpFundingSource::create([
+                    'cdp_id' => $cdp->id,
+                    'funding_source_id' => $fs['id'],
+                    'budget_id' => $fs['budget_id'],
+                    'amount' => (float) $fs['amount'],
+                    'available_balance_at_creation' => $source ? $source->getAvailableBalanceForYear($year) : 0,
+                ]);
+            }
+
+            // Crear RP de adición
+            $rp = ContractRp::create([
+                'contract_id' => $contract->id,
+                'cdp_id' => $cdp->id,
+                'rp_number' => ContractRp::getNextRpNumber($this->schoolId, $year),
+                'fiscal_year' => $year,
+                'total_amount' => $totalAddition,
+                'status' => 'active',
+                'created_by' => auth()->id(),
+            ]);
+
+            foreach ($this->additionCdpFundingSources as $fs) {
+                $amount = (float) ($fs['amount'] ?? 0);
+                if ($amount > 0) {
+                    RpFundingSource::create([
+                        'contract_rp_id' => $rp->id,
+                        'funding_source_id' => $fs['id'],
+                        'budget_id' => $fs['budget_id'] ?? null,
+                        'amount' => $amount,
+                    ]);
+                }
+            }
+
+            // Actualizar contrato
+            $contract->update([
+                'original_total' => $contract->original_total ?? $contract->total,
+                'total' => (float) $contract->total + $totalAddition,
+                'subtotal' => (float) $contract->subtotal + $totalAddition,
+                'addition_amount' => (float) $contract->addition_amount + $totalAddition,
+                'addition_document_path' => $path,
+                'addition_date' => now(),
+            ]);
+
+            DB::commit();
+
+            $this->showAdditionModal = false;
+            $this->additionDocument = null;
+            $this->dispatch('toast', message: 'Adición de $' . number_format($totalAddition, 0, ',', '.') . ' registrada con CDP #' . $cdp->formatted_number . ' y RP #' . str_pad($rp->rp_number, 4, '0', STR_PAD_LEFT) . '.', type: 'success');
+            $this->viewDetail($this->contractId);
 
         } catch (\Exception $e) {
             DB::rollBack();

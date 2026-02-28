@@ -136,16 +136,17 @@ class Cdp extends Model
     }
 
     /**
-     * Calcula el total reservado por CDPs activos para una fuente de financiación específica
-     * en un año fiscal dado.
+     * Calcula el total reservado por CDPs activos y utilizados para una fuente de financiación específica
+     * en un año fiscal dado. Se excluyen solo los CDPs anulados.
      */
     public static function getTotalReservedForFundingSource(int $fundingSourceId, int $fiscalYear): float
     {
         return (float) CdpFundingSource::whereHas('cdp', function ($q) use ($fiscalYear) {
             $q->where('fiscal_year', $fiscalYear)
-              ->where('status', 'active');
+              ->whereIn('status', ['active', 'used']);
         })
         ->where('funding_source_id', $fundingSourceId)
         ->sum('amount');
     }
+
 }

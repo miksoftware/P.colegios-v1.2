@@ -164,18 +164,18 @@
                         <select wire:model.live="selectedContractId" wire:change="onContractSelected" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
                             <option value="">-- Seleccione un contrato --</option>
                             @foreach($availableContracts as $ac)
-                                <option value="{{ $ac['id'] }}">N° {{ $ac['number'] }} - {{ Str::limit($ac['object'], 50) }} ({{ $ac['supplier'] }})</option>
+                                <option value="{{ $ac['id'] }}">N° {{ $ac['number'] }} - {{ $ac['status'] }} - {{ Str::limit($ac['object'], 40) }} ({{ $ac['supplier'] }})</option>
                             @endforeach
                         </select>
                         @if(empty($availableContracts))
-                            <p class="text-xs text-amber-600 mt-1">No hay contratos activos o en ejecución para este año.</p>
+                            <p class="text-xs text-amber-600 mt-1">No hay contratos disponibles para este año.</p>
                         @endif
                         @error('selectedContractId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                     </div>
                 </div>
 
                 @if(!empty($contractData))
-                {{-- ─── SECCIÓN 2: Objeto del Contrato (informativo) ── --}}
+                {{-- ─── SECCIÓN 2: Objeto del Contrato ── --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -217,7 +217,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">Régimen Tributario</label>
-                            <p class="text-sm text-gray-900 bg-gray-50 rounded-xl px-4 py-2.5">{{ $supplierData['tax_regime'] ?? 'N/D' }}</p>
+                            <p class="text-sm text-gray-900 bg-gray-50 rounded-xl px-4 py-2.5">{{ $supplierData['tax_regime_name'] ?? 'N/D' }}</p>
                         </div>
                     </div>
                 </div>
@@ -260,6 +260,15 @@
                         </div>
                     </div>
                     @endif
+
+                    @if($contractData['total_paid'] > 0)
+                    <div class="mt-4 bg-orange-50 border border-orange-200 rounded-xl p-3">
+                        <p class="text-xs text-orange-700">
+                            Ya se han registrado pagos por <span class="font-bold">${{ number_format($contractData['total_paid'], 0, ',', '.') }}</span>.
+                            Saldo pendiente: <span class="font-bold">${{ number_format($contractData['remaining'], 0, ',', '.') }}</span>
+                        </p>
+                    </div>
+                    @endif
                 </div>
 
                 {{-- ─── SECCIÓN 5: Datos de Factura y Pago ─────────── --}}
@@ -275,12 +284,14 @@
                             @error('paymentDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de la Factura</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de la Factura *</label>
                             <input type="date" wire:model="invoiceDate" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+                            @error('invoiceDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Número de Factura</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Número de Factura *</label>
                             <input type="text" wire:model="invoiceNumber" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500" placeholder="Ej: FAC-001">
+                            @error('invoiceNumber') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
                     </div>
 
@@ -333,7 +344,7 @@
                     </div>
                 </div>
 
-                {{-- ─── SECCIÓN 6: Impuestos / Retenciones DIAN ────── --}}
+                {{-- ─── SECCIÓN 6: Retenciones DIAN ────────────────── --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
@@ -369,46 +380,188 @@
                     @if($retentionConcept)
                     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
                         <p class="text-xs font-medium text-amber-700 uppercase mb-2">Porcentajes de Retención en la Fuente</p>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                             @foreach(\App\Models\PaymentOrder::RETENTION_RATES as $concept => $rates)
+                                @php $minBase = \App\Models\PaymentOrder::RETENTION_MIN_BASE[$concept] ?? 0; @endphp
                                 <div class="bg-white rounded-lg p-2 border {{ $retentionConcept === $concept ? 'border-amber-400 ring-1 ring-amber-300' : 'border-amber-100' }}">
                                     <p class="font-medium text-gray-700">{{ \App\Models\PaymentOrder::RETENTION_CONCEPTS[$concept] }}</p>
                                     <p class="text-gray-500">No declara: {{ $rates[0] }}%</p>
                                     <p class="text-gray-500">Declara: {{ $rates[1] }}%</p>
+                                    <p class="text-gray-400 mt-1">Base mín: ${{ number_format($minBase, 0, ',', '.') }}</p>
                                 </div>
                             @endforeach
                         </div>
                     </div>
                     @endif
 
-                    {{-- Resultados de retención --}}
+                    {{-- Info de régimen y ReteIVA --}}
+                    @if(!empty($supplierData['tax_regime']))
+                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
+                        <p class="text-xs text-blue-700">
+                            <span class="font-medium">Régimen del proveedor:</span> {{ $supplierData['tax_regime_name'] ?? 'N/D' }}.
+                            @if(in_array($supplierData['tax_regime'], ['comun', 'gran_contribuyente']))
+                                <span class="text-blue-800 font-medium">Responsable de IVA → Se aplica ReteIVA (15% del IVA).</span>
+                            @else
+                                <span class="text-blue-600">No responsable de IVA → No se aplica ReteIVA.</span>
+                            @endif
+                        </p>
+                    </div>
+                    @endif
+
+                    {{-- Resultados de retención DIAN --}}
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
-                            <p class="text-xs text-gray-500">Porcentaje Aplicado</p>
+                            <p class="text-xs text-gray-500">Retefuente %</p>
                             <p class="text-lg font-bold text-gray-900">{{ number_format($retentionPercentage, 1) }}%</p>
                         </div>
                         <div class="bg-red-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-500">Retefuente</p>
                             <p class="text-lg font-bold text-red-700">${{ number_format($retefuente, 0, ',', '.') }}</p>
+                            <p class="text-[10px] text-red-400">Se calcula sobre el subtotal</p>
                         </div>
                         <div class="bg-red-50 rounded-xl p-3 text-center">
-                            <p class="text-xs text-red-500">ReteIVA (15%)</p>
+                            <p class="text-xs text-red-500">ReteIVA (15% del IVA)</p>
                             <p class="text-lg font-bold text-red-700">${{ number_format($reteiva, 0, ',', '.') }}</p>
+                            <p class="text-[10px] text-red-400">Se calcula sobre el IVA</p>
                         </div>
                         <div class="bg-red-100 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-600 font-medium">Total Retenciones DIAN</p>
-                            <p class="text-lg font-bold text-red-800">${{ number_format($totalRetentions, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-red-800">${{ number_format($totalRetentionsDian, 0, ',', '.') }}</p>
                         </div>
-                    </div>
-
-                    {{-- Neto a pagar --}}
-                    <div class="mt-4 bg-emerald-100 rounded-xl p-4 text-center">
-                        <p class="text-sm text-emerald-700 font-medium">NETO A PAGAR AL PROVEEDOR</p>
-                        <p class="text-3xl font-bold text-emerald-800">${{ number_format($netPayment, 0, ',', '.') }}</p>
                     </div>
                 </div>
 
-                {{-- ─── SECCIÓN 7: Observaciones ───────────────────── --}}
+                {{-- ─── SECCIÓN 7: Otros Impuestos ─────────────────── --}}
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                        Otros Impuestos
+                        <span class="text-xs font-normal text-gray-400">(según municipio del colegio)</span>
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="bg-gray-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-gray-500">Estampilla Produlto Mayor</p>
+                            <p class="text-lg font-bold {{ $estampillaProdultoMayor > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProdultoMayor, 0, ',', '.') }}</p>
+                            <p class="text-[10px] text-gray-400">2% del subtotal (solo Bucaramanga, subtotal ≥ $1)</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-gray-500">Estampilla Procultura</p>
+                            <p class="text-lg font-bold {{ $estampillaProcultura > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProcultura, 0, ',', '.') }}</p>
+                            <p class="text-[10px] text-gray-400">2% del subtotal (solo Bucaramanga, subtotal ≥ $35.018.010)</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-gray-500">Retención ICA</p>
+                            <p class="text-lg font-bold text-gray-400">${{ number_format($retencionIca, 0, ',', '.') }}</p>
+                            <p class="text-[10px] text-gray-400">Solo Piedecuesta y Villanueva</p>
+                        </div>
+                    </div>
+
+                    @if($otherTaxesTotal > 0)
+                    <div class="bg-orange-100 rounded-xl p-3 text-center">
+                        <p class="text-xs text-orange-600 font-medium">Total Otros Impuestos</p>
+                        <p class="text-lg font-bold text-orange-800">${{ number_format($otherTaxesTotal, 0, ',', '.') }}</p>
+                    </div>
+                    @endif
+                </div>
+
+                {{-- ─── SECCIÓN 8: Resumen Final ───────────────────── --}}
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Resumen de Descuentos y Neto a Pagar</h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="bg-gray-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-gray-500">Total Factura</p>
+                            <p class="text-lg font-bold text-gray-900">${{ number_format($payTotal, 0, ',', '.') }}</p>
+                        </div>
+                        <div class="bg-red-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-red-500">Total Descuentos</p>
+                            <p class="text-lg font-bold text-red-700">- ${{ number_format($totalRetentions, 0, ',', '.') }}</p>
+                            <p class="text-[10px] text-red-400">DIAN: ${{ number_format($totalRetentionsDian, 0, ',', '.') }} + Otros: ${{ number_format($otherTaxesTotal, 0, ',', '.') }}</p>
+                        </div>
+                        <div class="bg-emerald-100 rounded-xl p-4 text-center">
+                            <p class="text-sm text-emerald-700 font-medium">VALOR NETO A PAGAR</p>
+                            <p class="text-3xl font-bold text-emerald-800">${{ number_format($netPayment, 0, ',', '.') }}</p>
+                        </div>
+                    </div>
+
+                    {{-- Cuenta bancaria del proveedor --}}
+                    @if(!empty($supplierData['bank_name']) || !empty($supplierData['account_number']))
+                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-4">
+                        <p class="text-xs font-medium text-blue-700 uppercase mb-2">Cuenta Bancaria del Proveedor (donde se realiza el pago)</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <p class="text-xs text-gray-500">Banco</p>
+                                <p class="text-sm font-semibold text-gray-900">{{ $supplierData['bank_name'] ?: 'No registrado' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500">Tipo de Cuenta</p>
+                                <p class="text-sm font-semibold text-gray-900">{{ $supplierData['account_type'] ?: 'No registrado' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500">Número de Cuenta</p>
+                                <p class="text-sm font-semibold text-gray-900">{{ $supplierData['account_number'] ?: 'No registrado' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    @else
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mt-4">
+                        <p class="text-xs text-amber-700">El proveedor no tiene cuenta bancaria registrada. Verifique los datos del proveedor.</p>
+                    </div>
+                    @endif
+                </div>
+
+                {{-- ─── SECCIÓN 9: Códigos Contables ───────────────── --}}
+                @if($retentionConcept || $otherTaxesTotal > 0)
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                        Códigos Contables Aplicables
+                    </h2>
+                    <div class="space-y-2">
+                        @if($retefuente > 0)
+                        <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
+                            <span class="text-sm text-gray-700">
+                                @if(in_array($retentionConcept, ['servicios', 'arrendamiento_sitios_web', 'arrendamiento_inmuebles', 'transporte_pasajeros']))
+                                    {{ \App\Models\PaymentOrder::ACCOUNTING_CODES['retefuente_servicios'] }}
+                                @elseif($retentionConcept === 'compras')
+                                    {{ \App\Models\PaymentOrder::ACCOUNTING_CODES['retefuente_compras'] }}
+                                @elseif($retentionConcept === 'honorarios')
+                                    {{ \App\Models\PaymentOrder::ACCOUNTING_CODES['retefuente_honorarios'] }}
+                                @endif
+                            </span>
+                            <span class="text-sm font-bold text-red-600">${{ number_format($retefuente, 0, ',', '.') }}</span>
+                        </div>
+                        @endif
+                        @if($reteiva > 0)
+                        <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
+                            <span class="text-sm text-gray-700">{{ \App\Models\PaymentOrder::ACCOUNTING_CODES['reteiva'] }}</span>
+                            <span class="text-sm font-bold text-red-600">${{ number_format($reteiva, 0, ',', '.') }}</span>
+                        </div>
+                        @endif
+                        @if($estampillaProdultoMayor > 0)
+                        <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
+                            <span class="text-sm text-gray-700">{{ \App\Models\PaymentOrder::ACCOUNTING_CODES['estampilla_produlto_mayor'] }}</span>
+                            <span class="text-sm font-bold text-orange-600">${{ number_format($estampillaProdultoMayor, 0, ',', '.') }}</span>
+                        </div>
+                        @endif
+                        @if($estampillaProcultura > 0)
+                        <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
+                            <span class="text-sm text-gray-700">{{ \App\Models\PaymentOrder::ACCOUNTING_CODES['estampilla_procultura'] }}</span>
+                            <span class="text-sm font-bold text-orange-600">${{ number_format($estampillaProcultura, 0, ',', '.') }}</span>
+                        </div>
+                        @endif
+                        @if($retencionIca > 0)
+                        <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
+                            <span class="text-sm text-gray-700">{{ \App\Models\PaymentOrder::ACCOUNTING_CODES['retencion_ica'] }}</span>
+                            <span class="text-sm font-bold text-orange-600">${{ number_format($retencionIca, 0, ',', '.') }}</span>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+                @endif
+
+                {{-- ─── SECCIÓN 10: Observaciones ──────────────────── --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4">Observaciones</h2>
                     <textarea wire:model="observations" rows="3" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500" placeholder="Observaciones adicionales (opcional)..."></textarea>
@@ -500,7 +653,7 @@
                     </div>
                 </div>
 
-                {{-- Valores --}}
+                {{-- Valores del Pago --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4">Detalle del Pago</h2>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -538,7 +691,7 @@
                     </div>
                 </div>
 
-                {{-- Retenciones --}}
+                {{-- Retenciones DIAN --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4">Retenciones DIAN</h2>
                     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
@@ -559,16 +712,75 @@
                             <p class="text-lg font-bold text-red-700">${{ number_format($paymentOrder->reteiva, 0, ',', '.') }}</p>
                         </div>
                         <div class="bg-red-100 rounded-xl p-3 text-center">
-                            <p class="text-xs text-red-600 font-medium">Total Retenciones</p>
-                            <p class="text-lg font-bold text-red-800">${{ number_format($paymentOrder->total_retentions, 0, ',', '.') }}</p>
+                            <p class="text-xs text-red-600 font-medium">Total Ret. DIAN</p>
+                            <p class="text-lg font-bold text-red-800">${{ number_format((float)$paymentOrder->retefuente + (float)$paymentOrder->reteiva, 0, ',', '.') }}</p>
                         </div>
                     </div>
 
+                    {{-- Otros impuestos --}}
+                    @if((float)$paymentOrder->estampilla_produlto_mayor > 0 || (float)$paymentOrder->estampilla_procultura > 0 || (float)$paymentOrder->retencion_ica > 0)
+                    <h3 class="text-sm font-semibold text-gray-700 mb-3 mt-4">Otros Impuestos</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        @if((float)$paymentOrder->estampilla_produlto_mayor > 0)
+                        <div class="bg-orange-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-orange-500">Estampilla Produlto Mayor</p>
+                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->estampilla_produlto_mayor, 0, ',', '.') }}</p>
+                        </div>
+                        @endif
+                        @if((float)$paymentOrder->estampilla_procultura > 0)
+                        <div class="bg-orange-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-orange-500">Estampilla Procultura</p>
+                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->estampilla_procultura, 0, ',', '.') }}</p>
+                        </div>
+                        @endif
+                        @if((float)$paymentOrder->retencion_ica > 0)
+                        <div class="bg-orange-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-orange-500">Retención ICA</p>
+                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->retencion_ica, 0, ',', '.') }}</p>
+                        </div>
+                        @endif
+                    </div>
+                    @endif
+
+                    {{-- Neto --}}
                     <div class="bg-emerald-100 rounded-xl p-4 text-center">
+                        <div class="flex justify-center items-center gap-6 mb-2">
+                            <div>
+                                <p class="text-xs text-gray-500">Total Factura</p>
+                                <p class="text-sm font-bold text-gray-700">${{ number_format($paymentOrder->total, 0, ',', '.') }}</p>
+                            </div>
+                            <span class="text-gray-400">−</span>
+                            <div>
+                                <p class="text-xs text-red-500">Total Descuentos</p>
+                                <p class="text-sm font-bold text-red-700">${{ number_format($paymentOrder->total_retentions, 0, ',', '.') }}</p>
+                            </div>
+                            <span class="text-gray-400">=</span>
+                        </div>
                         <p class="text-sm text-emerald-700 font-medium">NETO PAGADO AL PROVEEDOR</p>
                         <p class="text-3xl font-bold text-emerald-800">${{ number_format($paymentOrder->net_payment, 0, ',', '.') }}</p>
                     </div>
                 </div>
+
+                {{-- Cuenta bancaria --}}
+                @if($paymentOrder->supplier_bank_name || $paymentOrder->supplier_account_number)
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Cuenta Bancaria del Pago</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <p class="text-xs text-gray-500">Banco</p>
+                            <p class="text-sm font-semibold text-gray-900">{{ $paymentOrder->supplier_bank_name ?? 'N/D' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Tipo de Cuenta</p>
+                            <p class="text-sm font-semibold text-gray-900">{{ $paymentOrder->supplier_account_type ?? 'N/D' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Número de Cuenta</p>
+                            <p class="text-sm font-semibold text-gray-900">{{ $paymentOrder->supplier_account_number ?? 'N/D' }}</p>
+                        </div>
+                    </div>
+                </div>
+                @endif
 
                 {{-- Observaciones --}}
                 @if($paymentOrder->observations)

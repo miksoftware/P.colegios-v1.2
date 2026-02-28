@@ -103,6 +103,11 @@ class Convocatoria extends Model
         return $this->hasOne(Contract::class);
     }
 
+    public function distributionDetails(): HasMany
+    {
+        return $this->hasMany(ConvocatoriaDistribution::class);
+    }
+
     // Accessors
 
     public function getFormattedNumberAttribute(): string

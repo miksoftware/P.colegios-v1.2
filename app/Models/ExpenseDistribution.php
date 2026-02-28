@@ -68,6 +68,13 @@ class ExpenseDistribution extends Model
     {
         return $this->hasMany(Convocatoria::class);
     }
+    /**
+     * Distribuciones de convocatoria que usan esta distribución de gasto
+     */
+    public function convocatoriaDistributions(): HasMany
+    {
+        return $this->hasMany(ConvocatoriaDistribution::class);
+    }
 
     // Monto total ejecutado
     public function getTotalExecutedAttribute(): float
@@ -75,10 +82,18 @@ class ExpenseDistribution extends Model
         return (float) $this->executions()->sum('amount');
     }
 
-    // Saldo disponible para ejecutar
+    // Monto comprometido en convocatorias no canceladas
+    public function getTotalCommittedAttribute(): float
+    {
+        return (float) $this->convocatoriaDistributions()
+            ->whereHas('convocatoria', fn($q) => $q->where('status', '!=', 'cancelled'))
+            ->sum('amount');
+    }
+
+    // Saldo disponible (resta ejecutado + comprometido en convocatorias)
     public function getAvailableBalanceAttribute(): float
     {
-        return (float) $this->amount - $this->total_executed;
+        return (float) $this->amount - $this->total_executed - $this->total_committed;
     }
 
     // Porcentaje ejecutado

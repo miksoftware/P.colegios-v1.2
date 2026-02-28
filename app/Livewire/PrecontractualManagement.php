@@ -7,6 +7,7 @@ use App\Models\BudgetItem;
 use App\Models\Cdp;
 use App\Models\CdpFundingSource;
 use App\Models\Convocatoria;
+use App\Models\ConvocatoriaDistribution;
 use App\Models\ExpenseDistribution;
 use App\Models\FundingSource;
 use App\Models\Proposal;
@@ -36,6 +37,10 @@ class PrecontractualManagement extends Component
     public $showCreateModal = false;
     public $distributions = [];
     public $selectedDistributionId = '';
+    public $groupedDistributions = []; // agrupadas por código de gasto
+    public $selectedExpenseCodeId = '';
+    public $distributionAmounts = []; // [distribution_id => amount]
+    public $selectedDistributionIds = []; // [distribution_id => bool]
     public $convObject = '';
     public $convJustification = '';
     public $convStartDate = '';
@@ -146,6 +151,9 @@ class PrecontractualManagement extends Component
             'expenseDistribution.expenseCode',
             'expenseDistribution.budget.budgetItem',
             'expenseDistribution.budget.fundingSource',
+            'distributionDetails.expenseDistribution.expenseCode',
+            'distributionDetails.expenseDistribution.budget.budgetItem',
+            'distributionDetails.expenseDistribution.budget.fundingSource',
             'cdps.budgetItem',
             'cdps.fundingSources.fundingSource',
             'cdps.fundingSources.budget',
@@ -173,27 +181,55 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        // Cargar distribuciones disponibles (que no tengan convocatoria activa)
-        $this->distributions = ExpenseDistribution::with(['expenseCode', 'budget.budgetItem', 'budget.fundingSource'])
+        // Cargar distribuciones disponibles agrupadas por código de gasto
+        $rawDistributions = ExpenseDistribution::with(['expenseCode', 'budget.budgetItem', 'budget.fundingSource'])
             ->forSchool($this->schoolId)
             ->whereHas('budget', fn($q) => $q->where('fiscal_year', $this->filterYear))
             ->where('is_active', true)
-            ->get()
-            ->map(fn($d) => [
-                'id' => $d->id,
-                'label' => ($d->expenseCode?->code ?? '') . ' - ' . ($d->expenseCode?->name ?? 'Sin código'),
-                'budget_item' => $d->budget?->budgetItem?->name ?? '',
-                'funding_source' => $d->budget?->fundingSource?->name ?? '',
-                'amount' => $d->amount,
-                'available' => $d->available_balance,
-            ])
+            ->get();
+
+        // Guardar todas las distribuciones planas
+        $this->distributions = $rawDistributions->map(fn($d) => [
+            'id' => $d->id,
+            'expense_code_id' => $d->expense_code_id,
+            'expense_code' => ($d->expenseCode?->code ?? '') . ' - ' . ($d->expenseCode?->name ?? 'Sin código'),
+            'budget_item' => $d->budget?->budgetItem?->name ?? '',
+            'budget_item_code' => $d->budget?->budgetItem?->code ?? '',
+            'funding_source' => $d->budget?->fundingSource?->name ?? '',
+            'amount' => (float) $d->amount,
+            'available' => (float) $d->available_balance,
+        ])->filter(fn($d) => $d['available'] > 0)->values()->toArray();
+
+        // Agrupar por código de gasto
+        $this->groupedDistributions = collect($this->distributions)
+            ->groupBy('expense_code_id')
+            ->map(function ($group) {
+                $first = $group->first();
+                return [
+                    'expense_code_id' => $first['expense_code_id'],
+                    'expense_code' => $first['expense_code'],
+                    'total_available' => $group->sum('available'),
+                    'distributions' => $group->values()->toArray(),
+                    'count' => $group->count(),
+                ];
+            })
+            ->filter(fn($g) => $g['total_available'] > 0)
+            ->values()
             ->toArray();
 
+        $this->distributionAmounts = [];
+        $this->selectedDistributionIds = [];
+        $this->selectedExpenseCodeId = '';
+
         if ($distributionId) {
-            $this->selectedDistributionId = $distributionId;
             $dist = collect($this->distributions)->firstWhere('id', $distributionId);
             if ($dist) {
-                $this->convAssignedBudget = $dist['available'];
+                $this->selectedExpenseCodeId = (string) $dist['expense_code_id'];
+                $this->onExpenseCodeSelected();
+                // Pre-llenar el monto de esta distribución
+                $this->distributionAmounts[$distributionId] = $dist['available'];
+                $this->selectedDistributionIds[$distributionId] = true;
+                $this->recalculateBudget();
             }
         }
 
@@ -202,14 +238,59 @@ class PrecontractualManagement extends Component
         $this->showCreateModal = true;
     }
 
-    public function updatedSelectedDistributionId($value)
+    public function onExpenseCodeSelected()
     {
-        if ($value) {
-            $dist = collect($this->distributions)->firstWhere('id', (int) $value);
+        $this->distributionAmounts = [];
+        $this->selectedDistributionIds = [];
+        $this->convAssignedBudget = '';
+
+        if (!$this->selectedExpenseCodeId) return;
+
+        $group = collect($this->groupedDistributions)
+            ->firstWhere('expense_code_id', (int) $this->selectedExpenseCodeId);
+
+        if ($group) {
+            if ($group['count'] === 1) {
+                // Solo un rubro: auto-seleccionar y pre-llenar monto
+                $dist = $group['distributions'][0];
+                $this->selectedDistributionIds[$dist['id']] = true;
+                $this->distributionAmounts[$dist['id']] = $dist['available'];
+            }
+            // Si hay múltiples rubros, el usuario elige cuáles usar
+            $this->recalculateBudget();
+        }
+    }
+
+    public function toggleDistribution($distId)
+    {
+        $distId = (int) $distId;
+        if (!empty($this->selectedDistributionIds[$distId])) {
+            unset($this->selectedDistributionIds[$distId]);
+            unset($this->distributionAmounts[$distId]);
+        } else {
+            $dist = collect($this->distributions)->firstWhere('id', $distId);
             if ($dist) {
-                $this->convAssignedBudget = $dist['available'];
+                $this->selectedDistributionIds[$distId] = true;
+                $this->distributionAmounts[$distId] = $dist['available'];
             }
         }
+        $this->recalculateBudget();
+    }
+
+    public function updatedDistributionAmounts()
+    {
+        $this->recalculateBudget();
+    }
+
+    public function recalculateBudget()
+    {
+        $total = 0;
+        foreach ($this->distributionAmounts as $distId => $amount) {
+            if (!empty($this->selectedDistributionIds[$distId])) {
+                $total += (float) ($amount ?? 0);
+            }
+        }
+        $this->convAssignedBudget = $total;
     }
 
     public function saveConvocatoria()
@@ -220,14 +301,14 @@ class PrecontractualManagement extends Component
         }
 
         $this->validate([
-            'selectedDistributionId' => 'required|exists:expense_distributions,id',
+            'selectedExpenseCodeId' => 'required',
             'convObject' => 'required|min:10|max:500',
             'convJustification' => 'required|min:10|max:1000',
             'convStartDate' => 'required|date',
             'convEndDate' => 'required|date|after:convStartDate',
             'convAssignedBudget' => 'required|numeric|min:1',
         ], [
-            'selectedDistributionId.required' => 'Seleccione una distribución.',
+            'selectedExpenseCodeId.required' => 'Seleccione un código de gasto.',
             'convObject.required' => 'El objeto es obligatorio.',
             'convObject.min' => 'El objeto debe tener al menos 10 caracteres.',
             'convJustification.required' => 'La justificación es obligatoria.',
@@ -239,36 +320,79 @@ class PrecontractualManagement extends Component
             'convAssignedBudget.min' => 'El presupuesto debe ser mayor a 0.',
         ]);
 
-        // Verificar que el monto no exceda el disponible
-        $distribution = ExpenseDistribution::findOrFail($this->selectedDistributionId);
-        if ($this->convAssignedBudget > $distribution->available_balance) {
-            $this->addError('convAssignedBudget', 'El monto excede el saldo disponible de la distribución ($' . number_format($distribution->available_balance, 2) . ').');
+        // Validar que al menos una distribución esté seleccionada con monto > 0
+        $validAmounts = collect($this->distributionAmounts)
+            ->filter(fn($a, $id) => (float) $a > 0 && !empty($this->selectedDistributionIds[$id]));
+        if ($validAmounts->isEmpty()) {
+            $this->dispatch('toast', message: 'Debe seleccionar y asignar monto a al menos un rubro.', type: 'error');
             return;
         }
 
-        $convocatoria = Convocatoria::create([
-            'school_id' => $this->schoolId,
-            'expense_distribution_id' => $this->selectedDistributionId,
-            'convocatoria_number' => Convocatoria::getNextConvocatoriaNumber($this->schoolId, $this->filterYear),
-            'fiscal_year' => $this->filterYear,
-            'start_date' => $this->convStartDate,
-            'end_date' => $this->convEndDate,
-            'object' => $this->convObject,
-            'justification' => $this->convJustification,
-            'assigned_budget' => $this->convAssignedBudget,
-            'status' => 'draft',
-            'created_by' => auth()->id(),
-        ]);
+        // Validar que ningún monto exceda el disponible
+        foreach ($this->distributionAmounts as $distId => $amount) {
+            if (empty($this->selectedDistributionIds[$distId])) continue;
+            $amount = (float) $amount;
+            if ($amount <= 0) continue;
 
-        $this->dispatch('toast', message: 'Convocatoria #' . $convocatoria->formatted_number . ' creada exitosamente.', type: 'success');
-        $this->closeCreateModal();
-        $this->viewDetail($convocatoria->id);
+            $dist = collect($this->distributions)->firstWhere('id', (int) $distId);
+            if ($dist && $amount > $dist['available']) {
+                $this->dispatch('toast', message: 'El monto para "' . $dist['budget_item'] . '" excede el disponible ($' . number_format($dist['available'], 0, ',', '.') . ').', type: 'error');
+                return;
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            // Tomar la primera distribución como referencia (compatibilidad)
+            $firstDistId = $validAmounts->keys()->first();
+
+            $convocatoria = Convocatoria::create([
+                'school_id' => $this->schoolId,
+                'expense_distribution_id' => $firstDistId,
+                'convocatoria_number' => Convocatoria::getNextConvocatoriaNumber($this->schoolId, $this->filterYear),
+                'fiscal_year' => $this->filterYear,
+                'start_date' => $this->convStartDate,
+                'end_date' => $this->convEndDate,
+                'object' => $this->convObject,
+                'justification' => $this->convJustification,
+                'assigned_budget' => $this->convAssignedBudget,
+                'status' => 'draft',
+                'created_by' => auth()->id(),
+            ]);
+
+            // Guardar detalle de distribuciones
+            foreach ($this->distributionAmounts as $distId => $amount) {
+                if (empty($this->selectedDistributionIds[$distId])) continue;
+                $amount = (float) $amount;
+                if ($amount > 0) {
+                    ConvocatoriaDistribution::create([
+                        'convocatoria_id' => $convocatoria->id,
+                        'expense_distribution_id' => (int) $distId,
+                        'amount' => $amount,
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            $this->dispatch('toast', message: 'Convocatoria #' . $convocatoria->formatted_number . ' creada exitosamente.', type: 'success');
+            $this->closeCreateModal();
+            $this->viewDetail($convocatoria->id);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+        }
     }
 
     public function closeCreateModal()
     {
         $this->showCreateModal = false;
         $this->selectedDistributionId = '';
+        $this->selectedExpenseCodeId = '';
+        $this->groupedDistributions = [];
+        $this->distributionAmounts = [];
+        $this->selectedDistributionIds = [];
         $this->convObject = '';
         $this->convJustification = '';
         $this->convStartDate = '';
@@ -355,8 +479,43 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        // Cargar rubros disponibles
+        // Cargar distribuciones con relaciones si no están cargadas
+        $this->convocatoria->loadMissing([
+            'distributionDetails.expenseDistribution.budget.budgetItem',
+            'cdps',
+        ]);
+
+        // Rubros que ya tienen CDP activo en esta convocatoria
+        $usedBudgetItemIds = $this->convocatoria->cdps
+            ->where('status', 'active')
+            ->pluck('budget_item_id')
+            ->unique()
+            ->toArray();
+
+        // Cargar solo rubros vinculados a las distribuciones de esta convocatoria
+        // excluyendo los que ya tienen CDP activo
+        $budgetItemIds = $this->convocatoria->distributionDetails
+            ->map(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id)
+            ->filter()
+            ->unique()
+            ->reject(fn($id) => in_array($id, $usedBudgetItemIds))
+            ->values();
+
+        // Si no hay distributionDetails, usar la distribución principal (legacy)
+        if ($budgetItemIds->isEmpty() && !count($usedBudgetItemIds) && $this->convocatoria->expenseDistribution) {
+            $itemId = $this->convocatoria->expenseDistribution->budget?->budget_item_id;
+            if ($itemId && !in_array($itemId, $usedBudgetItemIds)) {
+                $budgetItemIds = collect([$itemId]);
+            }
+        }
+
+        if ($budgetItemIds->isEmpty()) {
+            $this->dispatch('toast', message: 'Todos los rubros de esta convocatoria ya tienen CDP activo.', type: 'info');
+            return;
+        }
+
         $this->budgetItems = BudgetItem::active()
+            ->whereIn('id', $budgetItemIds)
             ->orderBy('code')
             ->get()
             ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
@@ -365,6 +524,13 @@ class PrecontractualManagement extends Component
         $this->cdpBudgetItemId = '';
         $this->cdpFundingSources = [];
         $this->availableFundingSources = [];
+
+        // Si solo hay un rubro, auto-seleccionarlo
+        if (count($this->budgetItems) === 1) {
+            $this->cdpBudgetItemId = $this->budgetItems[0]['id'];
+            $this->updatedCdpBudgetItemId($this->cdpBudgetItemId);
+        }
+
         $this->showCdpModal = true;
     }
 
@@ -375,16 +541,36 @@ class PrecontractualManagement extends Component
 
         if (empty($value)) return;
 
+        // Calcular el tope: monto asignado en la convocatoria para este rubro
+        $this->convocatoria->loadMissing('distributionDetails.expenseDistribution.budget');
+        $convocatoriaLimit = $this->convocatoria->distributionDetails
+            ->filter(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id == $value)
+            ->sum('amount');
+
+        // Restar lo ya reservado por CDPs activos/utilizados de ESTA convocatoria para este rubro
+        $alreadyReservedInConv = $this->convocatoria->cdps
+            ->whereIn('status', ['active', 'used'])
+            ->where('budget_item_id', $value)
+            ->sum('total_amount');
+        $remainingForRubro = max(0, (float) $convocatoriaLimit - (float) $alreadyReservedInConv);
+
+        if ($remainingForRubro <= 0) {
+            return;
+        }
+
         // Obtener fuentes de financiación con saldo para este rubro y año
         $sources = FundingSource::where('budget_item_id', $value)
             ->active()
             ->get();
 
-        $this->availableFundingSources = $sources->map(function ($source) {
+        $this->availableFundingSources = $sources->map(function ($source) use ($remainingForRubro) {
             $balance = $source->getAvailableBalanceForYear($this->filterYear);
-            // Restar lo ya reservado por CDPs activos
+            // Restar lo ya reservado por CDPs activos (globalmente)
             $reserved = Cdp::getTotalReservedForFundingSource($source->id, $this->filterYear);
-            $available = $balance - $reserved;
+            $sourceAvailable = $balance - $reserved;
+
+            // El disponible es el menor entre: saldo real de la fuente y lo que queda por asignar en la convocatoria
+            $available = min(max(0, $sourceAvailable), $remainingForRubro);
 
             // Obtener el presupuesto vinculado
             $budget = Budget::forSchool($this->schoolId)
@@ -398,7 +584,7 @@ class PrecontractualManagement extends Component
                 'id' => $source->id,
                 'name' => $source->code . ' - ' . $source->name,
                 'type' => $source->type_name,
-                'available' => max(0, $available),
+                'available' => $available,
                 'budget_id' => $budget?->id,
             ];
         })->filter(fn($s) => $s['available'] > 0)->values()->toArray();
@@ -732,13 +918,14 @@ class PrecontractualManagement extends Component
         if (!$this->itemToDelete) return;
 
         if ($this->deleteType === 'convocatoria') {
-            // Eliminar CDPs y propuestas asociadas
+            // Eliminar CDPs, propuestas y distribuciones asociadas
             DB::transaction(function () {
                 foreach ($this->itemToDelete->cdps as $cdp) {
                     $cdp->fundingSources()->delete();
                     $cdp->delete();
                 }
                 $this->itemToDelete->proposals()->delete();
+                $this->itemToDelete->distributionDetails()->delete();
                 $this->itemToDelete->delete();
             });
 

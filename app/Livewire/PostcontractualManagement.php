@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Contract;
 use App\Models\PaymentOrder;
+use App\Models\School;
 use App\Models\Supplier;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
@@ -43,12 +44,21 @@ class PostcontractualManagement extends Component
     public $payIva = '';
     public $payTotal = '';
 
-    // Retenciones
+    // Retenciones DIAN
     public $retentionConcept = '';
     public $supplierDeclaresRent = false;
     public $retentionPercentage = 0;
     public $retefuente = 0;
     public $reteiva = 0;
+    public $totalRetentionsDian = 0;
+
+    // Otros impuestos
+    public $estampillaProdultoMayor = 0;
+    public $estampillaProcultura = 0;
+    public $retencionIca = 0;
+    public $otherTaxesTotal = 0;
+
+    // Totales
     public $totalRetentions = 0;
     public $netPayment = 0;
 
@@ -56,6 +66,7 @@ class PostcontractualManagement extends Component
 
     // Datos auxiliares
     public $availableContracts = [];
+    public $schoolMunicipality = '';
 
     // Modales
     public $showStatusModal = false;
@@ -82,6 +93,10 @@ class PostcontractualManagement extends Component
         }
 
         $this->filterYear = date('Y');
+
+        // Obtener municipio del colegio para impuestos locales
+        $school = School::find($this->schoolId);
+        $this->schoolMunicipality = strtolower(trim($school->municipality ?? ''));
     }
 
     public function updatingSearch()      { $this->resetPage(); }
@@ -160,10 +175,11 @@ class PostcontractualManagement extends Component
 
     public function loadContracts()
     {
+        // Incluir contratos en ejecución y finalizados (no anulados)
         $this->availableContracts = Contract::with('supplier')
             ->forSchool($this->schoolId)
             ->forYear((int) $this->filterYear)
-            ->whereIn('status', ['active', 'in_execution'])
+            ->whereIn('status', ['active', 'in_execution', 'completed'])
             ->orderBy('contract_number')
             ->get()
             ->map(fn($c) => [
@@ -171,6 +187,7 @@ class PostcontractualManagement extends Component
                 'number' => $c->formatted_number,
                 'object' => $c->object,
                 'total'  => (float) $c->total,
+                'status' => $c->status_name,
                 'supplier' => $c->supplier?->full_name ?? 'N/A',
             ])
             ->toArray();
@@ -211,12 +228,17 @@ class PostcontractualManagement extends Component
         $supplier = $contract->supplier;
         if ($supplier) {
             $this->supplierData = [
-                'name'       => $supplier->full_name,
-                'document'   => $supplier->full_document,
-                'address'    => $supplier->address ?? 'No registrada',
-                'municipality' => $supplier->city ?? 'No registrado',
-                'phone'      => $supplier->phone ?? $supplier->mobile ?? 'No registrado',
-                'tax_regime' => $supplier->tax_regime ? (Supplier::TAX_REGIMES[$supplier->tax_regime] ?? $supplier->tax_regime) : 'No registrado',
+                'name'           => $supplier->full_name,
+                'document'       => $supplier->full_document,
+                'address'        => $supplier->address ?? 'No registrada',
+                'municipality'   => $supplier->city ?? 'No registrado',
+                'phone'          => $supplier->phone ?? $supplier->mobile ?? 'No registrado',
+                'tax_regime'     => $supplier->tax_regime ?? '',
+                'tax_regime_name'=> $supplier->tax_regime ? (Supplier::TAX_REGIMES[$supplier->tax_regime] ?? $supplier->tax_regime) : 'No registrado',
+                'bank_name'      => $supplier->bank_name ?? '',
+                'account_type'   => $supplier->account_type ? (Supplier::ACCOUNT_TYPES[$supplier->account_type] ?? $supplier->account_type) : '',
+                'account_number' => $supplier->account_number ?? '',
+                'person_type'    => $supplier->person_type ?? '',
             ];
         }
 
@@ -233,9 +255,15 @@ class PostcontractualManagement extends Component
         $this->fundingSourcesData = $sources;
 
         // Pre-llenar valores si es pago completo
-        $this->paySubtotal = $remaining > 0 ? $contract->subtotal : 0;
-        $this->payIva = $remaining > 0 ? $contract->iva : 0;
-        $this->payTotal = $remaining > 0 ? $remaining : 0;
+        if ($remaining > 0) {
+            $this->paySubtotal = $this->isFullPayment ? $contract->subtotal : '';
+            $this->payIva = $this->isFullPayment ? $contract->iva : '';
+            $this->payTotal = $this->isFullPayment ? $remaining : '';
+        } else {
+            $this->paySubtotal = 0;
+            $this->payIva = 0;
+            $this->payTotal = 0;
+        }
         $this->paymentDate = now()->format('Y-m-d');
 
         $this->calculateRetentions();
@@ -244,11 +272,10 @@ class PostcontractualManagement extends Component
     public function updatedIsFullPayment($value)
     {
         if ($value && !empty($this->contractData)) {
-            $this->paySubtotal = $this->contractData['remaining'] > 0
-                ? $this->contractData['subtotal'] : 0;
-            $this->payIva = $this->contractData['remaining'] > 0
-                ? $this->contractData['iva'] : 0;
-            $this->payTotal = $this->contractData['remaining'] ?? 0;
+            $remaining = $this->contractData['remaining'] ?? 0;
+            $this->paySubtotal = $remaining > 0 ? $this->contractData['subtotal'] : 0;
+            $this->payIva = $remaining > 0 ? $this->contractData['iva'] : 0;
+            $this->payTotal = $remaining > 0 ? $remaining : 0;
         } else {
             $this->paySubtotal = '';
             $this->payIva = '';
@@ -279,6 +306,28 @@ class PostcontractualManagement extends Component
         $this->calculateRetentions();
     }
 
+    /**
+     * Calcula todas las retenciones según las reglas del Excel:
+     *
+     * RETENCIONES DIAN:
+     * - Retefuente: % sobre subtotal, solo si subtotal >= base mínima del concepto
+     * - ReteIVA: 15% del IVA, solo para responsables de IVA (régimen común y gran contribuyente)
+     *   y si la base sobrepasa para la retención en la fuente de renta
+     *
+     * OTROS IMPUESTOS (según municipio del colegio):
+     * - Estampilla Produlto Mayor: 2% del subtotal si >= $1 (solo Bucaramanga)
+     * - Estampilla Procultura: 2% del subtotal si >= $35,018,010 (solo Bucaramanga)
+     * - Retención ICA: solo Piedecuesta y Villanueva
+     *
+     * REGLAS DE RÉGIMEN:
+     * - Régimen Simplificado: son personas naturales, NO responsables de IVA,
+     *   hay unos que declaran y otros que no declara
+     * - Régimen Común: responsables de IVA y declarantes de renta
+     * - Gran Contribuyente: responsables de IVA y declarantes de renta
+     * - No Responsable de IVA: personas naturales, NO responsables de IVA
+     *
+     * Solo se aplica ReteIVA a régimen común y gran contribuyente (responsables de IVA)
+     */
     public function calculateRetentions()
     {
         $subtotal = (float) ($this->paySubtotal ?? 0);
@@ -286,19 +335,62 @@ class PostcontractualManagement extends Component
         $total = $subtotal + $iva;
         $this->payTotal = $total;
 
+        $taxRegime = $this->supplierData['tax_regime'] ?? '';
+
+        // ── RETEFUENTE ──
+        $this->retefuente = 0;
+        $this->retentionPercentage = 0;
+
         if ($this->retentionConcept && isset(PaymentOrder::RETENTION_RATES[$this->retentionConcept])) {
-            $rate = PaymentOrder::getRetentionRate($this->retentionConcept, $this->supplierDeclaresRent);
-            $this->retentionPercentage = $rate;
-            $this->retefuente = round($subtotal * ($rate / 100), 2);
-            // ReteIVA: 15% del IVA (aplica para régimen común y gran contribuyente)
-            $this->reteiva = round($iva * 0.15, 2);
-        } else {
-            $this->retentionPercentage = 0;
-            $this->retefuente = 0;
-            $this->reteiva = 0;
+            // Verificar si el subtotal supera la base mínima
+            if (PaymentOrder::meetsRetentionThreshold($this->retentionConcept, $subtotal)) {
+                $rate = PaymentOrder::getRetentionRate($this->retentionConcept, (bool) $this->supplierDeclaresRent);
+                $this->retentionPercentage = $rate;
+                $this->retefuente = round($subtotal * ($rate / 100), 2);
+            }
         }
 
-        $this->totalRetentions = round($this->retefuente + $this->reteiva, 2);
+        // ── RETEIVA ──
+        // 15% del IVA, solo para responsables de IVA (régimen común y gran contribuyente)
+        // y solo si la base sobrepasa el umbral de retención en la fuente
+        $this->reteiva = 0;
+        $isIvaResponsible = in_array($taxRegime, ['comun', 'gran_contribuyente']);
+
+        if ($isIvaResponsible && $iva > 0 && $this->retentionConcept) {
+            if (PaymentOrder::meetsRetentionThreshold($this->retentionConcept, $subtotal)) {
+                $this->reteiva = round($iva * 0.15, 2);
+            }
+        }
+
+        $this->totalRetentionsDian = round($this->retefuente + $this->reteiva, 2);
+
+        // ── OTROS IMPUESTOS (según municipio del colegio) ──
+        $this->estampillaProdultoMayor = 0;
+        $this->estampillaProcultura = 0;
+        $this->retencionIca = 0;
+
+        $municipality = $this->schoolMunicipality;
+
+        // Estampilla Produlto Mayor: 2% si subtotal >= $1 (solo Bucaramanga)
+        if (str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
+            $this->estampillaProdultoMayor = round($subtotal * 0.02, 2);
+        }
+
+        // Estampilla Procultura: 2% si subtotal >= $35,018,010 (solo Bucaramanga)
+        if (str_contains($municipality, 'bucaramanga') && $subtotal >= 35018010) {
+            $this->estampillaProcultura = round($subtotal * 0.02, 2);
+        }
+
+        // Retención ICA: solo Piedecuesta y Villanueva (placeholder - tasa configurable)
+        // Por ahora no se aplica automáticamente, se deja en 0
+
+        $this->otherTaxesTotal = round(
+            $this->estampillaProdultoMayor + $this->estampillaProcultura + $this->retencionIca,
+            2
+        );
+
+        // ── TOTALES ──
+        $this->totalRetentions = round($this->totalRetentionsDian + $this->otherTaxesTotal, 2);
         $this->netPayment = round($total - $this->totalRetentions, 2);
     }
 
@@ -312,12 +404,16 @@ class PostcontractualManagement extends Component
         $this->validate([
             'selectedContractId' => 'required|exists:contracts,id',
             'paymentDate'        => 'required|date',
+            'invoiceDate'        => 'required|date',
+            'invoiceNumber'      => 'required|string|max:100',
             'paySubtotal'        => 'required|numeric|min:0.01',
             'payIva'             => 'nullable|numeric|min:0',
             'payTotal'           => 'required|numeric|min:0.01',
         ], [
             'selectedContractId.required' => 'Debe seleccionar un contrato.',
             'paymentDate.required'        => 'La fecha de pago es obligatoria.',
+            'invoiceDate.required'        => 'La fecha de la factura es obligatoria.',
+            'invoiceNumber.required'      => 'El número de factura es obligatorio.',
             'paySubtotal.required'        => 'El subtotal es obligatorio.',
             'paySubtotal.min'             => 'El subtotal debe ser mayor a 0.',
             'payTotal.required'           => 'El total es obligatorio.',
@@ -326,7 +422,9 @@ class PostcontractualManagement extends Component
         // Validar que no exceda el saldo pendiente
         $remaining = $this->contractData['remaining'] ?? 0;
         if ((float) $this->payTotal > $remaining) {
-            $this->dispatch('toast', message: 'El monto del pago ($' . number_format($this->payTotal, 2) . ') excede el saldo pendiente del contrato ($' . number_format($remaining, 2) . ').', type: 'error');
+            $formattedTotal = number_format($this->payTotal, 0, ',', '.');
+            $formattedRemaining = number_format($remaining, 0, ',', '.');
+            $this->dispatch('toast', message: "El monto (\${$formattedTotal}) excede el saldo pendiente (\${$formattedRemaining}).", type: 'error');
             return;
         }
 
@@ -335,27 +433,34 @@ class PostcontractualManagement extends Component
             $year = (int) $this->filterYear;
 
             $paymentOrder = PaymentOrder::create([
-                'school_id'              => $this->schoolId,
-                'contract_id'            => $this->selectedContractId,
-                'payment_number'         => PaymentOrder::getNextPaymentNumber($this->schoolId, $year),
-                'fiscal_year'            => $year,
-                'invoice_number'         => $this->invoiceNumber ?: null,
-                'invoice_date'           => $this->invoiceDate ?: null,
-                'payment_date'           => $this->paymentDate,
-                'is_full_payment'        => $this->isFullPayment,
-                'subtotal'               => (float) $this->paySubtotal,
-                'iva'                    => (float) ($this->payIva ?? 0),
-                'total'                  => (float) $this->payTotal,
-                'retention_concept'      => $this->retentionConcept ?: null,
-                'supplier_declares_rent' => $this->supplierDeclaresRent,
-                'retention_percentage'   => $this->retentionPercentage,
-                'retefuente'             => $this->retefuente,
-                'reteiva'                => $this->reteiva,
-                'total_retentions'       => $this->totalRetentions,
-                'net_payment'            => $this->netPayment,
-                'observations'           => $this->observations ?: null,
-                'status'                 => 'draft',
-                'created_by'             => auth()->id(),
+                'school_id'                  => $this->schoolId,
+                'contract_id'                => $this->selectedContractId,
+                'payment_number'             => PaymentOrder::getNextPaymentNumber($this->schoolId, $year),
+                'fiscal_year'                => $year,
+                'invoice_number'             => $this->invoiceNumber,
+                'invoice_date'               => $this->invoiceDate,
+                'payment_date'               => $this->paymentDate,
+                'is_full_payment'            => $this->isFullPayment,
+                'subtotal'                   => (float) $this->paySubtotal,
+                'iva'                        => (float) ($this->payIva ?? 0),
+                'total'                      => (float) $this->payTotal,
+                'retention_concept'          => $this->retentionConcept ?: null,
+                'supplier_declares_rent'     => $this->supplierDeclaresRent,
+                'retention_percentage'       => $this->retentionPercentage,
+                'retefuente'                 => $this->retefuente,
+                'reteiva'                    => $this->reteiva,
+                'estampilla_produlto_mayor'  => $this->estampillaProdultoMayor,
+                'estampilla_procultura'      => $this->estampillaProcultura,
+                'retencion_ica'              => $this->retencionIca,
+                'other_taxes_total'          => $this->otherTaxesTotal,
+                'total_retentions'           => $this->totalRetentions,
+                'net_payment'                => $this->netPayment,
+                'observations'               => $this->observations ?: null,
+                'supplier_bank_name'         => $this->supplierData['bank_name'] ?? null,
+                'supplier_account_type'      => $this->supplierData['account_type'] ?? null,
+                'supplier_account_number'    => $this->supplierData['account_number'] ?? null,
+                'status'                     => 'draft',
+                'created_by'                 => auth()->id(),
             ]);
 
             DB::commit();
@@ -459,6 +564,11 @@ class PostcontractualManagement extends Component
         $this->retentionPercentage = 0;
         $this->retefuente = 0;
         $this->reteiva = 0;
+        $this->totalRetentionsDian = 0;
+        $this->estampillaProdultoMayor = 0;
+        $this->estampillaProcultura = 0;
+        $this->retencionIca = 0;
+        $this->otherTaxesTotal = 0;
         $this->totalRetentions = 0;
         $this->netPayment = 0;
         $this->observations = '';

@@ -186,7 +186,20 @@
                                 <span><strong>Año fiscal:</strong> {{ $convocatoria->fiscal_year }}</span>
                                 <span><strong>Creado por:</strong> {{ $convocatoria->creator?->name ?? 'N/D' }}</span>
                             </div>
-                            @if($convocatoria->expenseDistribution)
+                            @if($convocatoria->distributionDetails->count() > 0)
+                                <div class="mt-3 bg-blue-50 rounded-lg p-3">
+                                    <p class="text-xs font-medium text-blue-700 uppercase mb-2">Distribuciones de Gasto</p>
+                                    @foreach($convocatoria->distributionDetails as $dd)
+                                        <div class="flex items-center justify-between text-sm py-1 {{ !$loop->last ? 'border-b border-blue-100' : '' }}">
+                                            <div>
+                                                <span class="text-gray-700">{{ $dd->expenseDistribution?->expenseCode?->code }} - {{ $dd->expenseDistribution?->expenseCode?->name }}</span>
+                                                <span class="text-xs text-gray-400 ml-1">({{ $dd->expenseDistribution?->budget?->budgetItem?->name }})</span>
+                                            </div>
+                                            <span class="font-semibold text-blue-700">${{ number_format($dd->amount, 0, ',', '.') }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @elseif($convocatoria->expenseDistribution)
                                 <div class="mt-2 text-sm text-gray-500">
                                     <strong>Distribución:</strong> {{ $convocatoria->expenseDistribution->expenseCode?->code }} - {{ $convocatoria->expenseDistribution->expenseCode?->name }}
                                     ({{ $convocatoria->expenseDistribution->budget?->budgetItem?->name }} / {{ $convocatoria->expenseDistribution->budget?->fundingSource?->name }})
@@ -462,22 +475,78 @@
                 <form wire:submit="saveConvocatoria">
                     <div class="px-6 py-4 border-b border-gray-200 bg-indigo-50">
                         <h3 class="text-lg font-bold text-indigo-900">Nueva Convocatoria</h3>
-                        <p class="text-sm text-indigo-700">Crear proceso precontractual desde una distribución de gasto</p>
+                        <p class="text-sm text-indigo-700">Crear proceso precontractual desde distribuciones de gasto</p>
                     </div>
                     
-                    <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                    <div class="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+                        {{-- Selección de Código de Gasto --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Distribución de Gasto <span class="text-red-500">*</span></label>
-                            <select wire:model.live="selectedDistributionId" class="w-full rounded-xl border-gray-300">
-                                <option value="">Seleccionar distribución...</option>
-                                @foreach($distributions as $dist)
-                                    <option value="{{ $dist['id'] }}">
-                                        {{ $dist['label'] }} — {{ $dist['budget_item'] }} / {{ $dist['funding_source'] }} (Disponible: ${{ number_format($dist['available'], 0, ',', '.') }})
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Código de Gasto <span class="text-red-500">*</span></label>
+                            <select wire:model.live="selectedExpenseCodeId" wire:change="onExpenseCodeSelected" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                <option value="">Seleccionar código de gasto...</option>
+                                @foreach($groupedDistributions as $group)
+                                    <option value="{{ $group['expense_code_id'] }}">
+                                        {{ $group['expense_code'] }} (Disponible: ${{ number_format($group['total_available'], 0, ',', '.') }})
                                     </option>
                                 @endforeach
                             </select>
-                            @error('selectedDistributionId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            @error('selectedExpenseCodeId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
+
+                        {{-- Detalle de rubros (si hay distribuciones para el código seleccionado) --}}
+                        @if($selectedExpenseCodeId)
+                            @php
+                                $selectedGroup = collect($groupedDistributions)->firstWhere('expense_code_id', (int) $selectedExpenseCodeId);
+                            @endphp
+                            @if($selectedGroup)
+                                <div class="bg-blue-50 rounded-xl p-4">
+                                    <p class="text-xs font-medium text-blue-700 uppercase mb-3">
+                                        @if($selectedGroup['count'] > 1)
+                                            Seleccione los rubros a utilizar ({{ $selectedGroup['count'] }} disponibles)
+                                        @else
+                                            Rubro Presupuestal
+                                        @endif
+                                    </p>
+                                    <div class="space-y-3">
+                                        @foreach($selectedGroup['distributions'] as $dist)
+                                            @php $isSelected = !empty($selectedDistributionIds[$dist['id']]); @endphp
+                                            <div class="bg-white rounded-lg p-3 border {{ $isSelected ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-blue-100' }} transition-all">
+                                                <div class="flex items-center gap-3 mb-2">
+                                                    @if($selectedGroup['count'] > 1)
+                                                        <button type="button" wire:click="toggleDistribution({{ $dist['id'] }})"
+                                                            class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors {{ $isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 hover:border-indigo-400' }}">
+                                                            @if($isSelected)
+                                                                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                                            @endif
+                                                        </button>
+                                                    @endif
+                                                    <div class="flex-1 min-w-0 {{ $selectedGroup['count'] > 1 && !$isSelected ? 'opacity-50' : '' }}">
+                                                        <p class="text-sm font-medium text-gray-900 truncate">{{ $dist['budget_item_code'] }} - {{ $dist['budget_item'] }}</p>
+                                                        <p class="text-xs text-gray-500">{{ $dist['funding_source'] }}</p>
+                                                    </div>
+                                                    <div class="text-right shrink-0">
+                                                        <p class="text-xs text-gray-400">Disponible</p>
+                                                        <p class="text-sm font-bold text-blue-700">${{ number_format($dist['available'], 0, ',', '.') }}</p>
+                                                    </div>
+                                                </div>
+                                                @if($isSelected)
+                                                    <div>
+                                                        <label class="block text-xs text-gray-500 mb-1">Monto a asignar</label>
+                                                        <div class="flex">
+                                                            <span class="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-xs">$</span>
+                                                            <input type="number" step="0.01" min="0" max="{{ $dist['available'] }}"
+                                                                wire:model.live.debounce.300ms="distributionAmounts.{{ $dist['id'] }}"
+                                                                class="flex-1 rounded-r-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                                placeholder="0.00">
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+                        @endif
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Objeto de la Convocatoria <span class="text-red-500">*</span></label>
@@ -505,11 +574,12 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Presupuesto Asignado <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Presupuesto Total Asignado <span class="text-red-500">*</span></label>
                             <div class="flex">
                                 <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500">$</span>
-                                <input type="number" wire:model="convAssignedBudget" step="0.01" min="1" class="flex-1 rounded-r-xl border-gray-300" placeholder="0.00">
+                                <input type="number" wire:model="convAssignedBudget" step="0.01" min="1" class="flex-1 rounded-r-xl border-gray-300 bg-gray-50 font-bold" readonly>
                             </div>
+                            <p class="text-xs text-gray-400 mt-1">Se calcula automáticamente de los montos asignados</p>
                             @error('convAssignedBudget') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
                     </div>
@@ -570,7 +640,7 @@
                             </div>
                         @elseif($cdpBudgetItemId)
                             <div class="bg-yellow-50 rounded-lg p-3 text-sm text-yellow-700">
-                                No hay fuentes de financiación con saldo disponible para este rubro.
+                                No hay fuentes con saldo disponible para este rubro. Verifique que existan ingresos reales registrados.
                             </div>
                         @endif
 
@@ -643,20 +713,20 @@
                             @error('proposalSupplierId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
 
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Subtotal <span class="text-red-500">*</span></label>
                                 <div class="flex">
-                                    <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500">$</span>
-                                    <input type="number" wire:model="proposalSubtotal" step="0.01" min="0.01" class="flex-1 rounded-r-xl border-gray-300" placeholder="0.00">
+                                    <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
+                                    <input type="number" wire:model="proposalSubtotal" step="0.01" min="0.01" class="flex-1 min-w-0 rounded-r-xl border-gray-300" placeholder="0.00">
                                 </div>
                                 @error('proposalSubtotal') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">IVA</label>
                                 <div class="flex">
-                                    <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500">$</span>
-                                    <input type="number" wire:model="proposalIva" step="0.01" min="0" class="flex-1 rounded-r-xl border-gray-300" placeholder="0.00">
+                                    <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
+                                    <input type="number" wire:model="proposalIva" step="0.01" min="0" class="flex-1 min-w-0 rounded-r-xl border-gray-300" placeholder="0.00">
                                 </div>
                                 @error('proposalIva') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>

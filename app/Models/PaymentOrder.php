@@ -27,9 +27,16 @@ class PaymentOrder extends Model
         'retention_percentage',
         'retefuente',
         'reteiva',
+        'estampilla_produlto_mayor',
+        'estampilla_procultura',
+        'retencion_ica',
+        'other_taxes_total',
         'total_retentions',
         'net_payment',
         'observations',
+        'supplier_bank_name',
+        'supplier_account_type',
+        'supplier_account_number',
         'status',
         'created_by',
     ];
@@ -45,6 +52,10 @@ class PaymentOrder extends Model
         'retention_percentage' => 'decimal:2',
         'retefuente' => 'decimal:2',
         'reteiva' => 'decimal:2',
+        'estampilla_produlto_mayor' => 'decimal:2',
+        'estampilla_procultura' => 'decimal:2',
+        'retencion_ica' => 'decimal:2',
+        'other_taxes_total' => 'decimal:2',
         'total_retentions' => 'decimal:2',
         'net_payment' => 'decimal:2',
     ];
@@ -66,21 +77,50 @@ class PaymentOrder extends Model
     ];
 
     const RETENTION_CONCEPTS = [
-        'compras'        => 'Compras',
-        'servicios'      => 'Servicios',
-        'honorarios'     => 'Honorarios',
-        'arrendamiento'  => 'Arrendamiento',
+        'compras'                    => 'Compras',
+        'servicios'                  => 'Servicios',
+        'honorarios'                 => 'Honorarios',
+        'arrendamiento_sitios_web'   => 'Arrendamientos Sitios Web',
+        'arrendamiento_inmuebles'    => 'Arrendamientos Bienes Inmuebles',
+        'transporte_pasajeros'       => 'Servicio de Transporte de Pasajeros',
     ];
 
     /**
-     * Porcentajes de retención en la fuente según concepto y si declara renta.
+     * Porcentajes de retención en la fuente según concepto.
      * [concepto => [no_declara, declara]]
      */
     const RETENTION_RATES = [
-        'compras'        => [3.5, 2.5],
-        'servicios'      => [6.0, 4.0],
-        'honorarios'     => [11.0, 10.0],
-        'arrendamiento'  => [3.5, 3.5],
+        'compras'                    => [3.5, 2.5],
+        'servicios'                  => [6.0, 4.0],
+        'honorarios'                 => [11.0, 10.0],
+        'arrendamiento_sitios_web'   => [1.5, 3.5],
+        'arrendamiento_inmuebles'    => [3.5, 3.5],
+        'transporte_pasajeros'       => [3.5, 3.5],
+    ];
+
+    /**
+     * Base mínima (subtotal) a partir de la cual se aplica retención en la fuente.
+     */
+    const RETENTION_MIN_BASE = [
+        'compras'                    => 961000,
+        'servicios'                  => 145000,
+        'honorarios'                 => 1,
+        'arrendamiento_sitios_web'   => 1,
+        'arrendamiento_inmuebles'    => 524000,
+        'transporte_pasajeros'       => 961000,
+    ];
+
+    /**
+     * Códigos contables para cada tipo de retención.
+     */
+    const ACCOUNTING_CODES = [
+        'retefuente_servicios'       => '243605 - Retenciones de Servicios y Arrendamientos',
+        'retefuente_compras'         => '243608 - Retención de Compras',
+        'retefuente_honorarios'      => '243603 - Retención de Honorarios',
+        'reteiva'                    => '243625 - ReteIVA',
+        'estampilla_procultura'      => '24072202 - Estampilla Procultura',
+        'estampilla_produlto_mayor'  => '24072204 - Estampilla Produlto Mayor',
+        'retencion_ica'              => '24072209 - ReteICA',
     ];
 
     // ── Activity Log ──────────────────────────────────────────
@@ -131,7 +171,7 @@ class PaymentOrder extends Model
 
     public function getRetentionConceptNameAttribute(): string
     {
-        return self::RETENTION_CONCEPTS[$this->retention_concept] ?? $this->retention_concept ?? 'N/A';
+        return self::RETENTION_CONCEPTS[$this->retention_concept] ?? $this->retention_concept ?? 'Sin retención';
     }
 
     // ── Scopes ────────────────────────────────────────────────
@@ -184,12 +224,21 @@ class PaymentOrder extends Model
     }
 
     /**
-     * Total pagado para un contrato.
+     * Verifica si el subtotal supera la base mínima para aplicar retención.
+     */
+    public static function meetsRetentionThreshold(string $concept, float $subtotal): bool
+    {
+        $minBase = self::RETENTION_MIN_BASE[$concept] ?? 0;
+        return $subtotal >= $minBase;
+    }
+
+    /**
+     * Total pagado para un contrato (no anuladas).
      */
     public static function getTotalPaidForContract(int $contractId): float
     {
         return (float) static::where('contract_id', $contractId)
-            ->whereIn('status', ['approved', 'paid'])
+            ->whereIn('status', ['draft', 'approved', 'paid'])
             ->sum('total');
     }
 }

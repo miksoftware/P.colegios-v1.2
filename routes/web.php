@@ -76,7 +76,7 @@ Route::get('postcontractual', App\Livewire\PostcontractualManagement::class)
     ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('postcontractual.index');
 
-Route::view('dashboard', 'dashboard')
+Route::get('dashboard', App\Livewire\Dashboard::class)
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');
 

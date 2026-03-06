@@ -23,6 +23,8 @@ class ActivityLogViewer extends Component
     
     public $showDetailModal = false;
     public $selectedLog = null;
+    public $schoolId;
+    public $isAdmin = false;
 
     protected $queryString = [
         'search' => ['except' => ''],
@@ -35,6 +37,9 @@ class ActivityLogViewer extends Component
     public function mount()
     {
         abort_if(!auth()->user()->can('activity_logs.view'), 403, 'No tienes permisos para ver el registro de actividad.');
+        
+        $this->schoolId = session('selected_school_id');
+        $this->isAdmin = auth()->user()->hasRole('Admin');
     }
 
     public function updatingSearch()
@@ -46,6 +51,7 @@ class ActivityLogViewer extends Component
     {
         return ActivityLog::query()
             ->with(['user', 'school'])
+            ->when(!$this->isAdmin && $this->schoolId, fn($q) => $q->where('school_id', $this->schoolId))
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
                     $q->where('description', 'like', "%{$this->search}%")
@@ -64,17 +70,30 @@ class ActivityLogViewer extends Component
 
     public function getSchoolsProperty()
     {
-        return School::orderBy('name')->get(['id', 'name']);
+        if ($this->isAdmin) {
+            return School::orderBy('name')->get(['id', 'name']);
+        }
+        // Non-admin: only show the current school
+        return School::where('id', $this->schoolId)->get(['id', 'name']);
     }
 
     public function getUsersProperty()
     {
-        return User::orderBy('name')->get(['id', 'name']);
+        if ($this->isAdmin) {
+            return User::orderBy('name')->get(['id', 'name']);
+        }
+        // Non-admin: only show users belonging to the current school
+        $school = School::find($this->schoolId);
+        return $school ? $school->users()->orderBy('name')->get(['users.id', 'users.name']) : collect();
     }
 
     public function getModulesProperty()
     {
-        return ActivityLog::distinct()->pluck('module')->filter()->sort()->values();
+        $query = ActivityLog::query();
+        if (!$this->isAdmin && $this->schoolId) {
+            $query->where('school_id', $this->schoolId);
+        }
+        return $query->distinct()->pluck('module')->filter()->sort()->values();
     }
 
     public function showDetails($logId)

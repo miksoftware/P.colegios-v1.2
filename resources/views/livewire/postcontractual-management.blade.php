@@ -278,14 +278,32 @@
                         Datos de Factura y Pago
                     </h2>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div>
+                        <div x-data="{
+                            init() {
+                                flatpickr(this.$refs.paymentDateInput, {
+                                    dateFormat: 'Y-m-d',
+                                    defaultDate: $wire.paymentDate || null,
+                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                    onChange: (selectedDates, dateStr) => { $wire.set('paymentDate', dateStr); }
+                                });
+                            }
+                        }">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Pago *</label>
-                            <input type="date" wire:model="paymentDate" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+                            <input type="text" x-ref="paymentDateInput" value="{{ $paymentDate }}" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500 bg-white" placeholder="Seleccionar fecha..." readonly>
                             @error('paymentDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
-                        <div>
+                        <div x-data="{
+                            init() {
+                                flatpickr(this.$refs.invoiceDateInput, {
+                                    dateFormat: 'Y-m-d',
+                                    defaultDate: $wire.invoiceDate || null,
+                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                    onChange: (selectedDates, dateStr) => { $wire.set('invoiceDate', dateStr); }
+                                });
+                            }
+                        }">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de la Factura *</label>
-                            <input type="date" wire:model="invoiceDate" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+                            <input type="text" x-ref="invoiceDateInput" value="{{ $invoiceDate }}" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500 bg-white" placeholder="Seleccionar fecha..." readonly>
                             @error('invoiceDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
                         <div>
@@ -814,7 +832,7 @@
                 </div>
                 <div class="p-6">
                     <p class="text-sm text-gray-600 mb-4">Estado actual: <span class="font-semibold">{{ $paymentOrder->status_name }}</span></p>
-                    <select wire:model="newStatus" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+                    <select wire:model.live="newStatus" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
                         <option value="">-- Seleccione --</option>
                         @foreach($this->getAllowedStatuses($paymentOrder->status) as $status)
                             <option value="{{ $status }}">{{ \App\Models\PaymentOrder::STATUSES[$status] }}</option>

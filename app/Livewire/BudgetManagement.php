@@ -108,8 +108,9 @@ class BudgetManagement extends Component
         }
 
         $this->schoolId = (int) $this->schoolId;
-        $this->fiscal_year = date('Y');
-        $this->filterYear = date('Y');
+        $currentValidity = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
+        $this->fiscal_year = $currentValidity;
+        $this->filterYear = $currentValidity;
         $this->loadBudgetItems();
         $this->loadAllFundingSources();
     }
@@ -605,7 +606,7 @@ class BudgetManagement extends Component
         $this->budgetId = null;
         $this->budget_item_id = '';
         $this->initial_amount = '';
-        $this->fiscal_year = date('Y');
+        $this->fiscal_year = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->description = '';
         $this->is_active = true;
         $this->useMultipleSources = false;
@@ -628,7 +629,7 @@ class BudgetManagement extends Component
     public function clearFilters()
     {
         $this->search = '';
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->filterStatus = '';
         $this->filterFundingSource = '';
         $this->resetPage();

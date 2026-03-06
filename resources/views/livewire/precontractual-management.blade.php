@@ -479,40 +479,47 @@
                     </div>
                     
                     <div class="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
-                        {{-- Selección de Código de Gasto --}}
+                        {{-- Selección de Códigos de Gasto (múltiple) --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Código de Gasto <span class="text-red-500">*</span></label>
-                            <select wire:model.live="selectedExpenseCodeId" wire:change="onExpenseCodeSelected" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                                <option value="">Seleccionar código de gasto...</option>
-                                @foreach($groupedDistributions as $group)
-                                    <option value="{{ $group['expense_code_id'] }}">
-                                        {{ $group['expense_code'] }} (Disponible: ${{ number_format($group['total_available'], 0, ',', '.') }})
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('selectedExpenseCodeId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Códigos de Gasto <span class="text-red-500">*</span></label>
+                            <p class="text-xs text-gray-500 mb-2">Seleccione uno o varios códigos de gasto para esta convocatoria</p>
+                            @if(count($groupedDistributions) === 0)
+                                <p class="text-sm text-gray-400 italic">No hay distribuciones de gasto disponibles para el año {{ $filterYear }}.</p>
+                            @else
+                                <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-3">
+                                    @foreach($groupedDistributions as $group)
+                                        @php $isCodeSelected = !empty($selectedExpenseCodeIds[$group['expense_code_id']]); @endphp
+                                        <button type="button" wire:click="toggleExpenseCode({{ $group['expense_code_id'] }})"
+                                            class="w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all {{ $isCodeSelected ? 'border-indigo-300 bg-indigo-50 ring-1 ring-indigo-200' : 'border-gray-200 hover:border-indigo-200 hover:bg-gray-50' }}">
+                                            <span class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors {{ $isCodeSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300' }}">
+                                                @if($isCodeSelected)
+                                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                                @endif
+                                            </span>
+                                            <span class="flex-1 text-sm font-medium text-gray-900">{{ $group['expense_code'] }}</span>
+                                            <span class="text-xs text-gray-500">Disp: <span class="font-bold text-blue-700">${{ number_format($group['total_available'], 0, ',', '.') }}</span></span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
 
-                        {{-- Detalle de rubros (si hay distribuciones para el código seleccionado) --}}
-                        @if($selectedExpenseCodeId)
-                            @php
-                                $selectedGroup = collect($groupedDistributions)->firstWhere('expense_code_id', (int) $selectedExpenseCodeId);
-                            @endphp
-                            @if($selectedGroup)
+                        {{-- Detalle de rubros para cada código de gasto seleccionado --}}
+                        @foreach($groupedDistributions as $group)
+                            @if(!empty($selectedExpenseCodeIds[$group['expense_code_id']]))
                                 <div class="bg-blue-50 rounded-xl p-4">
                                     <p class="text-xs font-medium text-blue-700 uppercase mb-3">
-                                        @if($selectedGroup['count'] > 1)
-                                            Seleccione los rubros a utilizar ({{ $selectedGroup['count'] }} disponibles)
-                                        @else
-                                            Rubro Presupuestal
+                                        {{ $group['expense_code'] }}
+                                        @if($group['count'] > 1)
+                                            — Seleccione los rubros a utilizar ({{ $group['count'] }} disponibles)
                                         @endif
                                     </p>
                                     <div class="space-y-3">
-                                        @foreach($selectedGroup['distributions'] as $dist)
+                                        @foreach($group['distributions'] as $dist)
                                             @php $isSelected = !empty($selectedDistributionIds[$dist['id']]); @endphp
                                             <div class="bg-white rounded-lg p-3 border {{ $isSelected ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-blue-100' }} transition-all">
                                                 <div class="flex items-center gap-3 mb-2">
-                                                    @if($selectedGroup['count'] > 1)
+                                                    @if($group['count'] > 1)
                                                         <button type="button" wire:click="toggleDistribution({{ $dist['id'] }})"
                                                             class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors {{ $isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 hover:border-indigo-400' }}">
                                                             @if($isSelected)
@@ -520,7 +527,7 @@
                                                             @endif
                                                         </button>
                                                     @endif
-                                                    <div class="flex-1 min-w-0 {{ $selectedGroup['count'] > 1 && !$isSelected ? 'opacity-50' : '' }}">
+                                                    <div class="flex-1 min-w-0 {{ $group['count'] > 1 && !$isSelected ? 'opacity-50' : '' }}">
                                                         <p class="text-sm font-medium text-gray-900 truncate">{{ $dist['budget_item_code'] }} - {{ $dist['budget_item'] }}</p>
                                                         <p class="text-xs text-gray-500">{{ $dist['funding_source'] }}</p>
                                                     </div>
@@ -546,7 +553,7 @@
                                     </div>
                                 </div>
                             @endif
-                        @endif
+                        @endforeach
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Objeto de la Convocatoria <span class="text-red-500">*</span></label>
@@ -561,14 +568,32 @@
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
+                            <div x-data="{
+                                init() {
+                                    flatpickr(this.$refs.convStartInput, {
+                                        dateFormat: 'Y-m-d',
+                                        defaultDate: $wire.convStartDate || null,
+                                        disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                        onChange: (selectedDates, dateStr) => { $wire.set('convStartDate', dateStr); }
+                                    });
+                                }
+                            }">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio <span class="text-red-500">*</span></label>
-                                <input type="date" wire:model="convStartDate" class="w-full rounded-xl border-gray-300">
+                                <input type="text" x-ref="convStartInput" value="{{ $convStartDate }}" class="w-full rounded-xl border-gray-300 bg-white" placeholder="Seleccionar fecha..." readonly>
                                 @error('convStartDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>
-                            <div>
+                            <div x-data="{
+                                init() {
+                                    flatpickr(this.$refs.convEndInput, {
+                                        dateFormat: 'Y-m-d',
+                                        defaultDate: $wire.convEndDate || null,
+                                        disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                        onChange: (selectedDates, dateStr) => { $wire.set('convEndDate', dateStr); }
+                                    });
+                                }
+                            }">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Cierre <span class="text-red-500">*</span></label>
-                                <input type="date" wire:model="convEndDate" class="w-full rounded-xl border-gray-300">
+                                <input type="text" x-ref="convEndInput" value="{{ $convEndDate }}" class="w-full rounded-xl border-gray-300 bg-white" placeholder="Seleccionar fecha..." readonly>
                                 @error('convEndDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>
                         </div>

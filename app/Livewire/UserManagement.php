@@ -80,7 +80,18 @@ class UserManagement extends Component
         }
         
         $this->resetValidation();
-        $user = User::findOrFail($id);
+        
+        // Verify user belongs to current school
+        if ($this->schoolId) {
+            $school = School::find($this->schoolId);
+            $user = $school ? $school->users()->where('users.id', $id)->first() : null;
+            if (!$user) {
+                $this->dispatch('notify', message: 'Usuario no encontrado en este colegio.', type: 'error');
+                return;
+            }
+        } else {
+            $user = User::findOrFail($id);
+        }
         $this->userId = $user->id;
         $this->name = $user->name;
         $this->surname = $user->surname;
@@ -173,7 +184,17 @@ class UserManagement extends Component
             return;
         }
         
-        $user = User::findOrFail($id);
+        // Verify user belongs to current school
+        if ($this->schoolId) {
+            $school = School::find($this->schoolId);
+            $user = $school ? $school->users()->where('users.id', $id)->first() : null;
+            if (!$user) {
+                $this->dispatch('notify', message: 'Usuario no encontrado en este colegio.', type: 'error');
+                return;
+            }
+        } else {
+            $user = User::findOrFail($id);
+        }
         
         if ($user->id === auth()->id()) {
             $this->dispatch('notify', message: 'No puedes eliminar tu propio usuario.', type: 'error');

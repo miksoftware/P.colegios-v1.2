@@ -38,7 +38,7 @@ class PrecontractualManagement extends Component
     public $distributions = [];
     public $selectedDistributionId = '';
     public $groupedDistributions = []; // agrupadas por código de gasto
-    public $selectedExpenseCodeId = '';
+    public $selectedExpenseCodeIds = []; // [expense_code_id => bool]
     public $distributionAmounts = []; // [distribution_id => amount]
     public $selectedDistributionIds = []; // [distribution_id => bool]
     public $convObject = '';
@@ -92,7 +92,7 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
 
         // Si viene de gastos con una distribución preseleccionada
         if ($distribution_id) {
@@ -219,13 +219,13 @@ class PrecontractualManagement extends Component
 
         $this->distributionAmounts = [];
         $this->selectedDistributionIds = [];
-        $this->selectedExpenseCodeId = '';
+        $this->selectedExpenseCodeIds = [];
 
         if ($distributionId) {
             $dist = collect($this->distributions)->firstWhere('id', $distributionId);
             if ($dist) {
-                $this->selectedExpenseCodeId = (string) $dist['expense_code_id'];
-                $this->onExpenseCodeSelected();
+                $this->selectedExpenseCodeIds[$dist['expense_code_id']] = true;
+                $this->onExpenseCodeToggled($dist['expense_code_id']);
                 // Pre-llenar el monto de esta distribución
                 $this->distributionAmounts[$distributionId] = $dist['available'];
                 $this->selectedDistributionIds[$distributionId] = true;
@@ -238,16 +238,31 @@ class PrecontractualManagement extends Component
         $this->showCreateModal = true;
     }
 
-    public function onExpenseCodeSelected()
+    public function toggleExpenseCode($expenseCodeId)
     {
-        $this->distributionAmounts = [];
-        $this->selectedDistributionIds = [];
-        $this->convAssignedBudget = '';
+        $expenseCodeId = (int) $expenseCodeId;
+        if (!empty($this->selectedExpenseCodeIds[$expenseCodeId])) {
+            unset($this->selectedExpenseCodeIds[$expenseCodeId]);
+            // Deseleccionar distribuciones de este código
+            $group = collect($this->groupedDistributions)
+                ->firstWhere('expense_code_id', $expenseCodeId);
+            if ($group) {
+                foreach ($group['distributions'] as $dist) {
+                    unset($this->selectedDistributionIds[$dist['id']]);
+                    unset($this->distributionAmounts[$dist['id']]);
+                }
+            }
+        } else {
+            $this->selectedExpenseCodeIds[$expenseCodeId] = true;
+            $this->onExpenseCodeToggled($expenseCodeId);
+        }
+        $this->recalculateBudget();
+    }
 
-        if (!$this->selectedExpenseCodeId) return;
-
+    public function onExpenseCodeToggled($expenseCodeId)
+    {
         $group = collect($this->groupedDistributions)
-            ->firstWhere('expense_code_id', (int) $this->selectedExpenseCodeId);
+            ->firstWhere('expense_code_id', (int) $expenseCodeId);
 
         if ($group) {
             if ($group['count'] === 1) {
@@ -256,8 +271,6 @@ class PrecontractualManagement extends Component
                 $this->selectedDistributionIds[$dist['id']] = true;
                 $this->distributionAmounts[$dist['id']] = $dist['available'];
             }
-            // Si hay múltiples rubros, el usuario elige cuáles usar
-            $this->recalculateBudget();
         }
     }
 
@@ -301,14 +314,12 @@ class PrecontractualManagement extends Component
         }
 
         $this->validate([
-            'selectedExpenseCodeId' => 'required',
             'convObject' => 'required|min:10|max:500',
             'convJustification' => 'required|min:10|max:1000',
             'convStartDate' => 'required|date',
             'convEndDate' => 'required|date|after:convStartDate',
             'convAssignedBudget' => 'required|numeric|min:1',
         ], [
-            'selectedExpenseCodeId.required' => 'Seleccione un código de gasto.',
             'convObject.required' => 'El objeto es obligatorio.',
             'convObject.min' => 'El objeto debe tener al menos 10 caracteres.',
             'convJustification.required' => 'La justificación es obligatoria.',
@@ -319,6 +330,12 @@ class PrecontractualManagement extends Component
             'convAssignedBudget.required' => 'El presupuesto es obligatorio.',
             'convAssignedBudget.min' => 'El presupuesto debe ser mayor a 0.',
         ]);
+
+        // Validar que al menos un código de gasto esté seleccionado
+        if (empty(array_filter($this->selectedExpenseCodeIds))) {
+            $this->dispatch('toast', message: 'Debe seleccionar al menos un código de gasto.', type: 'error');
+            return;
+        }
 
         // Validar que al menos una distribución esté seleccionada con monto > 0
         $validAmounts = collect($this->distributionAmounts)
@@ -389,7 +406,7 @@ class PrecontractualManagement extends Component
     {
         $this->showCreateModal = false;
         $this->selectedDistributionId = '';
-        $this->selectedExpenseCodeId = '';
+        $this->selectedExpenseCodeIds = [];
         $this->groupedDistributions = [];
         $this->distributionAmounts = [];
         $this->selectedDistributionIds = [];
@@ -564,9 +581,9 @@ class PrecontractualManagement extends Component
             ->get();
 
         $this->availableFundingSources = $sources->map(function ($source) use ($remainingForRubro) {
-            $balance = $source->getAvailableBalanceForYear($this->filterYear);
-            // Restar lo ya reservado por CDPs activos (globalmente)
-            $reserved = Cdp::getTotalReservedForFundingSource($source->id, $this->filterYear);
+            $balance = $source->getAvailableBalanceForYear($this->filterYear, $this->schoolId);
+            // Restar lo ya reservado por CDPs activos (filtrado por colegio)
+            $reserved = Cdp::getTotalReservedForFundingSource($source->id, $this->filterYear, $this->schoolId);
             $sourceAvailable = $balance - $reserved;
 
             // El disponible es el menor entre: saldo real de la fuente y lo que queda por asignar en la convocatoria
@@ -659,7 +676,7 @@ class PrecontractualManagement extends Component
 
             foreach ($this->cdpFundingSources as $fs) {
                 $source = FundingSource::find($fs['id']);
-                $balance = $source ? $source->getAvailableBalanceForYear($this->filterYear) : 0;
+                $balance = $source ? $source->getAvailableBalanceForYear($this->filterYear, $this->schoolId) : 0;
 
                 CdpFundingSource::create([
                     'cdp_id' => $cdp->id,
@@ -692,7 +709,7 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        $cdp = Cdp::where('convocatoria_id', $this->convocatoria->id)->findOrFail($cdpId);
+        $cdp = Cdp::forSchool($this->schoolId)->where('convocatoria_id', $this->convocatoria->id)->findOrFail($cdpId);
         
         if ($cdp->status !== 'active') {
             $this->dispatch('toast', message: 'Solo se pueden anular CDPs activos.', type: 'error');
@@ -960,7 +977,7 @@ class PrecontractualManagement extends Component
 
     public function clearFilters()
     {
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->filterStatus = '';
         $this->search = '';
         $this->resetPage();

@@ -9,11 +9,11 @@ Route::get('school/info', App\Livewire\SchoolInfo::class)
     ->name('school.info');
 
 Route::get('school/manage', App\Livewire\SchoolManagement::class)
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('school.manage');
 
 Route::get('users', App\Livewire\UserManagement::class)
-    ->middleware(['auth', 'verified', 'can:users.view'])
+    ->middleware(['auth', 'verified', 'can:users.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('users.index');
 
 Route::get('roles', App\Livewire\RoleManagement::class)
@@ -25,7 +25,7 @@ Route::get('accounting-accounts', App\Livewire\AccountingAccountManagement::clas
     ->name('accounting.accounts');
 
 Route::get('activity-logs', App\Livewire\ActivityLogViewer::class)
-    ->middleware(['auth', 'verified', 'can:activity_logs.view'])
+    ->middleware(['auth', 'verified', 'can:activity_logs.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('activity.logs');
 
 Route::get('suppliers', App\Livewire\SupplierManagement::class)

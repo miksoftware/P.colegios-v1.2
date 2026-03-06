@@ -128,7 +128,7 @@ class IncomeManagement extends Component
             }
         }
 
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->date = date('Y-m-d');
         $this->loadBudgetItems();
         $this->loadAvailableBanks();
@@ -873,7 +873,7 @@ class IncomeManagement extends Component
     public function resetFilters()
     {
         $this->reset(['search', 'filterSource', 'filterBudgetItem', 'filterStatus']);
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->resetPage();
         $this->loadBudgetItems();
     }

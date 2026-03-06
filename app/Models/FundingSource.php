@@ -89,9 +89,9 @@ class FundingSource extends Model
     /**
      * Total reservado por CDPs activos para esta fuente en un año fiscal
      */
-    public function getTotalReservedByCdps(int $year): float
+    public function getTotalReservedByCdps(int $year, ?int $schoolId = null): float
     {
-        return Cdp::getTotalReservedForFundingSource($this->id, $year);
+        return Cdp::getTotalReservedForFundingSource($this->id, $year, $schoolId);
     }
 
     /**
@@ -154,32 +154,50 @@ class FundingSource extends Model
     }
 
     /**
-     * Calcula el saldo disponible real de la fuente de financiación
+     * Calcula el saldo disponible real de la fuente de financiación para un colegio específico
      * Saldo = Ingresos - Transferencias Salientes + Transferencias Entrantes
      */
-    public function getAvailableBalanceAttribute(): float
+    public function getAvailableBalance(?int $schoolId = null): float
     {
-        $totalIncomes = $this->incomes()->sum('amount');
+        $query = $this->incomes();
+        if ($schoolId) {
+            $query->where('school_id', $schoolId);
+        }
+        $totalIncomes = $query->sum('amount');
         
-        $totalOutgoing = BudgetTransfer::where('source_funding_source_id', $this->id)->sum('amount');
-        $totalIncoming = BudgetTransfer::where('destination_funding_source_id', $this->id)->sum('amount');
+        $outgoing = BudgetTransfer::where('source_funding_source_id', $this->id);
+        $incoming = BudgetTransfer::where('destination_funding_source_id', $this->id);
+        if ($schoolId) {
+            $outgoing->where('school_id', $schoolId);
+            $incoming->where('school_id', $schoolId);
+        }
+        $totalOutgoing = $outgoing->sum('amount');
+        $totalIncoming = $incoming->sum('amount');
         
         return $totalIncomes - $totalOutgoing + $totalIncoming;
     }
 
     /**
-     * Calcula el saldo disponible para un año específico
+     * Calcula el saldo disponible para un año específico y colegio
      */
-    public function getAvailableBalanceForYear(int $year): float
+    public function getAvailableBalanceForYear(int $year, ?int $schoolId = null): float
     {
-        $totalIncomes = $this->incomes()->whereYear('date', $year)->sum('amount');
+        $query = $this->incomes()->whereYear('date', $year);
+        if ($schoolId) {
+            $query->where('school_id', $schoolId);
+        }
+        $totalIncomes = $query->sum('amount');
         
-        $totalOutgoing = BudgetTransfer::where('source_funding_source_id', $this->id)
-            ->where('fiscal_year', $year)
-            ->sum('amount');
-        $totalIncoming = BudgetTransfer::where('destination_funding_source_id', $this->id)
-            ->where('fiscal_year', $year)
-            ->sum('amount');
+        $outgoing = BudgetTransfer::where('source_funding_source_id', $this->id)
+            ->where('fiscal_year', $year);
+        $incoming = BudgetTransfer::where('destination_funding_source_id', $this->id)
+            ->where('fiscal_year', $year);
+        if ($schoolId) {
+            $outgoing->where('school_id', $schoolId);
+            $incoming->where('school_id', $schoolId);
+        }
+        $totalOutgoing = $outgoing->sum('amount');
+        $totalIncoming = $incoming->sum('amount');
         
         return $totalIncomes - $totalOutgoing + $totalIncoming;
     }

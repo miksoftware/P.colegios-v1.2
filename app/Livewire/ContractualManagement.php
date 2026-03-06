@@ -106,7 +106,7 @@ class ContractualManagement extends Component
             return;
         }
 
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
 
         // Si viene del precontractual con convocatoria preseleccionada
         if ($convocatoria_id) {
@@ -242,7 +242,7 @@ class ContractualManagement extends Component
             'selectedProposal.supplier.municipality',
             'cdps.budgetItem',
             'cdps.fundingSources.fundingSource',
-        ])->findOrFail($this->selectedConvocatoriaId);
+        ])->forSchool($this->schoolId)->findOrFail($this->selectedConvocatoriaId);
 
         // Auto-fill objeto y justificación
         $this->contractObject = $convocatoria->object;
@@ -775,8 +775,8 @@ class ContractualManagement extends Component
             ->get();
 
         $this->additionAvailableFundingSources = $sources->map(function ($source) use ($maxAddition) {
-            $balance = $source->getAvailableBalanceForYear((int) $this->filterYear);
-            $reserved = Cdp::getTotalReservedForFundingSource($source->id, (int) $this->filterYear);
+            $balance = $source->getAvailableBalanceForYear((int) $this->filterYear, $this->schoolId);
+            $reserved = Cdp::getTotalReservedForFundingSource($source->id, (int) $this->filterYear, $this->schoolId);
             $sourceAvailable = max(0, $balance - $reserved);
 
             // Limitar al máximo de adición permitido para el contrato
@@ -883,7 +883,7 @@ class ContractualManagement extends Component
                     'funding_source_id' => $fs['id'],
                     'budget_id' => $fs['budget_id'],
                     'amount' => (float) $fs['amount'],
-                    'available_balance_at_creation' => $source ? $source->getAvailableBalanceForYear($year) : 0,
+                    'available_balance_at_creation' => $source ? $source->getAvailableBalanceForYear($year, $this->schoolId) : 0,
                 ]);
             }
 

@@ -92,10 +92,10 @@ class PostcontractualManagement extends Component
             return;
         }
 
-        $this->filterYear = date('Y');
+        $school = School::find($this->schoolId);
+        $this->filterYear = $school?->current_validity ?? date('Y');
 
         // Obtener municipio del colegio para impuestos locales
-        $school = School::find($this->schoolId);
         $this->schoolMunicipality = strtolower(trim($school->municipality ?? ''));
     }
 
@@ -209,9 +209,9 @@ class PostcontractualManagement extends Component
             'supplier.department',
             'supplier.municipality',
             'rps.fundingSources.fundingSource',
-        ])->findOrFail($this->selectedContractId);
+        ])->forSchool($this->schoolId)->findOrFail($this->selectedContractId);
 
-        $totalPaid = PaymentOrder::getTotalPaidForContract($contract->id);
+        $totalPaid = PaymentOrder::getTotalPaidForContract($contract->id, $this->schoolId);
         $remaining = (float) $contract->total - $totalPaid;
 
         $this->contractData = [
@@ -307,12 +307,13 @@ class PostcontractualManagement extends Component
     }
 
     /**
-     * Calcula todas las retenciones según las reglas del Excel:
+     * Calcula todas las retenciones según las reglas colombianas:
      *
      * RETENCIONES DIAN:
-     * - Retefuente: % sobre subtotal, solo si subtotal >= base mínima del concepto
-     * - ReteIVA: 15% del IVA, solo para responsables de IVA (régimen común y gran contribuyente)
-     *   y si la base sobrepasa para la retención en la fuente de renta
+     * - Retefuente: % sobre subtotal del pago, solo si el subtotal del CONTRATO >= base mínima del concepto
+     *   (para pagos parciales, si el contrato cumple la base, TODOS los pagos descuentan proporcionalmente)
+     * - ReteIVA: 15% del IVA, solo para responsables de IVA (régimen común, gran contribuyente, o régimen simple si es responsable de IVA)
+     *   y si la base del contrato sobrepasa para la retención en la fuente de renta
      *
      * OTROS IMPUESTOS (según municipio del colegio):
      * - Estampilla Produlto Mayor: 2% del subtotal si >= $1 (solo Bucaramanga)
@@ -322,11 +323,10 @@ class PostcontractualManagement extends Component
      * REGLAS DE RÉGIMEN:
      * - Régimen Simplificado: son personas naturales, NO responsables de IVA,
      *   hay unos que declaran y otros que no declara
+     * - Régimen Simple: solo se les puede aplicar ReteIVA si son responsables de IVA
      * - Régimen Común: responsables de IVA y declarantes de renta
      * - Gran Contribuyente: responsables de IVA y declarantes de renta
      * - No Responsable de IVA: personas naturales, NO responsables de IVA
-     *
-     * Solo se aplica ReteIVA a régimen común y gran contribuyente (responsables de IVA)
      */
     public function calculateRetentions()
     {
@@ -337,32 +337,38 @@ class PostcontractualManagement extends Component
 
         $taxRegime = $this->supplierData['tax_regime'] ?? '';
 
+        // Para pagos parciales, usar el subtotal del CONTRATO para verificar la base mínima
+        // pero calcular la retención sobre el subtotal del PAGO
+        $contractSubtotal = (float) ($this->contractData['subtotal'] ?? $subtotal);
+
         // ── RETEFUENTE ──
         $this->retefuente = 0;
         $this->retentionPercentage = 0;
 
         if ($this->retentionConcept && isset(PaymentOrder::RETENTION_RATES[$this->retentionConcept])) {
-            // Verificar si el subtotal supera la base mínima
-            if (PaymentOrder::meetsRetentionThreshold($this->retentionConcept, $subtotal)) {
+            // Verificar si el subtotal del CONTRATO supera la base mínima
+            if (PaymentOrder::meetsRetentionThreshold($this->retentionConcept, $contractSubtotal)) {
                 $rate = PaymentOrder::getRetentionRate($this->retentionConcept, (bool) $this->supplierDeclaresRent);
                 $this->retentionPercentage = $rate;
-                $this->retefuente = round($subtotal * ($rate / 100), 2);
+                // Calcular retención sobre el subtotal del PAGO (proporcional)
+                $this->retefuente = $this->roundRetention($subtotal * ($rate / 100));
             }
         }
 
         // ── RETEIVA ──
-        // 15% del IVA, solo para responsables de IVA (régimen común y gran contribuyente)
-        // y solo si la base sobrepasa el umbral de retención en la fuente
+        // 15% del IVA, solo para responsables de IVA
+        // Responsables de IVA: régimen común, gran contribuyente, y régimen simple SI es responsable
+        // y solo si la base del contrato sobrepasa el umbral de retención en la fuente
         $this->reteiva = 0;
         $isIvaResponsible = in_array($taxRegime, ['comun', 'gran_contribuyente']);
 
         if ($isIvaResponsible && $iva > 0 && $this->retentionConcept) {
-            if (PaymentOrder::meetsRetentionThreshold($this->retentionConcept, $subtotal)) {
-                $this->reteiva = round($iva * 0.15, 2);
+            if (PaymentOrder::meetsRetentionThreshold($this->retentionConcept, $contractSubtotal)) {
+                $this->reteiva = $this->roundRetention($iva * 0.15);
             }
         }
 
-        $this->totalRetentionsDian = round($this->retefuente + $this->reteiva, 2);
+        $this->totalRetentionsDian = $this->retefuente + $this->reteiva;
 
         // ── OTROS IMPUESTOS (según municipio del colegio) ──
         $this->estampillaProdultoMayor = 0;
@@ -373,25 +379,39 @@ class PostcontractualManagement extends Component
 
         // Estampilla Produlto Mayor: 2% si subtotal >= $1 (solo Bucaramanga)
         if (str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
-            $this->estampillaProdultoMayor = round($subtotal * 0.02, 2);
+            $this->estampillaProdultoMayor = $this->roundRetention($subtotal * 0.02);
         }
 
         // Estampilla Procultura: 2% si subtotal >= $35,018,010 (solo Bucaramanga)
         if (str_contains($municipality, 'bucaramanga') && $subtotal >= 35018010) {
-            $this->estampillaProcultura = round($subtotal * 0.02, 2);
+            $this->estampillaProcultura = $this->roundRetention($subtotal * 0.02);
         }
 
         // Retención ICA: solo Piedecuesta y Villanueva (placeholder - tasa configurable)
         // Por ahora no se aplica automáticamente, se deja en 0
 
-        $this->otherTaxesTotal = round(
-            $this->estampillaProdultoMayor + $this->estampillaProcultura + $this->retencionIca,
-            2
-        );
+        $this->otherTaxesTotal = $this->estampillaProdultoMayor + $this->estampillaProcultura + $this->retencionIca;
 
         // ── TOTALES ──
-        $this->totalRetentions = round($this->totalRetentionsDian + $this->otherTaxesTotal, 2);
-        $this->netPayment = round($total - $this->totalRetentions, 2);
+        $this->totalRetentions = $this->totalRetentionsDian + $this->otherTaxesTotal;
+        $this->netPayment = $total - $this->totalRetentions;
+    }
+
+    /**
+     * Redondea valores de retención a valores cerrados:
+     * - Si el valor >= 1000: redondea al millar más cercano (3311 → 3000, 3500 → 4000)
+     * - Si el valor < 1000: redondea a la centena más cercana (602 → 600, 650 → 700)
+     * - Si el valor es 0: retorna 0
+     */
+    private function roundRetention(float $value): int
+    {
+        if ($value <= 0) return 0;
+
+        if ($value >= 1000) {
+            return (int) round($value / 1000) * 1000;
+        }
+
+        return (int) round($value / 100) * 100;
     }
 
     public function savePaymentOrder()
@@ -582,6 +602,16 @@ class PostcontractualManagement extends Component
     #[Layout('layouts.app')]
     public function render()
     {
+        // Recargar orden de pago fresco en cada render para evitar problemas de serialización
+        if ($this->currentView === 'detail' && $this->paymentOrderId) {
+            $this->paymentOrder = PaymentOrder::with([
+                'contract.supplier.department',
+                'contract.supplier.municipality',
+                'contract.rps.fundingSources.fundingSource',
+                'creator',
+            ])->forSchool($this->schoolId)->find($this->paymentOrderId);
+        }
+
         return view('livewire.postcontractual-management', [
             'paymentOrders' => $this->paymentOrders,
             'summary'       => $this->summary,

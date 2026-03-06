@@ -50,7 +50,7 @@ class ExpenseManagement extends Component
             return;
         }
 
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
     }
 
     public function updatingSearch()
@@ -258,7 +258,7 @@ class ExpenseManagement extends Component
 
     public function clearFilters()
     {
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->filterBudgetItem = '';
         $this->search = '';
         $this->resetPage();

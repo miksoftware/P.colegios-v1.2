@@ -92,8 +92,8 @@ class PaymentOrder extends Model
     const RETENTION_RATES = [
         'compras'                    => [3.5, 2.5],
         'servicios'                  => [6.0, 4.0],
-        'honorarios'                 => [11.0, 10.0],
-        'arrendamiento_sitios_web'   => [1.5, 3.5],
+        'honorarios'                 => [10.0, 11.0],
+        'arrendamiento_sitios_web'   => [11.0, 3.5],
         'arrendamiento_inmuebles'    => [3.5, 3.5],
         'transporte_pasajeros'       => [3.5, 3.5],
     ];
@@ -102,12 +102,12 @@ class PaymentOrder extends Model
      * Base mínima (subtotal) a partir de la cual se aplica retención en la fuente.
      */
     const RETENTION_MIN_BASE = [
-        'compras'                    => 961000,
-        'servicios'                  => 145000,
+        'compras'                    => 524000,
+        'servicios'                  => 105000,
         'honorarios'                 => 1,
         'arrendamiento_sitios_web'   => 1,
         'arrendamiento_inmuebles'    => 524000,
-        'transporte_pasajeros'       => 961000,
+        'transporte_pasajeros'       => 524000,
     ];
 
     /**
@@ -234,11 +234,17 @@ class PaymentOrder extends Model
 
     /**
      * Total pagado para un contrato (no anuladas).
+     * Filtra opcionalmente por school_id para aislamiento multi-tenant.
      */
-    public static function getTotalPaidForContract(int $contractId): float
+    public static function getTotalPaidForContract(int $contractId, ?int $schoolId = null): float
     {
-        return (float) static::where('contract_id', $contractId)
-            ->whereIn('status', ['draft', 'approved', 'paid'])
-            ->sum('total');
+        $query = static::where('contract_id', $contractId)
+            ->whereIn('status', ['draft', 'approved', 'paid']);
+        
+        if ($schoolId) {
+            $query->where('school_id', $schoolId);
+        }
+        
+        return (float) $query->sum('total');
     }
 }

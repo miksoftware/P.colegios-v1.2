@@ -43,6 +43,14 @@ class SchoolManagement extends Component
             return redirect()->route('dashboard');
         }
 
+        // Verify user belongs to this school (unless Admin)
+        if (!auth()->user()->hasRole('Admin')) {
+            $belongsToSchool = auth()->user()->schools()->where('schools.id', $schoolId)->exists();
+            if (!$belongsToSchool) {
+                abort(403, 'No tienes acceso a este colegio.');
+            }
+        }
+
         $this->school = School::findOrFail($schoolId);
         $this->loadSchoolData();
     }

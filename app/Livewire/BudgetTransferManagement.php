@@ -100,7 +100,7 @@ class BudgetTransferManagement extends Component
             }
         }
 
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->loadBudgetItems();
     }
 
@@ -138,7 +138,7 @@ class BudgetTransferManagement extends Component
             ->get();
 
         $this->sourceFundingSources = $sources->map(function($source) {
-            $balance = $source->getAvailableBalanceForYear($this->filterYear);
+            $balance = $source->getAvailableBalanceForYear($this->filterYear, $this->schoolId);
             return [
                 'id' => $source->id,
                 'name' => $source->name,
@@ -158,7 +158,7 @@ class BudgetTransferManagement extends Component
                 $this->selectedSourceFundingSource = [
                     'id' => $source->id,
                     'name' => $source->name,
-                    'balance' => $source->getAvailableBalanceForYear($this->filterYear),
+                    'balance' => $source->getAvailableBalanceForYear($this->filterYear, $this->schoolId),
                 ];
             }
         }
@@ -183,7 +183,7 @@ class BudgetTransferManagement extends Component
             ->get();
 
         $this->destinationFundingSources = $sources->map(function($source) {
-            $balance = $source->getAvailableBalanceForYear($this->filterYear);
+            $balance = $source->getAvailableBalanceForYear($this->filterYear, $this->schoolId);
             return [
                 'id' => $source->id,
                 'name' => $source->name,
@@ -203,7 +203,7 @@ class BudgetTransferManagement extends Component
                 $this->selectedDestinationFundingSource = [
                     'id' => $source->id,
                     'name' => $source->name,
-                    'balance' => $source->getAvailableBalanceForYear($this->filterYear),
+                    'balance' => $source->getAvailableBalanceForYear($this->filterYear, $this->schoolId),
                 ];
             }
         }
@@ -282,7 +282,7 @@ class BudgetTransferManagement extends Component
         $destinationFundingSource = FundingSource::findOrFail($this->destination_funding_source_id);
 
         // Calcular saldo disponible de la fuente origen
-        $sourceBalance = $sourceFundingSource->getAvailableBalanceForYear($this->filterYear);
+        $sourceBalance = $sourceFundingSource->getAvailableBalanceForYear($this->filterYear, $this->schoolId);
 
         // Validar que el monto no exceda el saldo disponible
         if ($this->amount > $sourceBalance) {
@@ -291,7 +291,7 @@ class BudgetTransferManagement extends Component
         }
 
         // Calcular nuevos saldos
-        $destinationBalance = $destinationFundingSource->getAvailableBalanceForYear($this->filterYear);
+        $destinationBalance = $destinationFundingSource->getAvailableBalanceForYear($this->filterYear, $this->schoolId);
         $sourceNewBalance = $sourceBalance - $this->amount;
         $destinationNewBalance = $destinationBalance + $this->amount;
 
@@ -364,7 +364,7 @@ class BudgetTransferManagement extends Component
     public function clearFilters()
     {
         $this->reset(['search']);
-        $this->filterYear = date('Y');
+        $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->resetPage();
         $this->loadBudgetItems();
     }

@@ -126,10 +126,10 @@ echo -e "${YELLOW}[4/8] 🗄️  Migraciones...${NC}"
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan migrate --force 2>&1
 echo -e "${GREEN}✓ Migraciones ejecutadas${NC}"
 
-# ── PASO 4.5: Seeders de datos base ──
+# ── PASO 4.5: Seeders de datos base (solo ejecuta los pendientes) ──
 echo ""
 echo -e "${YELLOW}[4.5/8] 🌱 Seeders de datos base...${NC}"
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed --class=DeploySeeder --force 2>&1
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed-once --force 2>&1
 echo -e "${GREEN}✓ Datos base sincronizados${NC}"
 
 # ── PASO 5: Compilar assets ──

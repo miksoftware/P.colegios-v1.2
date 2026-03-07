@@ -472,8 +472,8 @@
                             </div>
                         </div>
 
-                        <!-- Información bancaria (colapsable) -->
-                        <div x-data="{ open: {{ ($bank_name || $account_number) ? 'true' : 'false' }} }" class="bg-gray-50 rounded-xl overflow-hidden">
+                        <!-- Cuentas bancarias (múltiples) -->
+                        <div x-data="{ open: {{ count($bank_accounts) > 0 ? 'true' : 'false' }} }" class="bg-gray-50 rounded-xl overflow-hidden">
                             <button 
                                 type="button"
                                 @click="open = !open"
@@ -483,7 +483,7 @@
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
                                     </svg>
-                                    Información Bancaria (Opcional)
+                                    Cuentas Bancarias ({{ count($bank_accounts) }})
                                 </h4>
                                 <svg 
                                     class="w-5 h-5 text-gray-400 transition-transform"
@@ -494,38 +494,44 @@
                                 </svg>
                             </button>
                             <div x-show="open" x-collapse class="px-4 pb-4">
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Banco</label>
-                                        <input 
-                                            type="text" 
-                                            wire:model="bank_name"
-                                            class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                            placeholder="Bancolombia"
-                                        >
+                                @foreach($bank_accounts as $baIndex => $ba)
+                                <div class="bg-white rounded-lg p-3 border border-gray-200 mb-2" wire:key="ba-{{ $baIndex }}">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-xs font-medium text-gray-500">Cuenta #{{ $baIndex + 1 }}</span>
+                                        <button type="button" wire:click="removeBankAccount({{ $baIndex }})" class="text-red-400 hover:text-red-600 text-xs">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
                                     </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Cuenta</label>
-                                        <select 
-                                            wire:model="account_type" 
-                                            class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                        >
-                                            <option value="">Seleccionar...</option>
-                                            @foreach(\App\Models\Supplier::ACCOUNT_TYPES as $key => $label)
-                                                <option value="{{ $key }}">{{ $label }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Número de Cuenta</label>
-                                        <input 
-                                            type="text" 
-                                            wire:model="account_number"
-                                            class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono"
-                                            placeholder="123456789"
-                                        >
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Banco *</label>
+                                            <input type="text" wire:model="bank_accounts.{{ $baIndex }}.bank_name"
+                                                class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Bancolombia">
+                                            @error("bank_accounts.{$baIndex}.bank_name") <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Tipo de Cuenta *</label>
+                                            <select wire:model="bank_accounts.{{ $baIndex }}.account_type"
+                                                class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
+                                                @foreach(\App\Models\SupplierBankAccount::ACCOUNT_TYPES as $key => $label)
+                                                    <option value="{{ $key }}">{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">N° Cuenta *</label>
+                                            <input type="text" wire:model="bank_accounts.{{ $baIndex }}.account_number"
+                                                class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 font-mono" placeholder="123456789">
+                                            @error("bank_accounts.{$baIndex}.account_number") <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                                        </div>
                                     </div>
                                 </div>
+                                @endforeach
+                                <button type="button" wire:click="addBankAccount"
+                                    class="mt-2 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                    Agregar Cuenta Bancaria
+                                </button>
                             </div>
                         </div>
 

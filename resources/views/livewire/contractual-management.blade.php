@@ -344,21 +344,21 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Subtotal *</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
-                                <input type="number" wire:model="contractSubtotal" step="0.01" class="w-full rounded-xl border-gray-300 pl-7 focus:border-indigo-500 focus:ring-indigo-500">
+                                <input type="number" wire:model="contractSubtotal" step="0.01" class="w-full rounded-xl border-gray-300 pl-7 bg-gray-50" readonly>
                             </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">IVA</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
-                                <input type="number" wire:model="contractIva" step="0.01" class="w-full rounded-xl border-gray-300 pl-7 focus:border-indigo-500 focus:ring-indigo-500">
+                                <input type="number" wire:model="contractIva" step="0.01" class="w-full rounded-xl border-gray-300 pl-7 bg-gray-50" readonly>
                             </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Total *</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
-                                <input type="number" wire:model="contractTotal" step="0.01" class="w-full rounded-xl border-gray-300 pl-7 font-bold focus:border-indigo-500 focus:ring-indigo-500">
+                                <input type="number" wire:model="contractTotal" step="0.01" class="w-full rounded-xl border-gray-300 pl-7 font-bold bg-gray-50" readonly>
                             </div>
                         </div>
                     </div>
@@ -433,20 +433,29 @@
                                                     <div class="relative">
                                                         <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-400 text-xs">$</span>
                                                         <input type="number" step="0.01" wire:model="rpAssignments.{{ $cdp['id'] }}.funding_sources.{{ $fsIndex }}.amount"
-                                                            class="w-full rounded-lg border-gray-300 pl-6 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                            max="{{ $rpFs['available'] }}" min="0">
+                                                            class="w-full rounded-lg border-gray-300 pl-6 text-sm bg-gray-50" readonly>
                                                     </div>
-                                                    <p class="text-xs text-gray-400 mt-0.5">Máx: ${{ number_format($rpFs['available'], 0, ',', '.') }}</p>
-                                                </div>
-                                                <div>
-                                                    <label class="block text-xs font-medium text-gray-500 mb-1">N° Cuenta Bancaria</label>
-                                                    <input type="text" wire:model="rpAssignments.{{ $cdp['id'] }}.funding_sources.{{ $fsIndex }}.bank_account_number"
-                                                        class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Opcional">
+                                                    <p class="text-xs text-gray-400 mt-0.5">Valor desde propuesta ganadora</p>
                                                 </div>
                                                 <div>
                                                     <label class="block text-xs font-medium text-gray-500 mb-1">Banco</label>
-                                                    <input type="text" wire:model="rpAssignments.{{ $cdp['id'] }}.funding_sources.{{ $fsIndex }}.bank_name"
-                                                        class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Opcional">
+                                                    <select wire:model.live="rpAssignments.{{ $cdp['id'] }}.funding_sources.{{ $fsIndex }}.bank_id"
+                                                        class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                        <option value="">— Seleccionar banco —</option>
+                                                        @foreach($availableBanks as $bank)
+                                                            <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-500 mb-1">Cuenta Bancaria</label>
+                                                    <select wire:model="rpAssignments.{{ $cdp['id'] }}.funding_sources.{{ $fsIndex }}.bank_account_id"
+                                                        class="w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                        <option value="">— Seleccionar cuenta —</option>
+                                                        @foreach(($rpLineAccounts[$cdp['id'] . '_' . $fsIndex] ?? []) as $account)
+                                                            <option value="{{ $account['id'] }}">{{ $account['account_number'] }} - {{ ucfirst($account['account_type']) }}</option>
+                                                        @endforeach
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>
@@ -733,8 +742,8 @@
                                             <tr>
                                                 <td class="px-4 py-2 text-gray-900">{{ $rpFs->fundingSource?->name ?? 'N/D' }}</td>
                                                 <td class="px-4 py-2 text-right font-semibold">${{ number_format($rpFs->amount, 0, ',', '.') }}</td>
-                                                <td class="px-4 py-2 text-gray-600">{{ $rpFs->bank_account_number ?: '-' }}</td>
-                                                <td class="px-4 py-2 text-gray-600">{{ $rpFs->bank_name ?: '-' }}</td>
+                                                <td class="px-4 py-2 text-gray-600">{{ $rpFs->bankAccount?->account_number ?? '-' }}</td>
+                                                <td class="px-4 py-2 text-gray-600">{{ $rpFs->bank?->name ?? '-' }}</td>
                                             </tr>
                                         @endforeach
                                     </tbody>

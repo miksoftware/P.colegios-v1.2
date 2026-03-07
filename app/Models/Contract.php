@@ -64,6 +64,7 @@ class Contract extends Model
         'seleccion_abreviada' => 'Selección Abreviada',
         'concurso_meritos'    => 'Concurso de Méritos',
         'licitacion'          => 'Licitación Pública',
+        'especial'            => 'Regimen Especial',
     ];
 
     const PAYMENT_METHODS = [

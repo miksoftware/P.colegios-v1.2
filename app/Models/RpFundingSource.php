@@ -12,8 +12,8 @@ class RpFundingSource extends Model
         'funding_source_id',
         'budget_id',
         'amount',
-        'bank_account_number',
-        'bank_name',
+        'bank_id',
+        'bank_account_id',
     ];
 
     protected $casts = [
@@ -34,5 +34,15 @@ class RpFundingSource extends Model
     public function budget(): BelongsTo
     {
         return $this->belongsTo(Budget::class);
+    }
+
+    public function bank(): BelongsTo
+    {
+        return $this->belongsTo(Bank::class);
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
     }
 }

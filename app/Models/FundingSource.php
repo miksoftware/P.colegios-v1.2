@@ -179,27 +179,19 @@ class FundingSource extends Model
 
     /**
      * Calcula el saldo disponible para un año específico y colegio
+     * Basado en el presupuesto asignado (no en ingresos reales)
      */
     public function getAvailableBalanceForYear(int $year, ?int $schoolId = null): float
     {
-        $query = $this->incomes()->whereYear('date', $year);
-        if ($schoolId) {
-            $query->where('school_id', $schoolId);
-        }
-        $totalIncomes = $query->sum('amount');
-        
-        $outgoing = BudgetTransfer::where('source_funding_source_id', $this->id)
-            ->where('fiscal_year', $year);
-        $incoming = BudgetTransfer::where('destination_funding_source_id', $this->id)
+        $budgetQuery = $this->budgets()
+            ->where('type', 'expense')
             ->where('fiscal_year', $year);
         if ($schoolId) {
-            $outgoing->where('school_id', $schoolId);
-            $incoming->where('school_id', $schoolId);
+            $budgetQuery->where('school_id', $schoolId);
         }
-        $totalOutgoing = $outgoing->sum('amount');
-        $totalIncoming = $incoming->sum('amount');
-        
-        return $totalIncomes - $totalOutgoing + $totalIncoming;
+        $totalBudgeted = (float) $budgetQuery->sum('current_amount');
+
+        return $totalBudgeted;
     }
 
     /**

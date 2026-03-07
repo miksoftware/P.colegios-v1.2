@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Supplier extends Model
 {
@@ -27,9 +28,6 @@ class Supplier extends Model
         'phone',
         'mobile',
         'email',
-        'bank_name',
-        'account_type',
-        'account_number',
         'is_active',
         'notes',
     ];
@@ -115,6 +113,14 @@ class Supplier extends Model
     public function municipality(): BelongsTo
     {
         return $this->belongsTo(Municipality::class);
+    }
+
+    /**
+     * Cuentas bancarias del proveedor
+     */
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(SupplierBankAccount::class);
     }
 
     /**

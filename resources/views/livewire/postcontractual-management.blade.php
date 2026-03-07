@@ -308,7 +308,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Número de Factura *</label>
-                            <input type="text" wire:model="invoiceNumber" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500" placeholder="Ej: FAC-001">
+                            <input type="text" wire:model="invoiceNumber" class="w-full rounded-xl border-gray-300 bg-gray-50 text-sm" readonly>
                             @error('invoiceNumber') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
                     </div>
@@ -504,29 +504,72 @@
                     </div>
 
                     {{-- Cuenta bancaria del proveedor --}}
-                    @if(!empty($supplierData['bank_name']) || !empty($supplierData['account_number']))
                     <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-4">
                         <p class="text-xs font-medium text-blue-700 uppercase mb-2">Cuenta Bancaria del Proveedor (donde se realiza el pago)</p>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div>
-                                <p class="text-xs text-gray-500">Banco</p>
-                                <p class="text-sm font-semibold text-gray-900">{{ $supplierData['bank_name'] ?: 'No registrado' }}</p>
+
+                        @if(count($supplierBankAccounts) > 0)
+                            <div class="mb-3">
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Seleccionar Cuenta Bancaria *</label>
+                                <select wire:model="selectedBankAccountId"
+                                    class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
+                                    <option value="">— Seleccionar cuenta —</option>
+                                    @foreach($supplierBankAccounts as $ba)
+                                        <option value="{{ $ba['id'] }}">{{ $ba['bank_name'] }} - {{ ucfirst($ba['account_type']) }} - {{ $ba['account_number'] }}</option>
+                                    @endforeach
+                                </select>
                             </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Tipo de Cuenta</p>
-                                <p class="text-sm font-semibold text-gray-900">{{ $supplierData['account_type'] ?: 'No registrado' }}</p>
+                        @else
+                            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                                <p class="text-xs text-amber-700">El proveedor no tiene cuentas bancarias registradas.</p>
                             </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Número de Cuenta</p>
-                                <p class="text-sm font-semibold text-gray-900">{{ $supplierData['account_number'] ?: 'No registrado' }}</p>
+                        @endif
+
+                        {{-- Botón para agregar nueva cuenta --}}
+                        @if(!$showNewBankAccountForm)
+                            <button type="button" wire:click="toggleNewBankAccountForm"
+                                class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                Agregar nueva cuenta bancaria
+                            </button>
+                        @else
+                            <div class="bg-white border border-blue-200 rounded-lg p-3 mt-2">
+                                <p class="text-xs font-medium text-gray-700 mb-2">Nueva Cuenta Bancaria</p>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Banco *</label>
+                                        <input type="text" wire:model="newBankName"
+                                            class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Bancolombia">
+                                        @error('newBankName') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Tipo de Cuenta *</label>
+                                        <select wire:model="newAccountType"
+                                            class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
+                                            @foreach(\App\Models\SupplierBankAccount::ACCOUNT_TYPES as $key => $label)
+                                                <option value="{{ $key }}">{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">N° Cuenta *</label>
+                                        <input type="text" wire:model="newAccountNumber"
+                                            class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 font-mono" placeholder="123456789">
+                                        @error('newAccountNumber') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 mt-3">
+                                    <button type="button" wire:click="saveNewBankAccount"
+                                        class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">
+                                        Guardar Cuenta
+                                    </button>
+                                    <button type="button" wire:click="toggleNewBankAccountForm"
+                                        class="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs rounded-lg hover:bg-gray-300">
+                                        Cancelar
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        @endif
                     </div>
-                    @else
-                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mt-4">
-                        <p class="text-xs text-amber-700">El proveedor no tiene cuenta bancaria registrada. Verifique los datos del proveedor.</p>
-                    </div>
-                    @endif
                 </div>
 
                 {{-- ─── SECCIÓN 9: Códigos Contables ───────────────── --}}
@@ -658,7 +701,7 @@
                         </div>
                         <div>
                             <p class="text-xs text-gray-500">Municipio</p>
-                            <p class="text-sm text-gray-900">{{ $supplier?->city ?? 'N/D' }}</p>
+                            <p class="text-sm text-gray-900">{{ $supplier?->municipality?->name ?? 'No registrado' }}</p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-500">Teléfono</p>

@@ -191,10 +191,10 @@
                         </div>
                         
                         <!-- Presupuesto - Expandable -->
-                        <div x-data="{ presupuestoOpen: {{ request()->routeIs('budgets.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') || request()->routeIs('contractual.index') || request()->routeIs('postcontractual.index') ? 'true' : 'false' }} }">
+                        <div x-data="{ presupuestoOpen: {{ request()->routeIs('budgets.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('budget-modifications.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') || request()->routeIs('contractual.index') || request()->routeIs('postcontractual.index') ? 'true' : 'false' }} }">
                             <button 
                                 @click="presupuestoOpen = !presupuestoOpen"
-                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('budgets.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') || request()->routeIs('contractual.index') || request()->routeIs('postcontractual.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('budgets.index') || request()->routeIs('budget-transfers.index') || request()->routeIs('budget-modifications.index') || request()->routeIs('incomes.index') || request()->routeIs('expenses.index') || request()->routeIs('precontractual.index') || request()->routeIs('contractual.index') || request()->routeIs('postcontractual.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
                             >
                                 <div class="flex items-center gap-3">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -230,6 +230,14 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                         </svg>
                                         Presupuesto Inicial
+                                    </a>
+                                @endcan
+                                @can('budget_modifications.view')
+                                    <a href="{{ route('budget-modifications.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('budget-modifications.index') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                        </svg>
+                                        Adiciones y Reducciones
                                     </a>
                                 @endcan
                                 @can('budget_transfers.view')

@@ -3,7 +3,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900">Créditos y Contracréditos</h1>
-                <p class="text-gray-500 mt-1">Traslados presupuestales entre fuentes de financiación</p>
+                <p class="text-gray-500 mt-1">Traslados presupuestales entre rubros de gasto por código de gasto</p>
             </div>
             @can('budget_transfers.create')
             <button wire:click="openCreateModal" class="inline-flex items-center px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all">
@@ -33,67 +33,82 @@
 
         <!-- Table -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Origen</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Destino</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">
-                    @forelse($this->transfers as $transfer)
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">{{ $transfer->formatted_number }}</span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {{ $transfer->created_at->format('d/m/Y') }}
-                        </td>
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-2">
-                                <span class="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
-                                </span>
-                                <div>
-                                    <div class="text-sm font-medium text-gray-900">{{ $transfer->sourceFundingSource->name ?? 'N/A' }}</div>
-                                    <div class="text-xs text-gray-500">{{ $transfer->sourceFundingSource->budgetItem->code ?? '' }}</div>
+            <div class="px-6 py-4 border-b border-gray-100">
+                <h2 class="text-lg font-semibold text-gray-900">Traslados Registrados</h2>
+                <p class="text-sm text-gray-500">Historial de créditos y contracréditos entre rubros de gasto</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Origen (Contracrédito)</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Destino (Crédito)</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cód. Gasto</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        @forelse($this->transfers as $transfer)
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">{{ $transfer->formatted_number }}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                {{ $transfer->created_at->format('d/m/Y') }}
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                                    </span>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">{{ $transfer->sourceBudget->budgetItem->code ?? '' }}</div>
+                                        <div class="text-xs text-gray-500">{{ \Illuminate\Support\Str::limit($transfer->sourceBudget->budgetItem->name ?? '', 30) }}</div>
+                                    </div>
                                 </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-2">
-                                <span class="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
-                                </span>
-                                <div>
-                                    <div class="text-sm font-medium text-gray-900">{{ $transfer->destinationFundingSource->name ?? 'N/A' }}</div>
-                                    <div class="text-xs text-gray-500">{{ $transfer->destinationFundingSource->budgetItem->code ?? '' }}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                                    </span>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">{{ $transfer->destinationBudget->budgetItem->code ?? '' }}</div>
+                                        <div class="text-xs text-gray-500">{{ \Illuminate\Support\Str::limit($transfer->destinationBudget->budgetItem->name ?? '', 30) }}</div>
+                                    </div>
                                 </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
-                            ${{ number_format($transfer->amount, 0, ',', '.') }}
-                        </td>
-                        <td class="px-6 py-4 text-right">
-                            <button wire:click="showDetail({{ $transfer->id }})" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Ver detalle">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                            </button>
-                        </td>
-                    </tr>
-                    @empty
-                    <tr><td colspan="6" class="px-6 py-12 text-center text-gray-500">No hay traslados registrados</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
+                            </td>
+                            <td class="px-6 py-4">
+                                @if($transfer->sourceExpenseDistribution)
+                                <div class="text-xs text-gray-700 font-medium">{{ $transfer->sourceExpenseDistribution->expenseCode->code ?? '' }}</div>
+                                <div class="text-xs text-gray-500">{{ \Illuminate\Support\Str::limit($transfer->sourceExpenseDistribution->expenseCode->name ?? '', 25) }}</div>
+                                @else
+                                <span class="text-xs text-gray-400">N/A</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
+                                ${{ number_format($transfer->amount, 0, ',', '.') }}
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <button wire:click="showDetail({{ $transfer->id }})" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Ver detalle">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr><td colspan="7" class="px-6 py-12 text-center text-gray-500">No hay traslados registrados</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
             @if($this->transfers->hasPages())<div class="px-6 py-4 border-t">{{ $this->transfers->links() }}</div>@endif
         </div>
     </div>
 
-    <!-- Modal Crear -->
+    <!-- Modal Crear Traslado -->
     @if($showModal)
     <div class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
@@ -103,7 +118,7 @@
                     <div class="flex items-center justify-between">
                         <div>
                             <h3 class="text-xl font-bold text-white">Nuevo Traslado Presupuestal</h3>
-                            <p class="text-blue-100 text-sm mt-1">Crédito y Contracrédito</p>
+                            <p class="text-blue-100 text-sm mt-1">Crédito y Contracrédito entre rubros de gasto</p>
                         </div>
                         <button type="button" wire:click="closeModal" class="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -111,38 +126,53 @@
                     </div>
                 </div>
                 <form wire:submit="save" class="px-6 py-5 space-y-5">
-                    <!-- Origen -->
+                    <!-- Contracrédito (Origen) -->
                     <div class="p-4 bg-red-50 rounded-xl border border-red-100">
                         <h4 class="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
-                            Origen (Contracrédito)
+                            Origen (Contracrédito - Sale dinero)
                         </h4>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-3">
+                            <!-- Seleccionar rubro de gasto -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Rubro *</label>
-                                <select wire:model.live="source_budget_item_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                    <option value="">Seleccione...</option>
-                                    @foreach($budgetItems as $item)
-                                        <option value="{{ $item['id'] }}">{{ $item['name'] }}</option>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Rubro de Presupuesto (Gasto) *</label>
+                                <select wire:model.live="source_budget_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
+                                    <option value="">Seleccione un rubro de gasto...</option>
+                                    @foreach($sourceExpenseBudgets as $budget)
+                                        <option value="{{ $budget['id'] }}">{{ $budget['name'] }} ({{ $budget['funding_source'] }})</option>
                                     @endforeach
                                 </select>
-                                @error('source_budget_item_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                @error('source_budget_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                             </div>
+
+                            <!-- Seleccionar código de gasto -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Fuente *</label>
-                                <select wire:model.live="source_funding_source_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" @if(empty($sourceFundingSources)) disabled @endif>
-                                    <option value="">{{ empty($sourceFundingSources) ? 'Seleccione rubro primero' : 'Seleccione...' }}</option>
-                                    @foreach($sourceFundingSources as $source)
-                                        <option value="{{ $source['id'] }}">{{ $source['name'] }} (${{ number_format($source['balance'], 0, ',', '.') }})</option>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Código de Gasto *</label>
+                                <select wire:model.live="source_expense_distribution_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" @if(empty($sourceDistributions)) disabled @endif>
+                                    <option value="">{{ empty($sourceDistributions) ? 'Seleccione un rubro primero' : 'Seleccione un código de gasto...' }}</option>
+                                    @foreach($sourceDistributions as $dist)
+                                        <option value="{{ $dist['id'] }}">{{ $dist['expense_code'] }} — Disponible: ${{ number_format($dist['available_balance'], 0, ',', '.') }}</option>
                                     @endforeach
                                 </select>
-                                @error('source_funding_source_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                @error('source_expense_distribution_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                             </div>
                         </div>
-                        @if($selectedSourceFundingSource)
-                        <div class="mt-3 text-sm">
-                            <span class="text-gray-600">Saldo disponible:</span>
-                            <span class="font-bold text-red-700">${{ number_format($selectedSourceFundingSource['balance'], 0, ',', '.') }}</span>
+
+                        <!-- Info del origen seleccionado -->
+                        @if(count($selectedSourceInfo) > 0)
+                        <div class="mt-3 pt-3 border-t border-red-200 space-y-1">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Código de Gasto:</span>
+                                <span class="font-medium text-gray-900">{{ $selectedSourceInfo['expense_code'] }}</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Monto distribución:</span>
+                                <span class="font-medium text-gray-900">${{ number_format($selectedSourceInfo['amount'], 0, ',', '.') }}</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Saldo disponible:</span>
+                                <span class="font-bold text-red-700">${{ number_format($selectedSourceInfo['available_balance'], 0, ',', '.') }}</span>
+                            </div>
                         </div>
                         @endif
                     </div>
@@ -157,41 +187,71 @@
                         @error('amount') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
-                    <!-- Destino -->
+                    <!-- Crédito (Destino) -->
                     <div class="p-4 bg-green-50 rounded-xl border border-green-100">
                         <h4 class="text-sm font-semibold text-green-700 mb-3 flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
-                            Destino (Crédito)
+                            Destino (Crédito - Entra dinero)
                         </h4>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Rubro *</label>
-                                <select wire:model.live="destination_budget_item_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                    <option value="">Seleccione...</option>
-                                    @foreach($budgetItems as $item)
-                                        <option value="{{ $item['id'] }}">{{ $item['name'] }}</option>
-                                    @endforeach
-                                </select>
-                                @error('destination_budget_item_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Fuente *</label>
-                                <select wire:model.live="destination_funding_source_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" @if(empty($destinationFundingSources)) disabled @endif>
-                                    <option value="">{{ empty($destinationFundingSources) ? 'Seleccione rubro primero' : 'Seleccione...' }}</option>
-                                    @foreach($destinationFundingSources as $source)
-                                        <option value="{{ $source['id'] }}">{{ $source['name'] }} (${{ number_format($source['balance'], 0, ',', '.') }})</option>
-                                    @endforeach
-                                </select>
-                                @error('destination_funding_source_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
-                            </div>
+
+                        @if(count($selectedSourceInfo) > 0)
+                        <p class="text-xs text-green-700 mb-3">
+                            Rubros con el mismo código de gasto: <strong>{{ $selectedSourceInfo['expense_code'] }}</strong>
+                        </p>
+                        @endif
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Rubro de Presupuesto Destino *</label>
+                            <select wire:model.live="destination_budget_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" @if(empty($destinationExpenseBudgets)) disabled @endif>
+                                <option value="">{{ empty($destinationExpenseBudgets) ? 'Seleccione origen primero' : 'Seleccione rubro destino...' }}</option>
+                                @foreach($destinationExpenseBudgets as $budget)
+                                    <option value="{{ $budget['id'] }}">{{ $budget['name'] }} ({{ $budget['funding_source'] }}) — Distribución: ${{ number_format($budget['distribution_amount'], 0, ',', '.') }}</option>
+                                @endforeach
+                            </select>
+                            @error('destination_budget_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                         </div>
-                        @if($selectedDestinationFundingSource)
-                        <div class="mt-3 text-sm">
-                            <span class="text-gray-600">Saldo actual:</span>
-                            <span class="font-bold text-green-700">${{ number_format($selectedDestinationFundingSource['balance'], 0, ',', '.') }}</span>
+
+                        @if(empty($destinationExpenseBudgets) && count($selectedSourceInfo) > 0)
+                        <div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p class="text-xs text-amber-700">No hay otros rubros de gasto con el código <strong>{{ $selectedSourceInfo['expense_code'] }}</strong> en este período.</p>
+                        </div>
+                        @endif
+
+                        <!-- Info del destino seleccionado -->
+                        @if(count($selectedDestinationInfo) > 0)
+                        <div class="mt-3 pt-3 border-t border-green-200 space-y-1">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Rubro:</span>
+                                <span class="font-medium text-gray-900">{{ $selectedDestinationInfo['name'] }}</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Monto distribución actual:</span>
+                                <span class="font-bold text-green-700">${{ number_format($selectedDestinationInfo['distribution_amount'], 0, ',', '.') }}</span>
+                            </div>
                         </div>
                         @endif
                     </div>
+
+                    <!-- Preview -->
+                    @if(count($selectedSourceInfo) > 0 && count($selectedDestinationInfo) > 0 && $amount && is_numeric($amount) && $amount > 0)
+                    <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                        <h4 class="text-sm font-semibold text-blue-700 mb-2">Vista previa del traslado</h4>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div class="p-3 bg-red-50/50 rounded-lg">
+                                <p class="text-xs text-gray-500 mb-1">Contracrédito (Origen)</p>
+                                <p class="text-sm font-medium text-gray-900">${{ number_format($selectedSourceInfo['amount'], 0, ',', '.') }}</p>
+                                <p class="text-xs text-gray-400">→</p>
+                                <p class="text-sm font-bold text-red-600">${{ number_format($selectedSourceInfo['amount'] - (float)$amount, 0, ',', '.') }}</p>
+                            </div>
+                            <div class="p-3 bg-green-50/50 rounded-lg">
+                                <p class="text-xs text-gray-500 mb-1">Crédito (Destino)</p>
+                                <p class="text-sm font-medium text-gray-900">${{ number_format($selectedDestinationInfo['distribution_amount'], 0, ',', '.') }}</p>
+                                <p class="text-xs text-gray-400">→</p>
+                                <p class="text-sm font-bold text-green-600">${{ number_format($selectedDestinationInfo['distribution_amount'] + (float)$amount, 0, ',', '.') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
 
                     <!-- Justificación -->
                     <div>
@@ -240,11 +300,19 @@
                         <span class="text-lg font-bold text-blue-600">${{ number_format($detailTransfer->amount, 0, ',', '.') }}</span>
                     </div>
 
+                    <!-- Código de gasto -->
+                    @if($detailTransfer->sourceExpenseDistribution)
+                    <div class="flex justify-between py-2 border-b">
+                        <span class="text-sm text-gray-500">Código de Gasto</span>
+                        <span class="text-sm font-medium">{{ $detailTransfer->sourceExpenseDistribution->expenseCode->code ?? '' }} - {{ $detailTransfer->sourceExpenseDistribution->expenseCode->name ?? '' }}</span>
+                    </div>
+                    @endif
+
                     <!-- Origen -->
                     <div class="p-3 bg-red-50 rounded-xl">
                         <p class="text-xs font-semibold text-red-700 mb-1">Origen (Contracrédito)</p>
-                        <p class="text-sm font-medium text-gray-900">{{ $detailTransfer->sourceFundingSource->name ?? 'N/A' }}</p>
-                        <p class="text-xs text-gray-500">{{ $detailTransfer->sourceFundingSource->budgetItem->code ?? '' }} - {{ $detailTransfer->sourceFundingSource->budgetItem->name ?? '' }}</p>
+                        <p class="text-sm font-medium text-gray-900">{{ $detailTransfer->sourceBudget->budgetItem->code ?? '' }} - {{ $detailTransfer->sourceBudget->budgetItem->name ?? '' }}</p>
+                        <p class="text-xs text-gray-500">Fuente: {{ $detailTransfer->sourceFundingSource->name ?? 'N/A' }}</p>
                         <div class="flex gap-2 mt-2 text-xs">
                             <span class="text-gray-500">Antes: ${{ number_format($detailTransfer->source_previous_amount, 0, ',', '.') }}</span>
                             <span>→</span>
@@ -255,8 +323,8 @@
                     <!-- Destino -->
                     <div class="p-3 bg-green-50 rounded-xl">
                         <p class="text-xs font-semibold text-green-700 mb-1">Destino (Crédito)</p>
-                        <p class="text-sm font-medium text-gray-900">{{ $detailTransfer->destinationFundingSource->name ?? 'N/A' }}</p>
-                        <p class="text-xs text-gray-500">{{ $detailTransfer->destinationFundingSource->budgetItem->code ?? '' }} - {{ $detailTransfer->destinationFundingSource->budgetItem->name ?? '' }}</p>
+                        <p class="text-sm font-medium text-gray-900">{{ $detailTransfer->destinationBudget->budgetItem->code ?? '' }} - {{ $detailTransfer->destinationBudget->budgetItem->name ?? '' }}</p>
+                        <p class="text-xs text-gray-500">Fuente: {{ $detailTransfer->destinationFundingSource->name ?? 'N/A' }}</p>
                         <div class="flex gap-2 mt-2 text-xs">
                             <span class="text-gray-500">Antes: ${{ number_format($detailTransfer->destination_previous_amount, 0, ',', '.') }}</span>
                             <span>→</span>

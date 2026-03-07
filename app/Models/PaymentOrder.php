@@ -214,6 +214,21 @@ class PaymentOrder extends Model
         return ($max ?? 0) + 1;
     }
 
+    public static function getNextInvoiceNumber(int $schoolId, int $year): string
+    {
+        $max = static::where('school_id', $schoolId)
+            ->where('fiscal_year', $year)
+            ->whereNotNull('invoice_number')
+            ->where('invoice_number', 'like', 'FAC-%')
+            ->get()
+            ->map(fn($po) => (int) str_replace('FAC-', '', $po->invoice_number))
+            ->max();
+
+        $next = ($max ?? 0) + 1;
+
+        return 'FAC-' . str_pad($next, 3, '0', STR_PAD_LEFT);
+    }
+
     /**
      * Calcula el porcentaje de retención según concepto y si declara renta.
      */

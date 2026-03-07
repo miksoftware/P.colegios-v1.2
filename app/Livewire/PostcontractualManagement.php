@@ -6,6 +6,7 @@ use App\Models\Contract;
 use App\Models\PaymentOrder;
 use App\Models\School;
 use App\Models\Supplier;
+use App\Models\SupplierBankAccount;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
@@ -67,6 +68,12 @@ class PostcontractualManagement extends Component
     // Datos auxiliares
     public $availableContracts = [];
     public $schoolMunicipality = '';
+    public $supplierBankAccounts = [];
+    public $selectedBankAccountId = '';
+    public $showNewBankAccountForm = false;
+    public $newBankName = '';
+    public $newAccountType = 'ahorros';
+    public $newAccountNumber = '';
 
     // Modales
     public $showStatusModal = false;
@@ -170,6 +177,7 @@ class PostcontractualManagement extends Component
 
         $this->resetCreateForm();
         $this->loadContracts();
+        $this->invoiceNumber = PaymentOrder::getNextInvoiceNumber($this->schoolId, (int) $this->filterYear);
         $this->currentView = 'create';
     }
 
@@ -231,15 +239,24 @@ class PostcontractualManagement extends Component
                 'name'           => $supplier->full_name,
                 'document'       => $supplier->full_document,
                 'address'        => $supplier->address ?? 'No registrada',
-                'municipality'   => $supplier->city ?? 'No registrado',
+                'municipality'   => $supplier->municipality?->name ?? 'No registrado',
                 'phone'          => $supplier->phone ?? $supplier->mobile ?? 'No registrado',
                 'tax_regime'     => $supplier->tax_regime ?? '',
                 'tax_regime_name'=> $supplier->tax_regime ? (Supplier::TAX_REGIMES[$supplier->tax_regime] ?? $supplier->tax_regime) : 'No registrado',
-                'bank_name'      => $supplier->bank_name ?? '',
-                'account_type'   => $supplier->account_type ? (Supplier::ACCOUNT_TYPES[$supplier->account_type] ?? $supplier->account_type) : '',
-                'account_number' => $supplier->account_number ?? '',
                 'person_type'    => $supplier->person_type ?? '',
             ];
+
+            // Cargar cuentas bancarias del proveedor
+            $this->supplierBankAccounts = $supplier->bankAccounts()
+                ->active()
+                ->orderBy('bank_name')
+                ->get()
+                ->toArray();
+
+            // Si tiene una sola cuenta, seleccionarla automáticamente
+            if (count($this->supplierBankAccounts) === 1) {
+                $this->selectedBankAccountId = $this->supplierBankAccounts[0]['id'];
+            }
         }
 
         // Fuentes de financiación desde los RPs
@@ -414,6 +431,60 @@ class PostcontractualManagement extends Component
         return (int) round($value / 100) * 100;
     }
 
+    public function toggleNewBankAccountForm()
+    {
+        $this->showNewBankAccountForm = !$this->showNewBankAccountForm;
+        if (!$this->showNewBankAccountForm) {
+            $this->newBankName = '';
+            $this->newAccountType = 'ahorros';
+            $this->newAccountNumber = '';
+        }
+    }
+
+    public function saveNewBankAccount()
+    {
+        $this->validate([
+            'newBankName'      => 'required|string|max:100',
+            'newAccountType'   => 'required|in:ahorros,corriente',
+            'newAccountNumber' => 'required|string|max:30',
+        ], [
+            'newBankName.required'      => 'El nombre del banco es obligatorio.',
+            'newAccountType.required'   => 'El tipo de cuenta es obligatorio.',
+            'newAccountNumber.required' => 'El número de cuenta es obligatorio.',
+        ]);
+
+        // Obtener el proveedor del contrato
+        $contract = Contract::with('supplier')->find($this->selectedContractId);
+        if (!$contract || !$contract->supplier) {
+            $this->dispatch('toast', message: 'No se encontró el proveedor.', type: 'error');
+            return;
+        }
+
+        $bankAccount = SupplierBankAccount::create([
+            'supplier_id'    => $contract->supplier->id,
+            'bank_name'      => $this->newBankName,
+            'account_type'   => $this->newAccountType,
+            'account_number' => $this->newAccountNumber,
+        ]);
+
+        // Recargar cuentas y seleccionar la nueva
+        $this->supplierBankAccounts = $contract->supplier->bankAccounts()
+            ->active()
+            ->orderBy('bank_name')
+            ->get()
+            ->toArray();
+
+        $this->selectedBankAccountId = $bankAccount->id;
+
+        // Limpiar formulario
+        $this->showNewBankAccountForm = false;
+        $this->newBankName = '';
+        $this->newAccountType = 'ahorros';
+        $this->newAccountNumber = '';
+
+        $this->dispatch('toast', message: 'Cuenta bancaria registrada exitosamente.', type: 'success');
+    }
+
     public function savePaymentOrder()
     {
         if (!auth()->user()->can('postcontractual.create')) {
@@ -476,12 +547,24 @@ class PostcontractualManagement extends Component
                 'total_retentions'           => $this->totalRetentions,
                 'net_payment'                => $this->netPayment,
                 'observations'               => $this->observations ?: null,
-                'supplier_bank_name'         => $this->supplierData['bank_name'] ?? null,
-                'supplier_account_type'      => $this->supplierData['account_type'] ?? null,
-                'supplier_account_number'    => $this->supplierData['account_number'] ?? null,
+                'supplier_bank_name'         => null,
+                'supplier_account_type'      => null,
+                'supplier_account_number'    => null,
                 'status'                     => 'draft',
                 'created_by'                 => auth()->id(),
             ]);
+
+            // Guardar snapshot de cuenta bancaria seleccionada
+            if ($this->selectedBankAccountId) {
+                $bankAccount = SupplierBankAccount::find($this->selectedBankAccountId);
+                if ($bankAccount) {
+                    $paymentOrder->update([
+                        'supplier_bank_name'      => $bankAccount->bank_name,
+                        'supplier_account_type'   => $bankAccount->account_type_name,
+                        'supplier_account_number' => $bankAccount->account_number,
+                    ]);
+                }
+            }
 
             DB::commit();
 
@@ -593,6 +676,12 @@ class PostcontractualManagement extends Component
         $this->netPayment = 0;
         $this->observations = '';
         $this->availableContracts = [];
+        $this->supplierBankAccounts = [];
+        $this->selectedBankAccountId = '';
+        $this->showNewBankAccountForm = false;
+        $this->newBankName = '';
+        $this->newAccountType = 'ahorros';
+        $this->newAccountNumber = '';
     }
 
     // ══════════════════════════════════════════════════════════

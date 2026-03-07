@@ -2,6 +2,8 @@
 
 namespace App\Livewire;
 
+use App\Models\Bank;
+use App\Models\BankAccount;
 use App\Models\Budget;
 use App\Models\BudgetItem;
 use App\Models\Cdp;
@@ -62,6 +64,8 @@ class ContractualManagement extends Component
     // Datos auxiliares
     public $awardedConvocatorias = [];
     public $supervisors = [];
+    public $availableBanks = [];
+    public $rpLineAccounts = []; // Cuentas bancarias por línea de RP
 
     // Modal Cambio de Estado
     public $showStatusModal = false;
@@ -221,6 +225,13 @@ class ContractualManagement extends Component
             ->get()
             ->map(fn($u) => ['id' => $u->id, 'name' => $u->name])
             ->toArray();
+
+        // Bancos disponibles
+        $this->availableBanks = Bank::forSchool($this->schoolId)
+            ->active()
+            ->orderBy('name')
+            ->get()
+            ->toArray();
     }
 
     public function onConvocatoriaSelected()
@@ -294,16 +305,21 @@ class ContractualManagement extends Component
             ];
 
             // Pre-inicializar la asignación de RP para este CDP
+            // El monto del RP es igual al valor de la propuesta, distribuido proporcionalmente entre las fuentes del CDP
+            $cdpTotal = (float) $cdp->total_amount;
+            $proposalTotal = (float) ($this->contractTotal ?? 0);
             $rpFundingSources = [];
             foreach ($cdpFundingSources as $fs) {
+                $proportion = $cdpTotal > 0 ? $fs['amount'] / $cdpTotal : 0;
+                $rpAmount = min($fs['amount'], round($proposalTotal * $proportion, 2));
                 $rpFundingSources[] = [
                     'funding_source_id' => $fs['funding_source_id'],
                     'name'              => $fs['name'],
                     'available'         => $fs['amount'],
-                    'amount'            => $fs['amount'], // por defecto, asignar todo
+                    'amount'            => $rpAmount,
                     'budget_id'         => $fs['budget_id'],
-                    'bank_account_number' => '',
-                    'bank_name'         => '',
+                    'bank_id'            => '',
+                    'bank_account_id'    => '',
                 ];
             }
 
@@ -311,6 +327,30 @@ class ContractualManagement extends Component
                 'rp_number'       => ContractRp::getNextRpNumber($this->schoolId, (int) $this->filterYear),
                 'funding_sources' => $rpFundingSources,
             ];
+        }
+    }
+
+    public function updatedRpAssignments($value, $key)
+    {
+        // key format: "123.funding_sources.0.bank_id"
+        $parts = explode('.', $key);
+        if (count($parts) === 4 && $parts[1] === 'funding_sources' && $parts[3] === 'bank_id') {
+            $cdpId = $parts[0];
+            $fsIndex = (int) $parts[2];
+            $bankId = $value;
+            // Reset account for this line
+            $this->rpAssignments[$cdpId]['funding_sources'][$fsIndex]['bank_account_id'] = '';
+            // Load accounts for this bank
+            $lineKey = $cdpId . '_' . $fsIndex;
+            if ($bankId) {
+                $this->rpLineAccounts[$lineKey] = BankAccount::where('bank_id', $bankId)
+                    ->active()
+                    ->orderBy('account_number')
+                    ->get()
+                    ->toArray();
+            } else {
+                $this->rpLineAccounts[$lineKey] = [];
+            }
         }
     }
 
@@ -453,8 +493,8 @@ class ContractualManagement extends Component
                             'funding_source_id' => $fs['funding_source_id'],
                             'budget_id'         => $fs['budget_id'] ?? null,
                             'amount'            => $amount,
-                            'bank_account_number' => $fs['bank_account_number'] ?? null,
-                            'bank_name'         => $fs['bank_name'] ?? null,
+                            'bank_id'           => $fs['bank_id'] ?: null,
+                            'bank_account_id'   => $fs['bank_account_id'] ?: null,
                         ]);
                     }
                 }

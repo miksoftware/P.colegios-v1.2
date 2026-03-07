@@ -15,8 +15,10 @@ class BudgetTransfer extends Model
         'transfer_number',
         'source_budget_id',
         'source_funding_source_id',
+        'source_expense_distribution_id',
         'destination_budget_id',
         'destination_funding_source_id',
+        'destination_expense_distribution_id',
         'amount',
         'source_previous_amount',
         'source_new_amount',
@@ -56,39 +58,19 @@ class BudgetTransfer extends Model
     }
 
     /**
-     * Rubro origen del traslado
-     * Nota: source_budget_id ahora almacena budget_item_id (el rubro)
-     */
-    public function sourceBudgetItem(): BelongsTo
-    {
-        return $this->belongsTo(BudgetItem::class, 'source_budget_id');
-    }
-
-    /**
-     * Rubro destino del traslado
-     * Nota: destination_budget_id ahora almacena budget_item_id (el rubro)
-     */
-    public function destinationBudgetItem(): BelongsTo
-    {
-        return $this->belongsTo(BudgetItem::class, 'destination_budget_id');
-    }
-
-    /**
-     * Mantener compatibilidad con código existente
-     * @deprecated Usar sourceBudgetItem() en su lugar
+     * Presupuesto origen del traslado (gasto)
      */
     public function sourceBudget(): BelongsTo
     {
-        return $this->sourceBudgetItem();
+        return $this->belongsTo(Budget::class, 'source_budget_id');
     }
 
     /**
-     * Mantener compatibilidad con código existente
-     * @deprecated Usar destinationBudgetItem() en su lugar
+     * Presupuesto destino del traslado (gasto)
      */
     public function destinationBudget(): BelongsTo
     {
-        return $this->destinationBudgetItem();
+        return $this->belongsTo(Budget::class, 'destination_budget_id');
     }
 
     public function sourceFundingSource(): BelongsTo
@@ -99,6 +81,16 @@ class BudgetTransfer extends Model
     public function destinationFundingSource(): BelongsTo
     {
         return $this->belongsTo(FundingSource::class, 'destination_funding_source_id');
+    }
+
+    public function sourceExpenseDistribution(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseDistribution::class, 'source_expense_distribution_id');
+    }
+
+    public function destinationExpenseDistribution(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseDistribution::class, 'destination_expense_distribution_id');
     }
 
     public function creator(): BelongsTo

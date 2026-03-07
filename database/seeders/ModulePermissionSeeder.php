@@ -178,10 +178,20 @@ class ModulePermissionSeeder extends Seeder
                 ],
             ],
             [
+                'name' => 'budget_modifications',
+                'display_name' => 'Adiciones y Reducciones',
+                'icon' => 'plus-minus',
+                'order' => 14,
+                'permissions' => [
+                    ['name' => 'budget_modifications.view', 'display_name' => 'Ver Adiciones y Reducciones'],
+                    ['name' => 'budget_modifications.create', 'display_name' => 'Crear Adiciones y Reducciones'],
+                ],
+            ],
+            [
                 'name' => 'incomes',
                 'display_name' => 'Ingresos',
                 'icon' => 'currency-dollar',
-                'order' => 14,
+                'order' => 15,
                 'permissions' => [
                     ['name' => 'incomes.view', 'display_name' => 'Ver Ingresos'],
                     ['name' => 'incomes.create', 'display_name' => 'Registrar Ingresos'],
@@ -255,6 +265,8 @@ class ModulePermissionSeeder extends Seeder
             'budgets.modify',
             'budget_transfers.view',
             'budget_transfers.create',
+            'budget_modifications.view',
+            'budget_modifications.create',
             'incomes.view',
             'incomes.create',
             'incomes.edit',
@@ -274,6 +286,7 @@ class ModulePermissionSeeder extends Seeder
             'funding_sources.view',
             'budgets.view',
             'budget_transfers.view',
+            'budget_modifications.view',
             'incomes.view',
         ]);
 

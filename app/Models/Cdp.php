@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Models\RpFundingSource;
 
 class Cdp extends Model
 {
@@ -136,21 +137,41 @@ class Cdp extends Model
     }
 
     /**
-     * Calcula el total reservado por CDPs activos y utilizados para una fuente de financiación específica
-     * en un año fiscal dado. Se excluyen solo los CDPs anulados.
-     * Se filtra por school_id para aislamiento multi-tenant.
+     * Calcula el total reservado/comprometido para una fuente de financiación específica
+     * en un año fiscal dado.
+     *
+     * - CDPs activos: se cuenta el monto completo del CDP (reserva)
+     * - CDPs utilizados: se cuenta solo lo realmente comprometido en RPs (contratos)
+     * - CDPs anulados: se excluyen
      */
     public static function getTotalReservedForFundingSource(int $fundingSourceId, int $fiscalYear, ?int $schoolId = null): float
     {
-        return (float) CdpFundingSource::whereHas('cdp', function ($q) use ($fiscalYear, $schoolId) {
+        // Monto reservado por CDPs activos (aún no tienen contrato)
+        $activeReserved = (float) CdpFundingSource::whereHas('cdp', function ($q) use ($fiscalYear, $schoolId) {
             $q->where('fiscal_year', $fiscalYear)
-              ->whereIn('status', ['active', 'used']);
+              ->where('status', 'active');
             if ($schoolId) {
                 $q->where('school_id', $schoolId);
             }
         })
         ->where('funding_source_id', $fundingSourceId)
         ->sum('amount');
+
+        // Monto comprometido por RPs de CDPs utilizados (ya tienen contrato)
+        $usedCommitted = (float) RpFundingSource::whereHas('contractRp', function ($q) use ($fiscalYear, $schoolId) {
+            $q->where('fiscal_year', $fiscalYear)
+              ->where('status', '!=', 'cancelled')
+              ->whereHas('cdp', function ($cdpQ) use ($schoolId) {
+                  $cdpQ->where('status', 'used');
+                  if ($schoolId) {
+                      $cdpQ->where('school_id', $schoolId);
+                  }
+              });
+        })
+        ->where('funding_source_id', $fundingSourceId)
+        ->sum('amount');
+
+        return $activeReserved + $usedCommitted;
     }
 
 }

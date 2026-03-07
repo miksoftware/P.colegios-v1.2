@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Department;
 use App\Models\Municipality;
 use App\Models\Supplier;
+use App\Models\SupplierBankAccount;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
@@ -43,9 +44,7 @@ class SupplierManagement extends Component
     public $phone = '';
     public $mobile = '';
     public $email = '';
-    public $bank_name = '';
-    public $account_type = '';
-    public $account_number = '';
+    public $bank_accounts = [];
     public $is_active = true;
     public $notes = '';
 
@@ -89,9 +88,10 @@ class SupplierManagement extends Component
             'phone' => 'nullable|string|max:20',
             'mobile' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:150',
-            'bank_name' => 'nullable|string|max:100',
-            'account_type' => 'nullable|in:ahorros,corriente',
-            'account_number' => 'nullable|string|max:30',
+            'bank_accounts' => 'array',
+            'bank_accounts.*.bank_name' => 'required|string|max:100',
+            'bank_accounts.*.account_type' => 'required|in:ahorros,corriente',
+            'bank_accounts.*.account_number' => 'required|string|max:30',
             'is_active' => 'boolean',
             'notes' => 'nullable|string',
         ];
@@ -164,6 +164,22 @@ class SupplierManagement extends Component
         }
     }
 
+    public function addBankAccount()
+    {
+        $this->bank_accounts[] = [
+            'id'             => null,
+            'bank_name'      => '',
+            'account_type'   => 'ahorros',
+            'account_number' => '',
+        ];
+    }
+
+    public function removeBankAccount($index)
+    {
+        unset($this->bank_accounts[$index]);
+        $this->bank_accounts = array_values($this->bank_accounts);
+    }
+
     public function getSuppliersProperty()
     {
         return Supplier::forSchool($this->schoolId)
@@ -216,9 +232,12 @@ class SupplierManagement extends Component
         $this->phone = $supplier->phone;
         $this->mobile = $supplier->mobile;
         $this->email = $supplier->email;
-        $this->bank_name = $supplier->bank_name;
-        $this->account_type = $supplier->account_type;
-        $this->account_number = $supplier->account_number;
+        $this->bank_accounts = $supplier->bankAccounts->map(fn($ba) => [
+            'id'             => $ba->id,
+            'bank_name'      => $ba->bank_name,
+            'account_type'   => $ba->account_type,
+            'account_number' => $ba->account_number,
+        ])->toArray();
         $this->is_active = $supplier->is_active;
         $this->notes = $supplier->notes;
 
@@ -258,9 +277,6 @@ class SupplierManagement extends Component
             'phone' => $this->phone,
             'mobile' => $this->mobile,
             'email' => $this->email ? strtolower($this->email) : null,
-            'bank_name' => $this->bank_name,
-            'account_type' => $this->account_type ?: null,
-            'account_number' => $this->account_number,
             'is_active' => $this->is_active,
             'notes' => $this->notes,
         ];
@@ -268,9 +284,42 @@ class SupplierManagement extends Component
         if ($this->isEditing) {
             $supplier = Supplier::forSchool($this->schoolId)->findOrFail($this->supplierId);
             $supplier->update($data);
+
+            // Sincronizar cuentas bancarias
+            $existingIds = [];
+            foreach ($this->bank_accounts as $ba) {
+                if (!empty($ba['id'])) {
+                    $supplier->bankAccounts()->where('id', $ba['id'])->update([
+                        'bank_name'      => $ba['bank_name'],
+                        'account_type'   => $ba['account_type'],
+                        'account_number' => $ba['account_number'],
+                    ]);
+                    $existingIds[] = $ba['id'];
+                } else {
+                    $newAccount = $supplier->bankAccounts()->create([
+                        'bank_name'      => $ba['bank_name'],
+                        'account_type'   => $ba['account_type'],
+                        'account_number' => $ba['account_number'],
+                    ]);
+                    $existingIds[] = $newAccount->id;
+                }
+            }
+            // Eliminar las que ya no están
+            $supplier->bankAccounts()->whereNotIn('id', $existingIds)->delete();
+
             $this->dispatch('toast', message: 'Proveedor actualizado exitosamente.', type: 'success');
         } else {
-            Supplier::create($data);
+            $supplier = Supplier::create($data);
+
+            // Crear cuentas bancarias
+            foreach ($this->bank_accounts as $ba) {
+                $supplier->bankAccounts()->create([
+                    'bank_name'      => $ba['bank_name'],
+                    'account_type'   => $ba['account_type'],
+                    'account_number' => $ba['account_number'],
+                ]);
+            }
+
             $this->dispatch('toast', message: 'Proveedor creado exitosamente.', type: 'success');
         }
 
@@ -349,9 +398,7 @@ class SupplierManagement extends Component
         $this->phone = '';
         $this->mobile = '';
         $this->email = '';
-        $this->bank_name = '';
-        $this->account_type = '';
-        $this->account_number = '';
+        $this->bank_accounts = [];
         $this->is_active = true;
         $this->notes = '';
         $this->isEditing = false;

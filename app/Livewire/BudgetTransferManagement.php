@@ -4,7 +4,9 @@ namespace App\Livewire;
 
 use App\Models\Budget;
 use App\Models\BudgetTransfer;
+use App\Models\ExpenseCode;
 use App\Models\ExpenseDistribution;
+use App\Models\FundingSource;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
@@ -24,12 +26,14 @@ class BudgetTransferManagement extends Component
     // Modal crear traslado
     public $showModal = false;
 
+    // Paso 1: Fuente de financiación común
+    public $selected_funding_source_id = '';
+
     // Contracrédito (origen - sale dinero)
-    public $source_budget_id = '';
-    public $source_expense_distribution_id = '';
+    public $source_distribution_id = '';
 
     // Crédito (destino - entra dinero)
-    public $destination_budget_id = '';
+    public $destination_expense_code_id = '';
 
     // Datos del traslado
     public $amount = '';
@@ -37,9 +41,9 @@ class BudgetTransferManagement extends Component
     public $document_number = '';
 
     // Datos dinámicos para selects
-    public $sourceExpenseBudgets = [];
+    public $availableFundingSources = [];
     public $sourceDistributions = [];
-    public $destinationExpenseBudgets = [];
+    public $destinationExpenseCodes = [];
 
     // Info de selección actual
     public $selectedSourceInfo = [];
@@ -57,9 +61,9 @@ class BudgetTransferManagement extends Component
     protected function rules()
     {
         return [
-            'source_budget_id' => 'required|exists:budgets,id',
-            'source_expense_distribution_id' => 'required|exists:expense_distributions,id',
-            'destination_budget_id' => 'required|exists:budgets,id|different:source_budget_id',
+            'selected_funding_source_id' => 'required|exists:funding_sources,id',
+            'source_distribution_id' => 'required|exists:expense_distributions,id',
+            'destination_expense_code_id' => 'required|exists:expense_codes,id',
             'amount' => 'required|numeric|min:0.01',
             'reason' => 'required|string|min:10',
             'document_number' => 'nullable|string|max:50',
@@ -67,10 +71,9 @@ class BudgetTransferManagement extends Component
     }
 
     protected $messages = [
-        'source_budget_id.required' => 'Debe seleccionar el rubro de gasto origen.',
-        'source_expense_distribution_id.required' => 'Debe seleccionar el código de gasto origen.',
-        'destination_budget_id.required' => 'Debe seleccionar el rubro de gasto destino.',
-        'destination_budget_id.different' => 'El rubro destino debe ser diferente al origen.',
+        'selected_funding_source_id.required' => 'Debe seleccionar una fuente de financiación.',
+        'source_distribution_id.required' => 'Debe seleccionar el gasto origen (contracrédito).',
+        'destination_expense_code_id.required' => 'Debe seleccionar el gasto destino (crédito).',
         'amount.required' => 'El monto es obligatorio.',
         'amount.min' => 'El monto debe ser mayor a 0.',
         'reason.required' => 'La justificación es obligatoria.',
@@ -113,129 +116,145 @@ class BudgetTransferManagement extends Component
     }
 
     /**
-     * Cargar rubros de gasto que tengan distribuciones activas
+     * Cargar fuentes de financiación que tengan distribuciones de gasto con monto > 0
      */
-    public function loadSourceExpenseBudgets()
+    public function loadAvailableFundingSources()
     {
-        $this->sourceExpenseBudgets = Budget::forSchool($this->schoolId)
-            ->forYear((int) $this->filterYear)
-            ->byType('expense')
-            ->whereHas('distributions', fn($q) => $q->active()->where('amount', '>', 0))
-            ->with('budgetItem', 'fundingSource')
-            ->orderBy('budget_item_id')
+        $this->availableFundingSources = FundingSource::whereHas('budgets', function ($q) {
+            $q->forSchool($this->schoolId)
+              ->forYear((int) $this->filterYear)
+              ->byType('expense')
+              ->whereHas('distributions', fn($dq) => $dq->where('amount', '>', 0));
+        })
+            ->active()
+            ->orderBy('code')
             ->get()
-            ->map(fn($b) => [
-                'id' => $b->id,
-                'name' => ($b->budgetItem->code ?? '') . ' - ' . ($b->budgetItem->name ?? ''),
-                'funding_source' => $b->fundingSource->name ?? 'N/A',
-                'current_amount' => (float) $b->current_amount,
+            ->map(fn($fs) => [
+                'id' => $fs->id,
+                'name' => $fs->code . ' - ' . $fs->name,
             ])
             ->toArray();
     }
 
     /**
-     * Al seleccionar rubro origen, cargar sus distribuciones (códigos de gasto)
+     * Al seleccionar fuente de financiación, cargar distribuciones origen y códigos destino
      */
-    public function updatedSourceBudgetId($value)
+    public function updatedSelectedFundingSourceId($value)
     {
-        $this->source_expense_distribution_id = '';
+        $this->source_distribution_id = '';
+        $this->destination_expense_code_id = '';
         $this->sourceDistributions = [];
+        $this->destinationExpenseCodes = [];
         $this->selectedSourceInfo = [];
-        $this->destination_budget_id = '';
-        $this->destinationExpenseBudgets = [];
         $this->selectedDestinationInfo = [];
 
         if ($value) {
-            $this->loadSourceDistributions($value);
+            $this->loadSourceDistributions();
+            $this->loadDestinationExpenseCodes();
         }
     }
 
-    public function loadSourceDistributions($budgetId)
+    /**
+     * Cargar distribuciones de gasto con monto > 0 para la fuente seleccionada
+     */
+    public function loadSourceDistributions()
     {
-        $distributions = ExpenseDistribution::where('budget_id', $budgetId)
-            ->active()
+        $this->sourceDistributions = ExpenseDistribution::forSchool($this->schoolId)
             ->where('amount', '>', 0)
-            ->with('expenseCode')
-            ->get();
-
-        $this->sourceDistributions = $distributions->map(function ($dist) {
-            return [
-                'id' => $dist->id,
-                'expense_code_id' => $dist->expense_code_id,
-                'expense_code' => ($dist->expenseCode->code ?? '') . ' - ' . ($dist->expenseCode->name ?? ''),
-                'amount' => (float) $dist->amount,
-                'available_balance' => $dist->available_balance,
-            ];
-        })->toArray();
-    }
-
-    /**
-     * Al seleccionar código de gasto origen, cargar rubros destino con mismo código
-     */
-    public function updatedSourceExpenseDistributionId($value)
-    {
-        $this->destination_budget_id = '';
-        $this->destinationExpenseBudgets = [];
-        $this->selectedSourceInfo = [];
-        $this->selectedDestinationInfo = [];
-
-        if ($value) {
-            $dist = ExpenseDistribution::with(['expenseCode', 'budget.budgetItem', 'budget.fundingSource'])->find($value);
-            if ($dist) {
-                $this->selectedSourceInfo = [
-                    'distribution_id' => $dist->id,
-                    'expense_code' => ($dist->expenseCode->code ?? '') . ' - ' . ($dist->expenseCode->name ?? ''),
-                    'expense_code_id' => $dist->expense_code_id,
-                    'budget_name' => ($dist->budget->budgetItem->code ?? '') . ' - ' . ($dist->budget->budgetItem->name ?? ''),
-                    'funding_source' => $dist->budget->fundingSource->name ?? 'N/A',
-                    'amount' => (float) $dist->amount,
-                    'available_balance' => $dist->available_balance,
-                ];
-
-                $this->loadDestinationBudgets($dist->expense_code_id, (int) $this->source_budget_id);
-            }
-        }
-    }
-
-    /**
-     * Cargar rubros destino que tengan distribución con el mismo código de gasto
-     * excluyendo el rubro origen
-     */
-    public function loadDestinationBudgets($expenseCodeId, $excludeBudgetId)
-    {
-        $this->destinationExpenseBudgets = Budget::forSchool($this->schoolId)
-            ->forYear((int) $this->filterYear)
-            ->byType('expense')
-            ->where('id', '!=', $excludeBudgetId)
-            ->whereHas('distributions', fn($q) => $q->active()->where('expense_code_id', $expenseCodeId))
-            ->with(['budgetItem', 'fundingSource', 'distributions' => fn($q) => $q->where('expense_code_id', $expenseCodeId)])
-            ->orderBy('budget_item_id')
-            ->get()
-            ->map(function ($b) use ($expenseCodeId) {
-                $dist = $b->distributions->first();
-                return [
-                    'id' => $b->id,
-                    'name' => ($b->budgetItem->code ?? '') . ' - ' . ($b->budgetItem->name ?? ''),
-                    'funding_source' => $b->fundingSource->name ?? 'N/A',
-                    'current_amount' => (float) $b->current_amount,
-                    'distribution_id' => $dist->id ?? null,
-                    'distribution_amount' => (float) ($dist->amount ?? 0),
-                ];
+            ->whereHas('budget', function ($q) {
+                $q->forYear((int) $this->filterYear)
+                  ->byType('expense')
+                  ->byFundingSource((int) $this->selected_funding_source_id);
             })
+            ->with(['expenseCode', 'budget.budgetItem'])
+            ->get()
+            ->filter(fn($d) => $d->available_balance > 0)
+            ->map(fn($d) => [
+                'id' => $d->id,
+                'expense_code_id' => $d->expense_code_id,
+                'name' => ($d->expenseCode->code ?? '') . ' - ' . ($d->expenseCode->name ?? ''),
+                'rubro' => ($d->budget->budgetItem->code ?? '') . ' - ' . ($d->budget->budgetItem->name ?? ''),
+                'amount' => (float) $d->amount,
+                'available_balance' => $d->available_balance,
+            ])
+            ->values()
             ->toArray();
     }
 
     /**
-     * Al seleccionar rubro destino, mostrar su info
+     * Cargar TODOS los códigos de gasto activos para el destino (excluyendo el origen)
      */
-    public function updatedDestinationBudgetId($value)
+    public function loadDestinationExpenseCodes()
+    {
+        $excludeExpenseCodeId = null;
+        if ($this->source_distribution_id) {
+            $source = collect($this->sourceDistributions)->firstWhere('id', (int) $this->source_distribution_id);
+            $excludeExpenseCodeId = $source['expense_code_id'] ?? null;
+        }
+
+        $this->destinationExpenseCodes = ExpenseCode::active()
+            ->when($excludeExpenseCodeId, fn($q) => $q->where('id', '!=', $excludeExpenseCodeId))
+            ->orderBy('code')
+            ->get()
+            ->map(fn($ec) => [
+                'id' => $ec->id,
+                'name' => $ec->code . ' - ' . $ec->name,
+            ])
+            ->toArray();
+    }
+
+    /**
+     * Al seleccionar distribución origen, mostrar su info y actualizar destinos
+     */
+    public function updatedSourceDistributionId($value)
+    {
+        $this->selectedSourceInfo = [];
+        $this->destination_expense_code_id = '';
+        $this->selectedDestinationInfo = [];
+
+        if ($value) {
+            $found = collect($this->sourceDistributions)->firstWhere('id', (int) $value);
+            if ($found) {
+                $this->selectedSourceInfo = $found;
+            }
+            $this->loadDestinationExpenseCodes();
+        }
+    }
+
+    /**
+     * Al seleccionar código de gasto destino, mostrar su info
+     */
+    public function updatedDestinationExpenseCodeId($value)
     {
         $this->selectedDestinationInfo = [];
 
         if ($value) {
-            $found = collect($this->destinationExpenseBudgets)->firstWhere('id', (int) $value);
-            if ($found) {
-                $this->selectedDestinationInfo = $found;
+            $ec = ExpenseCode::find($value);
+
+            // Buscar distribución existente para este código en presupuestos con la misma fuente
+            $existingDist = ExpenseDistribution::forSchool($this->schoolId)
+                ->where('expense_code_id', (int) $value)
+                ->whereHas('budget', function ($q) {
+                    $q->forYear((int) $this->filterYear)
+                      ->byType('expense')
+                      ->byFundingSource((int) $this->selected_funding_source_id);
+                })
+                ->first();
+
+            if ($existingDist) {
+                $this->selectedDestinationInfo = [
+                    'distribution_id' => $existingDist->id,
+                    'name' => ($ec->code ?? '') . ' - ' . ($ec->name ?? ''),
+                    'current_amount' => (float) $existingDist->amount,
+                    'is_new' => false,
+                ];
+            } else {
+                $this->selectedDestinationInfo = [
+                    'distribution_id' => null,
+                    'name' => $ec ? ($ec->code . ' - ' . $ec->name) : 'N/A',
+                    'current_amount' => 0,
+                    'is_new' => true,
+                ];
             }
         }
     }
@@ -282,7 +301,7 @@ class BudgetTransferManagement extends Component
         }
 
         $this->resetForm();
-        $this->loadSourceExpenseBudgets();
+        $this->loadAvailableFundingSources();
         $this->showModal = true;
     }
 
@@ -296,58 +315,82 @@ class BudgetTransferManagement extends Component
         $this->validate();
 
         $amount = (float) $this->amount;
+        $fundingSourceId = (int) $this->selected_funding_source_id;
 
-        // Cargar distribuciones
-        $sourceDist = ExpenseDistribution::with('budget')->findOrFail($this->source_expense_distribution_id);
-        $sourceBudget = Budget::forSchool($this->schoolId)->findOrFail($this->source_budget_id);
+        // Cargar distribución origen con presupuesto
+        $sourceDistribution = ExpenseDistribution::forSchool($this->schoolId)
+            ->with('budget')
+            ->findOrFail($this->source_distribution_id);
 
-        // Encontrar la distribución destino con el mismo expense_code_id
-        $destBudget = Budget::forSchool($this->schoolId)->findOrFail($this->destination_budget_id);
-        $destDist = ExpenseDistribution::where('budget_id', $destBudget->id)
-            ->where('expense_code_id', $sourceDist->expense_code_id)
-            ->active()
-            ->firstOrFail();
+        // Validar que el código de gasto destino sea diferente al origen
+        if ($sourceDistribution->expense_code_id === (int) $this->destination_expense_code_id) {
+            $this->addError('destination_expense_code_id', 'El gasto destino debe ser diferente al origen.');
+            return;
+        }
 
         // Validar saldo disponible en la distribución origen
-        if ($amount > $sourceDist->available_balance) {
-            $this->addError('amount', 'El monto no puede ser mayor al saldo disponible de la distribución origen ($' . number_format($sourceDist->available_balance, 0, ',', '.') . ').');
+        $availableBalance = $sourceDistribution->available_balance;
+        if ($amount > $availableBalance) {
+            $this->addError('amount', 'El monto no puede ser mayor al saldo disponible ($' . number_format($availableBalance, 0, ',', '.') . ').');
             return;
         }
 
         DB::beginTransaction();
         try {
-            // Guardar monto anterior de las distribuciones
-            $sourcePrevAmount = (float) $sourceDist->amount;
-            $destPrevAmount = (float) $destDist->amount;
+            // Encontrar o crear distribución destino
+            $destDistribution = ExpenseDistribution::forSchool($this->schoolId)
+                ->where('expense_code_id', (int) $this->destination_expense_code_id)
+                ->whereHas('budget', function ($q) use ($fundingSourceId) {
+                    $q->forYear((int) $this->filterYear)
+                      ->byType('expense')
+                      ->byFundingSource($fundingSourceId);
+                })
+                ->first();
 
-            // Actualizar distribución origen (sale dinero)
-            $sourceDist->update(['amount' => $sourcePrevAmount - $amount]);
+            if (!$destDistribution) {
+                // Crear distribución en el mismo presupuesto que el origen
+                $destDistribution = ExpenseDistribution::create([
+                    'school_id' => $this->schoolId,
+                    'budget_id' => $sourceDistribution->budget_id,
+                    'expense_code_id' => (int) $this->destination_expense_code_id,
+                    'amount' => 0,
+                    'is_active' => true,
+                    'created_by' => auth()->id(),
+                ]);
+            }
 
-            // Actualizar distribución destino (entra dinero)
-            $destDist->update(['amount' => $destPrevAmount + $amount]);
+            // Guardar montos anteriores a nivel de distribución
+            $sourcePrev = (float) $sourceDistribution->amount;
+            $destPrev = (float) $destDistribution->amount;
 
-            // Actualizar presupuestos (current_amount)
-            $sourceBudgetPrev = (float) $sourceBudget->current_amount;
-            $destBudgetPrev = (float) $destBudget->current_amount;
+            // Actualizar montos de las distribuciones
+            $sourceDistribution->update(['amount' => $sourcePrev - $amount]);
+            $destDistribution->update(['amount' => $destPrev + $amount]);
 
-            $sourceBudget->update(['current_amount' => $sourceBudgetPrev - $amount]);
-            $destBudget->update(['current_amount' => $destBudgetPrev + $amount]);
+            // Ajustar presupuestos si están en diferentes líneas presupuestales
+            $sourceBudget = $sourceDistribution->budget;
+            $destBudget = Budget::findOrFail($destDistribution->budget_id);
+
+            if ($sourceBudget->id !== $destBudget->id) {
+                $sourceBudget->update(['current_amount' => (float) $sourceBudget->current_amount - $amount]);
+                $destBudget->update(['current_amount' => (float) $destBudget->current_amount + $amount]);
+            }
 
             // Crear registro del traslado
             BudgetTransfer::create([
                 'school_id' => $this->schoolId,
                 'transfer_number' => BudgetTransfer::getNextTransferNumber($this->schoolId, (int) $this->filterYear),
                 'source_budget_id' => $sourceBudget->id,
-                'source_funding_source_id' => $sourceBudget->funding_source_id,
-                'source_expense_distribution_id' => $sourceDist->id,
+                'source_funding_source_id' => $fundingSourceId,
+                'source_expense_distribution_id' => $sourceDistribution->id,
                 'destination_budget_id' => $destBudget->id,
-                'destination_funding_source_id' => $destBudget->funding_source_id,
-                'destination_expense_distribution_id' => $destDist->id,
+                'destination_funding_source_id' => $fundingSourceId,
+                'destination_expense_distribution_id' => $destDistribution->id,
                 'amount' => $amount,
-                'source_previous_amount' => $sourcePrevAmount,
-                'source_new_amount' => $sourcePrevAmount - $amount,
-                'destination_previous_amount' => $destPrevAmount,
-                'destination_new_amount' => $destPrevAmount + $amount,
+                'source_previous_amount' => $sourcePrev,
+                'source_new_amount' => $sourcePrev - $amount,
+                'destination_previous_amount' => $destPrev,
+                'destination_new_amount' => $destPrev + $amount,
                 'reason' => $this->reason,
                 'document_number' => $this->document_number ?: null,
                 'document_date' => now(),
@@ -395,15 +438,15 @@ class BudgetTransferManagement extends Component
 
     public function resetForm()
     {
-        $this->source_budget_id = '';
-        $this->source_expense_distribution_id = '';
-        $this->destination_budget_id = '';
+        $this->selected_funding_source_id = '';
+        $this->source_distribution_id = '';
+        $this->destination_expense_code_id = '';
         $this->amount = '';
         $this->reason = '';
         $this->document_number = '';
-        $this->sourceExpenseBudgets = [];
+        $this->availableFundingSources = [];
         $this->sourceDistributions = [];
-        $this->destinationExpenseBudgets = [];
+        $this->destinationExpenseCodes = [];
         $this->selectedSourceInfo = [];
         $this->selectedDestinationInfo = [];
         $this->resetValidation();

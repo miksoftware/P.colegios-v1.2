@@ -828,12 +828,12 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        $this->proposalScores = $this->convocatoria->proposals->map(fn($p) => [
+        $this->proposalScores = $this->convocatoria->proposals->sortByDesc('score')->values()->map(fn($p) => [
             'id' => $p->id,
             'supplier' => $p->supplier?->full_name ?? 'Sin proveedor',
             'total' => $p->total,
             'score' => $p->score ?? '',
-            'is_selected' => $p->is_selected,
+            'is_selected' => (bool) $p->is_selected,
         ])->toArray();
 
         $this->showEvaluateModal = true;
@@ -862,10 +862,19 @@ class PrecontractualManagement extends Component
         }
 
         DB::transaction(function () {
+            // Primero resetear todas las propuestas de esta convocatoria
+            Proposal::where('convocatoria_id', $this->convocatoria->id)
+                ->update(['is_selected' => false]);
+
+            // Obtener el ID de la propuesta seleccionada
+            $selectedId = collect($this->proposalScores)
+                ->first(fn($ps) => !empty($ps['is_selected']))['id'] ?? null;
+
+            // Guardar puntajes y marcar la ganadora
             foreach ($this->proposalScores as $ps) {
                 Proposal::where('id', $ps['id'])->update([
                     'score' => $ps['score'],
-                    'is_selected' => $ps['is_selected'] ?? false,
+                    'is_selected' => ($ps['id'] == $selectedId),
                 ]);
             }
 
@@ -881,8 +890,9 @@ class PrecontractualManagement extends Component
 
     public function selectProposal($index)
     {
+        $index = (int) $index;
         foreach ($this->proposalScores as $i => $ps) {
-            $this->proposalScores[$i]['is_selected'] = ($i === $index);
+            $this->proposalScores[$i]['is_selected'] = ((int) $i === $index);
         }
     }
 

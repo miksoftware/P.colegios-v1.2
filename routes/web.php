@@ -64,6 +64,10 @@ Route::get('incomes/{id}/pdf', [App\Http\Controllers\IncomePdfController::class,
     ->middleware(['auth', 'verified', 'can:incomes.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('incomes.pdf');
 
+Route::get('incomes/budget/{budgetId}/pdf', [App\Http\Controllers\IncomePdfController::class, 'byBudget'])
+    ->middleware(['auth', 'verified', 'can:incomes.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('incomes.budget.pdf');
+
 Route::get('expense-codes', App\Livewire\ExpenseCodeManagement::class)
     ->middleware(['auth', 'verified', 'can:expense_codes.view'])
     ->name('expense-codes.index');

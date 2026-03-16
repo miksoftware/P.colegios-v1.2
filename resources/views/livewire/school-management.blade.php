@@ -38,6 +38,67 @@
         @endif
 
         <form wire:submit.prevent="updateSchool">
+            <!-- Logo Section -->
+            <div class="bg-white rounded-2xl shadow-lg shadow-gray-200/50 p-8 border border-gray-100 mb-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    Logo del Colegio
+                </h3>
+                <div class="flex items-start gap-8">
+                    <!-- Logo Preview -->
+                    <div class="shrink-0">
+                        @if($logo)
+                            <img src="{{ $logo->temporaryUrl() }}" alt="Preview" class="w-32 h-32 object-contain rounded-xl border-2 border-blue-200 bg-white p-2">
+                        @elseif($school->logo_path)
+                            <img src="{{ $school->logo_url }}" alt="Logo de {{ $school->name }}" class="w-32 h-32 object-contain rounded-xl border-2 border-gray-200 bg-white p-2">
+                        @else
+                            <div class="w-32 h-32 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center text-gray-400">
+                                <svg class="w-10 h-10 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                <span class="text-xs">Sin logo</span>
+                            </div>
+                        @endif
+                    </div>
+
+                    <!-- Upload Controls -->
+                    <div class="flex-1">
+                        @if($isEditing)
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-900 mb-2">Subir Logo</label>
+                                <input type="file" wire:model="logo" accept="image/png,image/jpeg,image/jpg,image/webp" 
+                                    class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                                <p class="text-xs text-gray-400 mt-2">Formatos: PNG, JPG, WEBP. Máx: 2MB. Se mostrará en los reportes PDF.</p>
+                                @error('logo') <span class="text-red-500 text-sm mt-1">{{ $message }}</span> @enderror
+
+                                <div wire:loading wire:target="logo" class="mt-2 flex items-center gap-2 text-sm text-blue-600">
+                                    <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                    Cargando imagen...
+                                </div>
+                            </div>
+
+                            @if($school->logo_path && !$logo)
+                                <button type="button" wire:click="removeLogo" wire:confirm="¿Está seguro de eliminar el logo?" 
+                                    class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    Eliminar logo
+                                </button>
+                            @endif
+                        @else
+                            <p class="text-sm text-gray-500">
+                                @if($school->logo_path)
+                                    El logo actual se muestra en los reportes PDF generados.
+                                @else
+                                    No se ha cargado un logo. Haz clic en "Editar Colegio" para subir uno.
+                                @endif
+                            </p>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
             <!-- Basic Information -->
             <div class="bg-white rounded-2xl shadow-lg shadow-gray-200/50 p-8 border border-gray-100 mb-6">
                 <h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">

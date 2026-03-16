@@ -623,7 +623,7 @@ class PrecontractualManagement extends Component
             'name' => $source['name'],
             'available' => $source['available'],
             'budget_id' => $source['budget_id'],
-            'amount' => '',
+            'amount' => $source['available'],
         ];
     }
 

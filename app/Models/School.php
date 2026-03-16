@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class School extends Model
 {
@@ -11,6 +12,7 @@ class School extends Model
 
     protected $fillable = [
         'name',
+        'logo_path',
         'nit',
         'dane_code',
         'municipality',
@@ -33,6 +35,30 @@ class School extends Model
         'dian_expiration_1',
         'dian_expiration_2',
     ];
+
+    /**
+     * Get the public URL for the school logo.
+     */
+    public function getLogoUrlAttribute(): ?string
+    {
+        if (!$this->logo_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->logo_path);
+    }
+
+    /**
+     * Get the absolute path for the school logo (for PDFs).
+     */
+    public function getLogoAbsolutePathAttribute(): ?string
+    {
+        if (!$this->logo_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->path($this->logo_path);
+    }
 
     /**
      * The users that belong to the school.

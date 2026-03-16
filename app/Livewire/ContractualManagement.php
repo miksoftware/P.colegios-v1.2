@@ -66,6 +66,7 @@ class ContractualManagement extends Component
     public $supervisors = [];
     public $availableBanks = [];
     public $rpLineAccounts = []; // Cuentas bancarias por línea de RP
+    public $convocatoriaEndDate = ''; // Fecha fin de la convocatoria seleccionada (para restringir fechas del contrato)
 
     // Modal Cambio de Estado
     public $showStatusModal = false;
@@ -245,6 +246,10 @@ class ContractualManagement extends Component
             $this->contractSubtotal = '';
             $this->contractIva = '';
             $this->contractTotal = '';
+            $this->convocatoriaEndDate = '';
+            $this->startDate = '';
+            $this->endDate = '';
+            $this->durationDays = 0;
             return;
         }
 
@@ -254,6 +259,14 @@ class ContractualManagement extends Component
             'cdps.budgetItem',
             'cdps.fundingSources.fundingSource',
         ])->forSchool($this->schoolId)->findOrFail($this->selectedConvocatoriaId);
+
+        // Guardar fecha fin de la convocatoria para restringir fechas del contrato
+        $this->convocatoriaEndDate = $convocatoria->end_date->format('Y-m-d');
+
+        // Limpiar fechas previas al cambiar de convocatoria
+        $this->startDate = '';
+        $this->endDate = '';
+        $this->durationDays = 0;
 
         // Auto-fill objeto y justificación
         $this->contractObject = $convocatoria->object;
@@ -407,7 +420,7 @@ class ContractualManagement extends Component
             'selectedConvocatoriaId' => 'required|exists:convocatorias,id',
             'contractingModality'    => 'required|in:' . implode(',', array_keys(Contract::MODALITIES)),
             'executionPlace'         => 'nullable|string|max:255',
-            'startDate'              => 'required|date',
+            'startDate'              => 'required|date|after:convocatoriaEndDate',
             'endDate'                => 'required|date|after_or_equal:startDate',
             'paymentMethod'          => 'required|in:single,partial',
             'contractSubtotal'       => 'required|numeric|min:0',
@@ -417,6 +430,7 @@ class ContractualManagement extends Component
             'selectedConvocatoriaId.required' => 'Debe seleccionar una convocatoria.',
             'contractingModality.required'    => 'Debe seleccionar la modalidad de contratación.',
             'startDate.required'              => 'La fecha de inicio es obligatoria.',
+            'startDate.after'                 => 'La fecha de inicio debe ser posterior a la fecha fin de la convocatoria (' . ($this->convocatoriaEndDate ? \Carbon\Carbon::parse($this->convocatoriaEndDate)->format('d/m/Y') : '') . ').',
             'endDate.required'                => 'La fecha de terminación es obligatoria.',
             'endDate.after_or_equal'          => 'La fecha de terminación debe ser posterior o igual a la de inicio.',
             'paymentMethod.required'          => 'Debe seleccionar la forma de pago.',
@@ -998,6 +1012,7 @@ class ContractualManagement extends Component
         $this->rpAssignments = [];
         $this->awardedConvocatorias = [];
         $this->supervisors = [];
+        $this->convocatoriaEndDate = '';
     }
 
     // ══════════════════════════════════════════════════════════

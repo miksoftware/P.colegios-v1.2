@@ -233,24 +233,60 @@
                             <input type="text" wire:model="executionPlace" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Ej: Sede principal del colegio">
                         </div>
                         <div x-data="{
+                            fp: null,
+                            convEndDate: @entangle('convocatoriaEndDate'),
                             init() {
-                                flatpickr(this.$refs.startInput, {
+                                this.createPicker();
+                                this.$watch('convEndDate', () => {
+                                    if (this.fp) { this.fp.destroy(); }
+                                    this.$refs.startInput.value = '';
+                                    this.createPicker();
+                                });
+                            },
+                            createPicker() {
+                                let minDate = this.convEndDate ? this.getNextWeekday(this.convEndDate) : undefined;
+                                this.fp = flatpickr(this.$refs.startInput, {
                                     dateFormat: 'Y-m-d',
+                                    minDate: minDate,
                                     disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                                     onChange: (selectedDates, dateStr) => { $wire.set('startDate', dateStr); }
                                 });
+                            },
+                            getNextWeekday(dateStr) {
+                                let d = new Date(dateStr + 'T12:00:00');
+                                d.setDate(d.getDate() + 1);
+                                while (d.getDay() === 0 || d.getDay() === 6) { d.setDate(d.getDate() + 1); }
+                                return d.toISOString().split('T')[0];
                             }
                         }">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Inicio *</label>
                             <input type="text" x-ref="startInput" value="{{ $startDate }}" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white" placeholder="Seleccionar fecha..." readonly>
                         </div>
                         <div x-data="{
+                            fp: null,
+                            convEndDate: @entangle('convocatoriaEndDate'),
                             init() {
-                                flatpickr(this.$refs.endInput, {
+                                this.createPicker();
+                                this.$watch('convEndDate', () => {
+                                    if (this.fp) { this.fp.destroy(); }
+                                    this.$refs.endInput.value = '';
+                                    this.createPicker();
+                                });
+                            },
+                            createPicker() {
+                                let minDate = this.convEndDate ? this.getNextWeekday(this.convEndDate) : undefined;
+                                this.fp = flatpickr(this.$refs.endInput, {
                                     dateFormat: 'Y-m-d',
+                                    minDate: minDate,
                                     disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                                     onChange: (selectedDates, dateStr) => { $wire.set('endDate', dateStr); }
                                 });
+                            },
+                            getNextWeekday(dateStr) {
+                                let d = new Date(dateStr + 'T12:00:00');
+                                d.setDate(d.getDate() + 1);
+                                while (d.getDay() === 0 || d.getDay() === 6) { d.setDate(d.getDate() + 1); }
+                                return d.toISOString().split('T')[0];
                             }
                         }">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Terminación *</label>
@@ -262,6 +298,18 @@
                             <p class="text-xs text-gray-400 mt-1">Solo días hábiles (lunes a viernes)</p>
                         </div>
                     </div>
+
+                    {{-- Mensaje informativo de fechas mínimas --}}
+                    @if($convocatoriaEndDate)
+                        <div class="mt-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                            <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <p class="text-sm text-amber-700">
+                                Las fechas del contrato deben ser <strong>posteriores</strong> a la fecha fin de la convocatoria
+                                (<strong>{{ \Carbon\Carbon::parse($convocatoriaEndDate)->format('d/m/Y') }}</strong>).
+                                Solo se habilitan días hábiles a partir de esa fecha.
+                            </p>
+                        </div>
+                    @endif
 
                     {{-- Objeto y Justificación (auto) --}}
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

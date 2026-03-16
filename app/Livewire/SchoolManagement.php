@@ -4,12 +4,19 @@ namespace App\Livewire;
 
 use App\Models\School;
 use Livewire\Component;
+use Livewire\WithFileUploads;
+use Illuminate\Support\Facades\Storage;
 
 class SchoolManagement extends Component
 {
+    use WithFileUploads;
+
     public $school;
     public $isEditing = false;
     
+    // Logo
+    public $logo;
+
     // Form fields
     public $name = '';
     public $nit = '';
@@ -85,13 +92,14 @@ class SchoolManagement extends Component
     {
         if ($this->isEditing) {
             $this->loadSchoolData(); // Reset to original data
+            $this->logo = null;
         }
         $this->isEditing = !$this->isEditing;
     }
 
     public function updateSchool()
     {
-        $validated = $this->validate([
+        $rules = [
             'name' => 'required|string|max:255',
             'nit' => 'required|string|max:50',
             'dane_code' => 'required|string|max:50',
@@ -114,7 +122,29 @@ class SchoolManagement extends Component
             'dian_range_2' => 'nullable|string|max:50',
             'dian_expiration_1' => 'required|date',
             'dian_expiration_2' => 'nullable|date',
-        ]);
+        ];
+
+        if ($this->logo) {
+            $rules['logo'] = 'image|max:2048|mimes:png,jpg,jpeg,webp';
+        }
+
+        $validated = $this->validate($rules);
+
+        // Handle logo upload
+        if ($this->logo) {
+            // Delete old logo if exists
+            if ($this->school->logo_path) {
+                Storage::disk('public')->delete($this->school->logo_path);
+            }
+            // Store new logo
+            $validated['logo_path'] = $this->logo->store(
+                'school-logos/' . $this->school->id,
+                'public'
+            );
+        }
+
+        // Remove logo from validated (it's a temp file, not a DB field)
+        unset($validated['logo']);
 
         // Convert empty strings to null for optional fields
         $validated['website'] = $validated['website'] ?: null;
@@ -128,8 +158,19 @@ class SchoolManagement extends Component
         
         $this->dispatch('notify', message: 'Colegio actualizado exitosamente.', type: 'success');
         $this->isEditing = false;
+        $this->logo = null;
         $this->school->refresh();
         $this->loadSchoolData();
+    }
+
+    public function removeLogo()
+    {
+        if ($this->school->logo_path) {
+            Storage::disk('public')->delete($this->school->logo_path);
+            $this->school->update(['logo_path' => null]);
+            $this->school->refresh();
+            $this->dispatch('notify', message: 'Logo eliminado exitosamente.', type: 'success');
+        }
     }
 
     public function render()

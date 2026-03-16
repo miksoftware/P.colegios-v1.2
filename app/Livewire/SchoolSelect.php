@@ -4,12 +4,15 @@ namespace App\Livewire;
 
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithFileUploads;
 use App\Models\School;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class SchoolSelect extends Component
 {
     use WithPagination;
+    use WithFileUploads;
 
     // Propiedades de búsqueda y modal
     public $search = '';
@@ -23,6 +26,10 @@ class SchoolSelect extends Component
     public $pagador_name, $current_validity, $address, $email, $phone, $website;
     public $budget_agreement_number, $budget_approval_date, $contracting_manual_approval_number, $contracting_manual_approval_date;
     public $dian_resolution_1, $dian_range_1, $dian_expiration_1, $dian_resolution_2, $dian_range_2, $dian_expiration_2;
+    
+    // Logo
+    public $logo;
+    public $currentLogoUrl = null;
 
     public function mount()
     {
@@ -108,6 +115,7 @@ class SchoolSelect extends Component
         $this->dian_resolution_2 = $school->dian_resolution_2;
         $this->dian_range_2 = $school->dian_range_2;
         $this->dian_expiration_2 = $school->dian_expiration_2;
+        $this->currentLogoUrl = $school->logo_url;
 
         $this->showCreateModal = true;
     }
@@ -122,7 +130,7 @@ class SchoolSelect extends Component
             return;
         }
 
-        $this->validate([
+        $rules = [
             'name' => 'required|string|max:255',
             'nit' => 'required|string|max:50|unique:schools,nit,' . $this->editingId,
             'dane_code' => 'required|string|max:50',
@@ -145,7 +153,13 @@ class SchoolSelect extends Component
             'dian_resolution_2' => 'nullable|string|max:50',
             'dian_range_2' => 'nullable|string|max:50',
             'dian_expiration_2' => 'nullable|date',
-        ]);
+        ];
+
+        if ($this->logo) {
+            $rules['logo'] = 'image|max:2048|mimes:png,jpg,jpeg,webp';
+        }
+
+        $this->validate($rules);
 
         $data = [
             'name' => $this->name,
@@ -173,15 +187,45 @@ class SchoolSelect extends Component
         ];
 
         if ($this->isEditing) {
-            School::find($this->editingId)->update($data);
+            $school = School::find($this->editingId);
+            
+            // Handle logo
+            if ($this->logo) {
+                if ($school->logo_path) {
+                    Storage::disk('public')->delete($school->logo_path);
+                }
+                $data['logo_path'] = $this->logo->store('school-logos/' . $school->id, 'public');
+            }
+
+            $school->update($data);
             $this->dispatch('notify', message: 'Colegio actualizado exitosamente.', type: 'success');
         } else {
-            School::create($data);
+            $school = School::create($data);
+            
+            // Handle logo for a new school (needs the ID first)
+            if ($this->logo) {
+                $logoPath = $this->logo->store('school-logos/' . $school->id, 'public');
+                $school->update(['logo_path' => $logoPath]);
+            }
+
             $this->dispatch('notify', message: 'Colegio creado exitosamente.', type: 'success');
         }
 
         $this->showCreateModal = false;
         $this->resetForm();
+    }
+
+    public function removeLogo()
+    {
+        if ($this->isEditing && $this->editingId) {
+            $school = School::find($this->editingId);
+            if ($school && $school->logo_path) {
+                Storage::disk('public')->delete($school->logo_path);
+                $school->update(['logo_path' => null]);
+                $this->currentLogoUrl = null;
+                $this->dispatch('notify', message: 'Logo eliminado exitosamente.', type: 'success');
+            }
+        }
     }
 
     // Eliminar
@@ -200,6 +244,10 @@ class SchoolSelect extends Component
             return;
         }
 
+        if ($school->logo_path) {
+            Storage::disk('public')->delete($school->logo_path);
+        }
+
         $school->delete();
         $this->dispatch('notify', message: 'Colegio eliminado exitosamente.', type: 'success');
     }
@@ -212,7 +260,7 @@ class SchoolSelect extends Component
             'budget_agreement_number', 'budget_approval_date', 'contracting_manual_approval_number',
             'contracting_manual_approval_date', 'dian_resolution_1', 'dian_range_1',
             'dian_expiration_1', 'dian_resolution_2', 'dian_range_2', 'dian_expiration_2',
-            'editingId', 'isEditing'
+            'editingId', 'isEditing', 'logo', 'currentLogoUrl'
         ]);
     }
 
@@ -235,3 +283,4 @@ class SchoolSelect extends Component
         ]);
     }
 }
+

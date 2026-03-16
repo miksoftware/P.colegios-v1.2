@@ -686,7 +686,7 @@
                                                 <span class="text-xs text-gray-500">Monto:</span>
                                                 <div class="flex flex-1">
                                                     <span class="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
-                                                    <input type="number" wire:model="cdpFundingSources.{{ $index }}.amount" step="0.01" min="0.01" max="{{ $fs['available'] }}" class="flex-1 rounded-r-lg border-gray-300 text-sm" placeholder="0.00">
+                                                    <input type="number" wire:model="cdpFundingSources.{{ $index }}.amount" step="0.01" min="0.01" max="{{ $fs['available'] }}" class="flex-1 rounded-r-lg border-gray-300 text-sm bg-gray-50 font-semibold" readonly>
                                                 </div>
                                                 <span class="text-xs text-gray-400">/ ${{ number_format($fs['available'], 0, ',', '.') }}</span>
                                             </div>

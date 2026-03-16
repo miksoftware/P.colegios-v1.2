@@ -68,6 +68,11 @@
         <!-- Header -->
         <div class="header">
             <div class="header-top">
+                @if($school->logo_absolute_path && file_exists($school->logo_absolute_path))
+                <div style="display: table-cell; vertical-align: middle; width: 65px; padding-right: 10px;">
+                    <img src="{{ $school->logo_absolute_path }}" style="width: 55px; height: 55px; object-fit: contain;" alt="Logo">
+                </div>
+                @endif
                 <div class="header-left">
                     <div class="school-name">{{ $school->name }}</div>
                     <div class="school-info">

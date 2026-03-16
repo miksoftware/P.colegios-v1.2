@@ -173,6 +173,50 @@
 
                 <form wire:submit="saveSchool" class="flex flex-col flex-1 overflow-hidden">
                     <div class="flex-1 overflow-y-auto p-8 bg-gray-50 custom-scrollbar space-y-8">
+                        <!-- Logo Section -->
+                        <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h4 class="text-sm font-bold text-indigo-600 uppercase tracking-wider mb-6 border-b pb-2">Logo de la Institución</h4>
+                            <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                                <!-- Logo Preview -->
+                                <div class="shrink-0">
+                                    @if($logo)
+                                        <img src="{{ $logo->temporaryUrl() }}" alt="Preview" class="w-32 h-32 object-contain rounded-xl border-2 border-indigo-200 bg-white p-2">
+                                    @elseif($currentLogoUrl)
+                                        <img src="{{ $currentLogoUrl }}" alt="Logo" class="w-32 h-32 object-contain rounded-xl border-2 border-gray-200 bg-white p-2">
+                                    @else
+                                        <div class="w-32 h-32 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center text-gray-400">
+                                            <svg class="w-10 h-10 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                            </svg>
+                                            <span class="text-xs">Sin logo</span>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <!-- Upload Controls -->
+                                <div class="flex-1 w-full">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Subir Logo (Opcional)</label>
+                                    <input type="file" wire:model="logo" accept="image/png,image/jpeg,image/jpg,image/webp" 
+                                        class="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
+                                    <p class="text-xs text-gray-500 mt-2">Formatos permitidos: PNG, JPG, WEBP. Tamaño máximo: 2MB. Este logo se mostrará en los reportes PDF de ingresos.</p>
+                                    @error('logo') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+
+                                    <div wire:loading wire:target="logo" class="mt-2 text-sm text-indigo-600 font-medium flex items-center gap-2">
+                                        <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                        Cargando imagen...
+                                    </div>
+
+                                    @if($currentLogoUrl && !$logo)
+                                        <button type="button" wire:click="removeLogo" wire:confirm="¿Está seguro de eliminar el logo permanentemente?" 
+                                            class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium border border-transparent hover:border-red-100">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            Eliminar logo
+                                        </button>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                             <h4 class="text-sm font-bold text-indigo-600 uppercase tracking-wider mb-6 border-b pb-2">Información Básica</h4>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

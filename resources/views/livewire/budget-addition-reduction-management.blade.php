@@ -6,6 +6,12 @@
                 <h1 class="text-3xl font-bold text-gray-900">Adiciones y Reducciones</h1>
                 <p class="text-gray-500 mt-1">Gestión de adiciones y reducciones presupuestales</p>
             </div>
+            @can('budget_modifications.create')
+                <button wire:click="openPrincipalAdditionModal" class="px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Crear Adición Principal
+                </button>
+            @endcan
         </div>
 
         <!-- Summary Cards -->
@@ -427,6 +433,135 @@
                 <div class="bg-gray-50 px-6 py-4 flex justify-end">
                     <button type="button" wire:click="closeHistoryModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cerrar</button>
                 </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    <!-- Modal Adición Principal -->
+    @if($showPrincipalAdditionModal)
+    <div class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="closePrincipalAdditionModal"></div>
+            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-2xl">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-emerald-600 to-green-500 px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold text-white">Crear Adición Principal</h3>
+                            <p class="text-white/80 text-sm mt-1">Crear presupuesto nuevo para una fuente sin presupuesto inicial (ingreso y gasto)</p>
+                        </div>
+                        <button type="button" wire:click="closePrincipalAdditionModal" class="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <form wire:submit="savePrincipalAddition" class="px-6 py-5 space-y-5">
+                    <!-- Info -->
+                    <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <p class="text-sm text-emerald-700">
+                                Esta opción crea un presupuesto nuevo con <strong>monto inicial $0</strong> y le aplica una adición por el valor indicado.
+                                Solo se muestran fuentes que <strong>no tienen presupuesto</strong> en el año {{ $filterYear }}.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Rubro -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rubro *</label>
+                        <select wire:model.live="principalBudgetItemId" wire:change="onPrincipalBudgetItemSelected" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                            <option value="">-- Seleccione un rubro --</option>
+                            @foreach($principalBudgetItems as $item)
+                                <option value="{{ $item['id'] }}">{{ $item['name'] }}</option>
+                            @endforeach
+                        </select>
+                        @error('principalBudgetItemId') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Fuente de Financiación -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fuente de Financiación *</label>
+                        @if(empty($principalBudgetItemId))
+                            <p class="text-sm text-gray-400 bg-gray-50 rounded-xl px-4 py-2.5">Seleccione un rubro primero</p>
+                        @elseif(count($principalFundingSources) === 0)
+                            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                                <p class="text-sm text-amber-700">Todas las fuentes de este rubro ya tienen presupuesto asignado para el año {{ $filterYear }}. Use el botón <strong>+</strong> en la tabla para adicionar.</p>
+                            </div>
+                        @else
+                            <select wire:model="principalFundingSourceId" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                                <option value="">-- Seleccione una fuente --</option>
+                                @foreach($principalFundingSources as $source)
+                                    <option value="{{ $source['id'] }}">{{ $source['name'] }} ({{ $source['type_name'] }})</option>
+                                @endforeach
+                            </select>
+                        @endif
+                        @error('principalFundingSourceId') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Monto -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Monto de Adición *</label>
+                        <div class="flex">
+                            <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
+                            <input type="number" wire:model="principalAmount" step="0.01" min="0.01" class="flex-1 rounded-r-xl border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="0.00">
+                        </div>
+                        @error('principalAmount') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Observación -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Observación *</label>
+                        <textarea wire:model="principalReason" rows="3" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Ingrese la justificación de la adición principal..."></textarea>
+                        @error('principalReason') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Documento -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Número de Documento <span class="text-gray-400 text-xs">(Opcional)</span></label>
+                        <input type="text" wire:model="principalDocumentNumber" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Ej: RES-001-2026">
+                    </div>
+
+                    <!-- Preview -->
+                    @if($principalAmount && is_numeric($principalAmount) && $principalAmount > 0)
+                    <div class="p-4 bg-green-50 rounded-xl border border-green-100">
+                        <h4 class="text-sm font-semibold text-green-700 mb-2">Vista previa</h4>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <span class="text-gray-500">Presupuesto Inicial:</span>
+                                <span class="font-medium text-gray-900 ml-1">$0</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Adición:</span>
+                                <span class="font-bold text-green-600 ml-1">+${{ number_format((float)$principalAmount, 0, ',', '.') }}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Monto Final:</span>
+                                <span class="font-bold text-green-700 ml-1">${{ number_format((float)$principalAmount, 0, ',', '.') }}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Aplica a:</span>
+                                <div class="flex gap-1 mt-0.5">
+                                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700">Ingreso</span>
+                                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-700">Gasto</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
+
+                    <div class="flex justify-end gap-3 pt-4 border-t">
+                        <button type="button" wire:click="closePrincipalAdditionModal" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium">Cancelar</button>
+                        <button type="submit" wire:loading.attr="disabled" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium disabled:opacity-50 flex items-center gap-2">
+                            <svg wire:loading wire:target="savePrincipalAddition" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                            Crear Adición Principal
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

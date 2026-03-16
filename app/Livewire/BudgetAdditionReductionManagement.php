@@ -3,7 +3,9 @@
 namespace App\Livewire;
 
 use App\Models\Budget;
+use App\Models\BudgetItem;
 use App\Models\BudgetModification;
+use App\Models\FundingSource;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
@@ -38,6 +40,16 @@ class BudgetAdditionReductionManagement extends Component
 
     // Info de distribuciones afectadas
     public $affectedDistributions = [];
+
+    // Modal de adición principal (crear nueva fuente)
+    public $showPrincipalAdditionModal = false;
+    public $principalBudgetItemId = '';
+    public $principalFundingSourceId = '';
+    public $principalAmount = '';
+    public $principalReason = '';
+    public $principalDocumentNumber = '';
+    public $principalBudgetItems = [];
+    public $principalFundingSources = [];
 
     protected $queryString = [
         'search' => ['except' => ''],
@@ -347,6 +359,187 @@ class BudgetAdditionReductionManagement extends Component
 
         $this->showHistoryModal = true;
     }
+
+    // ══════════════════════════════════════════════════════════
+    // ADICIÓN PRINCIPAL (crear nueva fuente sin presupuesto)
+    // ══════════════════════════════════════════════════════════
+
+    public function openPrincipalAdditionModal()
+    {
+        if (!auth()->user()->can('budget_modifications.create')) {
+            $this->dispatch('toast', message: 'No tienes permisos para crear adiciones.', type: 'error');
+            return;
+        }
+
+        $this->principalBudgetItemId = '';
+        $this->principalFundingSourceId = '';
+        $this->principalAmount = '';
+        $this->principalReason = '';
+        $this->principalDocumentNumber = '';
+        $this->principalFundingSources = [];
+        $this->resetValidation();
+
+        // Cargar rubros que tienen fuentes de financiación
+        $this->principalBudgetItems = BudgetItem::active()
+            ->has('fundingSources')
+            ->orderBy('code')
+            ->get()
+            ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
+            ->toArray();
+
+        $this->showPrincipalAdditionModal = true;
+    }
+
+    public function onPrincipalBudgetItemSelected()
+    {
+        $this->principalFundingSourceId = '';
+        $this->principalFundingSources = [];
+
+        if (empty($this->principalBudgetItemId)) return;
+
+        $year = (int) ($this->filterYear ?: date('Y'));
+
+        // IDs de fuentes que YA tienen presupuesto para este rubro+año+colegio
+        $existingSourceIds = Budget::forSchool($this->schoolId)
+            ->forYear($year)
+            ->where('budget_item_id', $this->principalBudgetItemId)
+            ->pluck('funding_source_id')
+            ->unique()
+            ->toArray();
+
+        // Solo mostrar fuentes que NO tienen presupuesto aún
+        $this->principalFundingSources = FundingSource::forBudgetItem((int) $this->principalBudgetItemId)
+            ->active()
+            ->whereNotIn('id', $existingSourceIds)
+            ->orderBy('code')
+            ->get()
+            ->map(fn($s) => [
+                'id' => $s->id,
+                'name' => "{$s->code} - {$s->name}",
+                'type_name' => $s->type_name,
+            ])
+            ->toArray();
+    }
+
+    public function savePrincipalAddition()
+    {
+        if (!auth()->user()->can('budget_modifications.create')) {
+            $this->dispatch('toast', message: 'No tienes permisos para esta acción.', type: 'error');
+            return;
+        }
+
+        $this->validate([
+            'principalBudgetItemId' => 'required|exists:budget_items,id',
+            'principalFundingSourceId' => 'required|exists:funding_sources,id',
+            'principalAmount' => 'required|numeric|min:0.01',
+            'principalReason' => 'required|string|min:10',
+            'principalDocumentNumber' => 'nullable|string|max:50',
+        ], [
+            'principalBudgetItemId.required' => 'Debe seleccionar un rubro.',
+            'principalFundingSourceId.required' => 'Debe seleccionar una fuente de financiación.',
+            'principalAmount.required' => 'El monto de adición es obligatorio.',
+            'principalAmount.min' => 'El monto debe ser mayor a 0.',
+            'principalReason.required' => 'La observación es obligatoria.',
+            'principalReason.min' => 'La observación debe tener al menos 10 caracteres.',
+        ]);
+
+        $year = (int) ($this->filterYear ?: date('Y'));
+        $amount = (float) $this->principalAmount;
+
+        // Verificar que no exista ya
+        $exists = Budget::forSchool($this->schoolId)
+            ->forYear($year)
+            ->where('budget_item_id', $this->principalBudgetItemId)
+            ->where('funding_source_id', $this->principalFundingSourceId)
+            ->exists();
+
+        if ($exists) {
+            $this->dispatch('toast', message: 'Ya existe un presupuesto para esta combinación de rubro y fuente. Use el botón + para adicionar.', type: 'error');
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
+            // Crear Budget de INGRESO con initial_amount = 0
+            $incomeBudget = Budget::create([
+                'school_id' => $this->schoolId,
+                'budget_item_id' => $this->principalBudgetItemId,
+                'funding_source_id' => $this->principalFundingSourceId,
+                'type' => 'income',
+                'initial_amount' => 0,
+                'current_amount' => $amount,
+                'fiscal_year' => $year,
+                'description' => 'Creado por adición principal',
+                'is_active' => true,
+            ]);
+
+            // Registrar modificación de adición en ingreso
+            BudgetModification::create([
+                'budget_id' => $incomeBudget->id,
+                'modification_number' => 1,
+                'type' => 'addition',
+                'amount' => $amount,
+                'previous_amount' => 0,
+                'new_amount' => $amount,
+                'reason' => $this->principalReason,
+                'document_number' => $this->principalDocumentNumber ?: null,
+                'document_date' => now(),
+                'created_by' => auth()->id(),
+            ]);
+
+            // Crear Budget de GASTO con initial_amount = 0
+            $expenseBudget = Budget::create([
+                'school_id' => $this->schoolId,
+                'budget_item_id' => $this->principalBudgetItemId,
+                'funding_source_id' => $this->principalFundingSourceId,
+                'type' => 'expense',
+                'initial_amount' => 0,
+                'current_amount' => $amount,
+                'fiscal_year' => $year,
+                'description' => 'Creado por adición principal',
+                'is_active' => true,
+            ]);
+
+            // Registrar modificación de adición en gasto
+            BudgetModification::create([
+                'budget_id' => $expenseBudget->id,
+                'modification_number' => 1,
+                'type' => 'addition',
+                'amount' => $amount,
+                'previous_amount' => 0,
+                'new_amount' => $amount,
+                'reason' => $this->principalReason,
+                'document_number' => $this->principalDocumentNumber ?: null,
+                'document_date' => now(),
+                'created_by' => auth()->id(),
+            ]);
+
+            DB::commit();
+
+            $this->dispatch('toast', message: 'Adición principal creada exitosamente (ingreso y gasto).', type: 'success');
+            $this->closePrincipalAdditionModal();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function closePrincipalAdditionModal()
+    {
+        $this->showPrincipalAdditionModal = false;
+        $this->principalBudgetItemId = '';
+        $this->principalFundingSourceId = '';
+        $this->principalAmount = '';
+        $this->principalReason = '';
+        $this->principalDocumentNumber = '';
+        $this->principalBudgetItems = [];
+        $this->principalFundingSources = [];
+        $this->resetValidation();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // HELPERS
+    // ══════════════════════════════════════════════════════════
 
     public function closeModal()
     {

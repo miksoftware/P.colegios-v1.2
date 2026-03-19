@@ -62,6 +62,7 @@ fi
 
 echo ""
 echo -e "${YELLOW}[6/8] 🔐 Ajustando permisos...${NC}"
+docker exec ${PROJECT_NAME}_php mkdir -p /var/www/html/storage/app/livewire-tmp
 docker exec ${PROJECT_NAME}_php chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 docker exec ${PROJECT_NAME}_php chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 docker exec ${PROJECT_NAME}_php chmod 666 /var/www/html/.env 2>/dev/null || true

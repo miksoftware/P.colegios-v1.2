@@ -84,7 +84,7 @@ Route::get('contractual/{convocatoria_id?}', App\Livewire\ContractualManagement:
     ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contractual.index');
 
-Route::get('postcontractual', App\Livewire\PostcontractualManagement::class)
+Route::get('postcontractual/{contract_id?}', App\Livewire\PostcontractualManagement::class)
     ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('postcontractual.index');
 

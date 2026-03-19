@@ -70,7 +70,13 @@ class ExpenseManagement extends Component
 
     public function getExpenseBudgetsProperty()
     {
-        return Budget::with(['budgetItem', 'fundingSource', 'distributions.expenseCode'])
+        return Budget::with([
+            'budgetItem',
+            'fundingSource',
+            'distributions.expenseCode',
+            'distributions.convocatoriaDistributions.convocatoria.contract.paymentOrders',
+            'distributions.paymentOrderLines.paymentOrder.contract',
+        ])
             ->forSchool($this->schoolId)
             ->where('type', 'expense')
             ->when($this->filterYear, fn($q) => $q->forYear($this->filterYear))
@@ -104,14 +110,23 @@ class ExpenseManagement extends Component
 
         $totalBudgeted = $budgets->sum('current_amount');
         
-        $totalDistributed = ExpenseDistribution::forSchool($this->schoolId)
+        $distributions = ExpenseDistribution::forSchool($this->schoolId)
             ->whereIn('budget_id', $budgets->pluck('id'))
-            ->sum('amount');
+            ->get();
+
+        $totalDistributed = $distributions->sum('amount');
+
+        // Total pagado a través de órdenes de pago
+        $distributionIds = $distributions->pluck('id');
+        $totalPaid = \App\Models\PaymentOrderExpenseLine::whereIn('expense_distribution_id', $distributionIds)
+            ->whereHas('paymentOrder', fn($q) => $q->whereIn('status', ['draft', 'approved', 'paid']))
+            ->sum('total');
 
         return [
             'budgeted' => $totalBudgeted,
             'distributed' => $totalDistributed,
             'available' => $totalBudgeted - $totalDistributed,
+            'paid' => (float) $totalPaid,
             'distribution_percentage' => $totalBudgeted > 0 ? round(($totalDistributed / $totalBudgeted) * 100, 1) : 0,
         ];
     }
@@ -207,6 +222,8 @@ class ExpenseManagement extends Component
             'budgetItem', 
             'fundingSource', 
             'distributions.expenseCode',
+            'distributions.convocatoriaDistributions.convocatoria.contract.paymentOrders',
+            'distributions.paymentOrderLines.paymentOrder.contract',
         ])->find($budgetId);
         
         $this->showDetailModal = true;

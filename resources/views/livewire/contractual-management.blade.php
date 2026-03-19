@@ -512,6 +512,31 @@
                             </div>
                         </div>
                     @endforeach
+
+                    {{-- Resumen total de RPs vs valor contrato --}}
+                    @php
+                        $totalRpsSum = 0;
+                        foreach ($rpAssignments as $cdpId => $rpData) {
+                            $totalRpsSum += collect($rpData['funding_sources'] ?? [])->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
+                        }
+                        $contractVal = (float) ($contractTotal ?? 0);
+                        $rpDiff = abs($totalRpsSum - $contractVal);
+                    @endphp
+                    <div class="mt-4 p-3 rounded-lg {{ $rpDiff > 0.01 ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200' }}">
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="font-medium {{ $rpDiff > 0.01 ? 'text-red-700' : 'text-green-700' }}">Total RPs:</span>
+                            <span class="font-bold {{ $rpDiff > 0.01 ? 'text-red-700' : 'text-green-700' }}">${{ number_format($totalRpsSum, 0, ',', '.') }}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm mt-1">
+                            <span class="text-gray-600">Valor del contrato:</span>
+                            <span class="font-semibold text-gray-700">${{ number_format($contractVal, 0, ',', '.') }}</span>
+                        </div>
+                        @if($rpDiff > 0.01)
+                            <p class="text-xs text-red-600 mt-1">La suma de los RPs debe ser igual al valor del contrato.</p>
+                        @else
+                            <p class="text-xs text-green-600 mt-1">Los montos coinciden correctamente.</p>
+                        @endif
+                    </div>
                 </div>
                 @endif
 
@@ -802,6 +827,144 @@
                         <p class="text-center text-gray-500 py-4">No hay RPs asociados a este contrato.</p>
                     @endforelse
                 </div>
+
+                {{-- Sección de Pagos --}}
+                @if(in_array($contract->status, ['active', 'in_execution', 'completed']))
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        Gestión de Pagos
+                    </h2>
+
+                    @php
+                        $activePayments = $contract->paymentOrders->where('status', '!=', 'cancelled');
+                        $totalPaid = $activePayments->sum('total');
+                        $remaining = (float) $contract->total - $totalPaid;
+                        $paymentProgress = $contract->total > 0 ? min(100, ($totalPaid / (float) $contract->total) * 100) : 0;
+                        $isSinglePayment = $contract->payment_method === 'single';
+                        $isFullyPaid = $remaining <= 0.01;
+                    @endphp
+
+                    {{-- Resumen de pagos --}}
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+                        <div class="bg-indigo-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-indigo-500">Valor del Contrato</p>
+                            <p class="text-lg font-bold text-indigo-700">${{ number_format($contract->total, 0, ',', '.') }}</p>
+                        </div>
+                        <div class="bg-green-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-green-500">Total Pagado</p>
+                            <p class="text-lg font-bold text-green-700">${{ number_format($totalPaid, 0, ',', '.') }}</p>
+                        </div>
+                        <div class="bg-amber-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-amber-500">Saldo Pendiente</p>
+                            <p class="text-lg font-bold {{ $isFullyPaid ? 'text-green-600' : 'text-amber-700' }}">${{ number_format(max(0, $remaining), 0, ',', '.') }}</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-gray-500">Forma de Pago</p>
+                            <p class="text-sm font-semibold text-gray-700 mt-1">{{ $isSinglePayment ? 'Pago Único' : 'Pagos Parciales' }}</p>
+                        </div>
+                    </div>
+
+                    {{-- Barra de progreso --}}
+                    <div class="mb-5">
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>Progreso de pago</span>
+                            <span>{{ number_format($paymentProgress, 1) }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="h-2.5 rounded-full transition-all duration-300 {{ $isFullyPaid ? 'bg-green-500' : 'bg-indigo-500' }}" style="width: {{ $paymentProgress }}%"></div>
+                        </div>
+                    </div>
+
+                    {{-- Listado de órdenes de pago existentes --}}
+                    @if($activePayments->count() > 0)
+                        <div class="mb-5">
+                            <h3 class="text-sm font-medium text-gray-700 mb-3">Órdenes de Pago Registradas</h3>
+                            <div class="space-y-3">
+                                @foreach($activePayments->sortBy('payment_number') as $po)
+                                    <div class="border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3" wire:key="po-{{ $po->id }}">
+                                        <div class="flex items-center gap-3">
+                                            <span class="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold">
+                                                {{ $po->formatted_number }}
+                                            </span>
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-900">
+                                                    Orden de Pago #{{ $po->formatted_number }}
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $po->status_color }} ml-2">
+                                                        {{ $po->status_name }}
+                                                    </span>
+                                                </p>
+                                                <p class="text-xs text-gray-500">
+                                                    Factura: {{ $po->invoice_number ?? 'N/D' }}
+                                                    · Fecha: {{ $po->payment_date?->format('d/m/Y') ?? 'N/D' }}
+                                                    @if($po->retention_concept)
+                                                        · Retención: {{ $po->retention_concept_name }}
+                                                    @endif
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-sm font-bold text-gray-900">${{ number_format($po->total, 0, ',', '.') }}</p>
+                                            <p class="text-xs text-gray-500">Neto: ${{ number_format($po->net_payment, 0, ',', '.') }}</p>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Botón de acción para generar pago --}}
+                    @can('postcontractual.create')
+                        @if(!$isFullyPaid && in_array($contract->status, ['active', 'in_execution', 'completed']))
+                            <div class="border-t border-gray-200 pt-4">
+                                @if($isSinglePayment)
+                                    {{-- Pago único --}}
+                                    @if($activePayments->count() === 0)
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-700">Este contrato requiere un pago único al finalizar a satisfacción.</p>
+                                                <p class="text-xs text-gray-500 mt-1">Valor a pagar: ${{ number_format($contract->total, 0, ',', '.') }}</p>
+                                            </div>
+                                            <a href="{{ route('postcontractual.index', ['contract_id' => $contract->id]) }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                                Generar Pago Único
+                                            </a>
+                                        </div>
+                                    @else
+                                        <div class="bg-yellow-50 rounded-lg p-3 text-sm text-yellow-700">
+                                            Ya existe una orden de pago para este contrato. Verifique su estado en la sección postcontractual.
+                                        </div>
+                                    @endif
+                                @else
+                                    {{-- Pagos parciales --}}
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-700">Este contrato permite pagos parciales según ejecución.</p>
+                                            <p class="text-xs text-gray-500 mt-1">
+                                                Pagos realizados: {{ $activePayments->count() }}
+                                                · Pendiente: ${{ number_format(max(0, $remaining), 0, ',', '.') }}
+                                            </p>
+                                        </div>
+                                        <a href="{{ route('postcontractual.index', ['contract_id' => $contract->id]) }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                            Generar Nuevo Pago
+                                        </a>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+                    @endcan
+
+                    @if($isFullyPaid)
+                        <div class="border-t border-gray-200 pt-4">
+                            <div class="bg-green-50 rounded-lg p-3 flex items-center gap-3">
+                                <svg class="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <p class="text-sm text-green-700 font-medium">Contrato completamente pagado.</p>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+                @endif
             @endif
         @endif
     </div>
@@ -1006,6 +1169,14 @@
                             @endforeach
                         </select>
                         @error('additionCdpBudgetItemId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        @if($additionCdpBudgetItemId)
+                            @php $selectedItem = collect($additionBudgetItems)->firstWhere('id', (int) $additionCdpBudgetItemId); @endphp
+                            @if($selectedItem)
+                                <div class="mt-2 bg-gray-50 rounded-lg p-2 text-xs text-gray-600">
+                                    <span class="font-medium">Cuenta contable:</span> {{ $selectedItem['accounting_account'] ?? 'N/A' }}
+                                </div>
+                            @endif
+                        @endif
                     </div>
 
                     {{-- Fuentes disponibles --}}
@@ -1018,6 +1189,7 @@
                                         <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
                                             <div>
                                                 <span class="text-sm font-medium">{{ $afs['name'] }}</span>
+                                                <span class="text-xs text-gray-400 ml-1">({{ $afs['type'] }})</span>
                                                 <span class="text-xs text-gray-500 ml-2">Disponible: ${{ number_format($afs['available'], 0, ',', '.') }}</span>
                                             </div>
                                             <button type="button" wire:click="addAdditionFundingSource({{ $afs['id'] }})" class="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-lg hover:bg-emerald-200">

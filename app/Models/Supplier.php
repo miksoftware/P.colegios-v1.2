@@ -62,6 +62,7 @@ class Supplier extends Model
      */
     public const TAX_REGIMES = [
         'simplificado' => 'Régimen Simplificado',
+        'simple' => 'Régimen Simple de Tributación',
         'comun' => 'Régimen Común',
         'gran_contribuyente' => 'Gran Contribuyente',
         'no_responsable' => 'No Responsable de IVA',

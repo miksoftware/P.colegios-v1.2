@@ -439,8 +439,10 @@ class ContractualManagement extends Component
         ]);
 
         // Validar que cada RP tiene al menos una fuente con monto > 0
+        $totalAllRps = 0;
         foreach ($this->rpAssignments as $cdpId => $rpData) {
             $totalRp = collect($rpData['funding_sources'])->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
+            $totalAllRps += $totalRp;
             if ($totalRp <= 0) {
                 $this->dispatch('toast', message: 'Cada RP debe tener al menos un monto asignado por fuente de financiación.', type: 'error');
                 return;
@@ -455,6 +457,13 @@ class ContractualManagement extends Component
                     return;
                 }
             }
+        }
+
+        // Validar que la suma total de RPs sea exactamente igual al valor del contrato
+        $contractTotalValue = (float) $this->contractTotal;
+        if (abs($totalAllRps - $contractTotalValue) > 0.01) {
+            $this->dispatch('toast', message: 'La suma de los RPs ($' . number_format($totalAllRps, 0, ',', '.') . ') debe ser igual al valor del contrato ($' . number_format($contractTotalValue, 0, ',', '.') . '). Ajuste los montos de las fuentes de financiación.', type: 'error');
+            return;
         }
 
         DB::beginTransaction();
@@ -695,7 +704,7 @@ class ContractualManagement extends Component
             return;
         }
 
-        $this->extensionNewEndDate = $contract->end_date->format('Y-m-d');
+        $this->extensionNewEndDate = '';
         $this->extensionDocument = null;
         $this->showExtensionModal = true;
     }
@@ -793,11 +802,16 @@ class ContractualManagement extends Component
             ->pluck('budget_item_id')
             ->unique();
 
-        $this->additionBudgetItems = \App\Models\BudgetItem::active()
+        $this->additionBudgetItems = \App\Models\BudgetItem::with('accountingAccount')
+            ->active()
             ->whereIn('id', $budgetItemIds)
             ->orderBy('code')
             ->get()
-            ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
+            ->map(fn($item) => [
+                'id' => $item->id,
+                'name' => "{$item->code} - {$item->name}",
+                'accounting_account' => $item->accountingAccount ? "{$item->accountingAccount->code} - {$item->accountingAccount->name}" : 'N/A',
+            ])
             ->toArray();
 
         $this->additionAmount = '';
@@ -1034,6 +1048,7 @@ class ContractualManagement extends Component
                 'creator',
                 'rps.cdp.budgetItem',
                 'rps.fundingSources.fundingSource',
+                'paymentOrders',
             ])->forSchool($this->schoolId)->find($this->contractId);
         }
 

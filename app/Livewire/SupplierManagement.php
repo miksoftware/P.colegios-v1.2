@@ -81,7 +81,7 @@ class SupplierManagement extends Component
             'first_surname' => 'required|string|max:150',
             'second_surname' => 'nullable|string|max:100',
             'person_type' => 'required|in:natural,juridica',
-            'tax_regime' => 'required|in:simplificado,comun,gran_contribuyente,no_responsable',
+            'tax_regime' => 'required|in:simplificado,simple,comun,gran_contribuyente,no_responsable',
             'address' => 'required|string|max:255',
             'department_id' => 'required|exists:departments,id',
             'municipality_id' => 'required|exists:municipalities,id',

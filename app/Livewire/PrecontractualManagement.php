@@ -182,7 +182,13 @@ class PrecontractualManagement extends Component
         }
 
         // Cargar distribuciones disponibles agrupadas por código de gasto
-        $rawDistributions = ExpenseDistribution::with(['expenseCode', 'budget.budgetItem', 'budget.fundingSource'])
+        $rawDistributions = ExpenseDistribution::with([
+                'expenseCode', 
+                'budget.budgetItem', 
+                'budget.fundingSource',
+                'convocatoriaDistributions.convocatoria.contract.paymentOrders',
+                'paymentOrderLines.paymentOrder.contract',
+            ])
             ->forSchool($this->schoolId)
             ->whereHas('budget', fn($q) => $q->where('fiscal_year', $this->filterYear))
             ->where('is_active', true)
@@ -453,6 +459,14 @@ class PrecontractualManagement extends Component
         if ($this->newStatus === 'open') {
             if ($this->convocatoria->cdps->where('status', 'active')->count() === 0) {
                 $this->dispatch('toast', message: 'Debe registrar al menos un CDP antes de abrir la convocatoria.', type: 'error');
+                $this->showStatusModal = false;
+                return;
+            }
+        }
+
+        if ($this->newStatus === 'evaluation') {
+            if ($this->convocatoria->cdps->where('status', 'active')->count() === 0) {
+                $this->dispatch('toast', message: 'Debe registrar al menos un CDP antes de pasar a evaluación.', type: 'error');
                 $this->showStatusModal = false;
                 return;
             }

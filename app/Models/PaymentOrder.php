@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PaymentOrder extends Model
 {
@@ -150,6 +151,11 @@ class PaymentOrder extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function expenseLines(): HasMany
+    {
+        return $this->hasMany(PaymentOrderExpenseLine::class);
     }
 
     // ── Accessors ─────────────────────────────────────────────

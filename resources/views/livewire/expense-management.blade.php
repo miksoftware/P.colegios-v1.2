@@ -9,7 +9,7 @@
         </div>
 
         {{-- Resumen General --}}
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                 <div class="flex items-center justify-between">
                     <div>
@@ -30,6 +30,17 @@
                     </div>
                     <div class="p-3 bg-purple-100 rounded-xl">
                         <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-500">Ejecutado (Pagado)</p>
+                        <p class="text-2xl font-bold text-emerald-600">${{ number_format($this->summary['paid'], 0, ',', '.') }}</p>
+                    </div>
+                    <div class="p-3 bg-emerald-100 rounded-xl">
+                        <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     </div>
                 </div>
             </div>
@@ -141,6 +152,12 @@
                             </tr>
                             {{-- Distribuciones del presupuesto --}}
                             @foreach($budget->distributions as $distribution)
+                                @php
+                                    $distCommitted = $distribution->total_committed;
+                                    $distPaid = $distribution->total_paid;
+                                    $distLocked = $distribution->total_locked;
+                                    $distAvailable = $distribution->available_balance;
+                                @endphp
                                 <tr class="bg-gray-50/50" wire:key="dist-{{ $distribution->id }}">
                                     <td class="px-6 py-3 pl-12">
                                         <div class="flex items-center gap-2">
@@ -154,8 +171,28 @@
                                     <td class="px-6 py-3 text-right text-sm text-gray-600">
                                         ${{ number_format($distribution->amount, 0, ',', '.') }}
                                     </td>
-                                    <td class="px-6 py-3 text-right text-sm text-gray-500">-</td>
-                                    <td class="px-6 py-3 text-sm text-center text-gray-400">-</td>
+                                    <td class="px-6 py-3 text-right text-sm">
+                                        @if($distPaid > 0)
+                                            <span class="text-emerald-600 font-medium">${{ number_format($distPaid, 0, ',', '.') }}</span>
+                                            <div class="text-[10px] text-gray-400">Pagado</div>
+                                        @endif
+                                        @if($distCommitted > 0 && $distCommitted > $distPaid)
+                                            <span class="text-amber-600 {{ $distPaid > 0 ? 'text-xs' : '' }}">${{ number_format($distCommitted - $distPaid, 0, ',', '.') }}</span>
+                                            <div class="text-[10px] text-gray-400">Comprometido</div>
+                                        @endif
+                                        @if($distPaid == 0 && $distCommitted == 0)
+                                            <span class="text-gray-400">-</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-3 text-sm text-center">
+                                        @if($distAvailable > 0)
+                                            <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">${{ number_format($distAvailable, 0, ',', '.') }} disp.</span>
+                                        @elseif($distAvailable <= 0 && $distribution->amount > 0)
+                                            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Agotado</span>
+                                        @else
+                                            <span class="text-gray-400">-</span>
+                                        @endif
+                                    </td>
                                     <td class="px-6 py-3 text-right">
                                         <div class="flex items-center justify-end gap-1">
                                             @can('precontractual.create')
@@ -295,6 +332,12 @@
 
                     {{-- Distribuciones --}}
                     @forelse($detailBudget->distributions as $dist)
+                        @php
+                            $dCommitted = $dist->total_committed;
+                            $dPaid = $dist->total_paid;
+                            $dLocked = $dist->total_locked;
+                            $dAvailable = $dist->available_balance;
+                        @endphp
                         <div class="border rounded-xl mb-4 overflow-hidden">
                             <div class="bg-gray-50 px-4 py-3 flex justify-between items-center">
                                 <div>
@@ -305,8 +348,26 @@
                                     <span class="font-semibold">${{ number_format($dist->amount, 0, ',', '.') }}</span>
                                 </div>
                             </div>
+                            <div class="px-4 py-3 grid grid-cols-4 gap-3 text-center text-sm">
+                                <div>
+                                    <p class="text-xs text-amber-600">Comprometido</p>
+                                    <p class="font-semibold text-amber-700">${{ number_format($dCommitted, 0, ',', '.') }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-emerald-600">Pagado</p>
+                                    <p class="font-semibold text-emerald-700">${{ number_format($dPaid, 0, ',', '.') }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-red-600">Bloqueado</p>
+                                    <p class="font-semibold text-red-700">${{ number_format($dLocked, 0, ',', '.') }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-blue-600">Disponible</p>
+                                    <p class="font-semibold {{ $dAvailable > 0 ? 'text-blue-700' : 'text-gray-400' }}">${{ number_format($dAvailable, 0, ',', '.') }}</p>
+                                </div>
+                            </div>
                             @if($dist->description)
-                                <div class="px-4 py-3 text-sm text-gray-600">
+                                <div class="px-4 py-2 border-t text-sm text-gray-600">
                                     {{ $dist->description }}
                                 </div>
                             @endif

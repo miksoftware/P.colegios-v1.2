@@ -615,7 +615,11 @@ class PrecontractualManagement extends Component
         // Obtener las distribuciones de ESTA convocatoria que pertenecen al rubro seleccionado
         // Cada ConvocatoriaDistribution → ExpenseDistribution → Budget (rubro + fuente)
         $convDistributions = $this->convocatoria->distributionDetails()
-            ->with('expenseDistribution.budget.fundingSource')
+            ->with([
+                'expenseDistribution.budget.fundingSource',
+                'expenseDistribution.convocatoriaDistributions.convocatoria.contract.paymentOrders',
+                'expenseDistribution.paymentOrderLines.paymentOrder.contract',
+            ])
             ->whereHas('expenseDistribution.budget', function ($q) use ($value) {
                 $q->where('budget_item_id', $value)
                   ->where('school_id', $this->schoolId)
@@ -643,11 +647,19 @@ class PrecontractualManagement extends Component
             // Total comprometido en esta convocatoria para esta fuente/rubro
             $committedInConvocatoria = (float) $group->sum('amount');
 
+            // Saldo disponible de las distribuciones de gasto vinculadas (lo que aún no se compromete)
+            $freeInDistributions = $group->sum(function ($cd) {
+                return max(0, (float) $cd->expenseDistribution->available_balance);
+            });
+
+            // Total del gasto = comprometido en esta convocatoria + disponible en distribuciones
+            $totalForCdp = $committedInConvocatoria + $freeInDistributions;
+
             // Ya cubierto por CDPs activos de esta convocatoria
             $alreadyCovered = $existingCdpAmounts->get($fundingSourceId, 0);
 
-            // Disponible = comprometido - ya cubierto
-            $available = max(0, $committedInConvocatoria - $alreadyCovered);
+            // Disponible = total del gasto - ya cubierto por CDPs
+            $available = max(0, $totalForCdp - $alreadyCovered);
 
             return [
                 'id' => $source->id,
@@ -655,7 +667,7 @@ class PrecontractualManagement extends Component
                 'type' => $source->type_name,
                 'available' => $available,
                 'budget_id' => $budget->id,
-                'budget_amount' => $committedInConvocatoria,
+                'budget_amount' => $totalForCdp,
                 'reserved' => $alreadyCovered,
             ];
         })->filter(fn($s) => $s['available'] > 0)->values()->toArray();

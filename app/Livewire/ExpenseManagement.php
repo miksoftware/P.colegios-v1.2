@@ -73,8 +73,14 @@ class ExpenseManagement extends Component
         return Budget::with([
             'budgetItem',
             'fundingSource',
+            'modifications',
+            'outgoingTransfers.destinationBudget.budgetItem',
+            'outgoingTransfers.destinationBudget.fundingSource',
+            'incomingTransfers.sourceBudget.budgetItem',
+            'incomingTransfers.sourceBudget.fundingSource',
             'distributions.expenseCode',
             'distributions.convocatoriaDistributions.convocatoria.contract.paymentOrders',
+            'distributions.convocatoriaDistributions.convocatoria.contract.supplier',
             'distributions.paymentOrderLines.paymentOrder.contract',
         ])
             ->forSchool($this->schoolId)
@@ -221,8 +227,14 @@ class ExpenseManagement extends Component
         $this->detailBudget = Budget::with([
             'budgetItem', 
             'fundingSource', 
+            'modifications',
+            'outgoingTransfers.destinationBudget.budgetItem',
+            'outgoingTransfers.destinationBudget.fundingSource',
+            'incomingTransfers.sourceBudget.budgetItem',
+            'incomingTransfers.sourceBudget.fundingSource',
             'distributions.expenseCode',
             'distributions.convocatoriaDistributions.convocatoria.contract.paymentOrders',
+            'distributions.convocatoriaDistributions.convocatoria.contract.supplier',
             'distributions.paymentOrderLines.paymentOrder.contract',
         ])->find($budgetId);
         

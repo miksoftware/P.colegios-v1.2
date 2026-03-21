@@ -131,7 +131,7 @@
                                         @endif
                                         {{-- Popover de desglose --}}
                                         <div x-show="open" @click.away="open = false" x-transition
-                                            class="absolute right-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-4 w-80 text-left">
+                                            class="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 w-80 text-left" style="background-color: white;">
                                             <p class="text-xs font-semibold text-gray-700 mb-2 border-b pb-1">Desglose Presupuestal</p>
                                             <div class="space-y-1.5 text-xs">
                                                 <div class="flex justify-between">
@@ -267,7 +267,7 @@
                                                 </button>
                                                 {{-- Popover detalle compromisos --}}
                                                 <div x-show="showDetail" @click.away="showDetail = false" x-transition
-                                                    class="absolute right-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-4 w-96 text-left">
+                                                    class="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 w-96 text-left" style="background-color: white;"
                                                     <p class="text-xs font-semibold text-gray-700 mb-2 border-b pb-1">Detalle de Compromisos</p>
                                                     <div class="space-y-2 text-xs max-h-60 overflow-y-auto">
                                                         @php

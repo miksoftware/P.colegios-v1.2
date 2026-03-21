@@ -462,6 +462,27 @@ class PrecontractualManagement extends Component
                 $this->showStatusModal = false;
                 return;
             }
+
+            // Validar que los CDPs cubran todos los rubros de la convocatoria
+            $this->convocatoria->loadMissing('distributionDetails.expenseDistribution.budget');
+            $requiredBudgetItemIds = $this->convocatoria->distributionDetails
+                ->map(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id)
+                ->filter()
+                ->unique()
+                ->values();
+
+            $coveredBudgetItemIds = $this->convocatoria->cdps
+                ->where('status', 'active')
+                ->pluck('budget_item_id')
+                ->unique();
+
+            $missingItems = $requiredBudgetItemIds->diff($coveredBudgetItemIds);
+            if ($missingItems->isNotEmpty()) {
+                $missingNames = BudgetItem::whereIn('id', $missingItems)->pluck('name')->implode(', ');
+                $this->dispatch('toast', message: 'Faltan CDPs para los rubros: ' . $missingNames, type: 'error');
+                $this->showStatusModal = false;
+                return;
+            }
         }
 
         if ($this->newStatus === 'evaluation') {
@@ -478,6 +499,25 @@ class PrecontractualManagement extends Component
                 $this->showStatusModal = false;
                 return;
             }
+        }
+
+        // Si se cancela, liberar CDPs activos
+        if ($this->newStatus === 'cancelled') {
+            DB::transaction(function () {
+                // Cancelar todos los CDPs activos de esta convocatoria
+                $this->convocatoria->cdps()
+                    ->where('status', 'active')
+                    ->update(['status' => 'cancelled']);
+
+                $this->convocatoria->update([
+                    'status' => $this->newStatus,
+                ]);
+            });
+
+            $this->dispatch('toast', message: 'Convocatoria cancelada. Los CDPs activos fueron liberados.', type: 'success');
+            $this->showStatusModal = false;
+            $this->viewDetail($this->convocatoria->id);
+            return;
         }
 
         $this->convocatoria->update([
@@ -595,15 +635,7 @@ class PrecontractualManagement extends Component
             ->get();
 
         $this->availableFundingSources = $sources->map(function ($source) use ($remainingForRubro) {
-            $balance = $source->getAvailableBalanceForYear($this->filterYear, $this->schoolId);
-            // Restar lo ya reservado por CDPs activos (filtrado por colegio)
-            $reserved = Cdp::getTotalReservedForFundingSource($source->id, $this->filterYear, $this->schoolId);
-            $sourceAvailable = $balance - $reserved;
-
-            // El disponible es el menor entre: saldo real de la fuente y lo que queda por asignar en la convocatoria
-            $available = min(max(0, $sourceAvailable), $remainingForRubro);
-
-            // Obtener el presupuesto vinculado
+            // Obtener el presupuesto de gasto para esta fuente/rubro/año/colegio
             $budget = Budget::forSchool($this->schoolId)
                 ->where('funding_source_id', $source->id)
                 ->where('budget_item_id', $this->cdpBudgetItemId)
@@ -611,14 +643,27 @@ class PrecontractualManagement extends Component
                 ->where('type', 'expense')
                 ->first();
 
+            if (!$budget) return null;
+
+            $budgetAmount = (float) $budget->current_amount;
+
+            // Restar lo ya reservado por CDPs activos/utilizados de TODAS las convocatorias para esta fuente
+            $reserved = Cdp::getTotalReservedForFundingSource($source->id, $this->filterYear, $this->schoolId);
+            $sourceAvailable = max(0, $budgetAmount - $reserved);
+
+            // El disponible es el menor entre: saldo real de la fuente y lo que queda por asignar en la convocatoria
+            $available = min($sourceAvailable, $remainingForRubro);
+
             return [
                 'id' => $source->id,
                 'name' => $source->code . ' - ' . $source->name,
                 'type' => $source->type_name,
                 'available' => $available,
-                'budget_id' => $budget?->id,
+                'budget_id' => $budget->id,
+                'budget_amount' => $budgetAmount,
+                'reserved' => $reserved,
             ];
-        })->filter(fn($s) => $s['available'] > 0)->values()->toArray();
+        })->filter(fn($s) => $s !== null && $s['available'] > 0)->values()->toArray();
     }
 
     public function addCdpFundingSource($sourceId)

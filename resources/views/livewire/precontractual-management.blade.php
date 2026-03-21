@@ -305,12 +305,29 @@
                                 @endforeach
                             </div>
 
-                            {{-- Total CDPs --}}
-                            @php $totalCdps = $convocatoria->cdps->where('status', 'active')->sum('total_amount'); @endphp
-                            <div class="mt-4 pt-4 border-t flex justify-between items-center">
-                                <span class="font-medium text-gray-700">Total CDPs activos</span>
-                                <span class="text-xl font-bold text-blue-600">${{ number_format($totalCdps, 0, ',', '.') }}</span>
-                            </div>
+                            {{-- Resumen CDPs por rubro --}}
+                            @php
+                                $activeCdps = $convocatoria->cdps->where('status', 'active');
+                                $totalCdps = $activeCdps->sum('total_amount');
+                                $cdpsByItem = $activeCdps->groupBy('budget_item_id');
+                            @endphp
+                            @if($cdpsByItem->count() > 0)
+                                <div class="mt-4 pt-4 border-t">
+                                    <p class="text-sm font-medium text-gray-600 mb-2">Resumen por Rubro</p>
+                                    <div class="space-y-1">
+                                        @foreach($cdpsByItem as $itemId => $cdpsGroup)
+                                            <div class="flex justify-between text-sm">
+                                                <span class="text-gray-600">{{ $cdpsGroup->first()->budgetItem?->code }} - {{ $cdpsGroup->first()->budgetItem?->name }}</span>
+                                                <span class="font-medium">${{ number_format($cdpsGroup->sum('total_amount'), 0, ',', '.') }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                    <div class="mt-2 pt-2 border-t flex justify-between items-center">
+                                        <span class="font-medium text-gray-700">Total CDPs activos</span>
+                                        <span class="text-xl font-bold text-blue-600">${{ number_format($totalCdps, 0, ',', '.') }}</span>
+                                    </div>
+                                </div>
+                            @endif
                         @else
                             <div class="text-center py-8 text-gray-500">
                                 <svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -632,6 +649,44 @@
                     </div>
                     
                     <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                        {{-- Resumen de CDPs requeridos por rubro --}}
+                        @if($convocatoria)
+                            @php
+                                $distDetails = $convocatoria->distributionDetails ?? collect();
+                                $rubroTotals = $distDetails->groupBy(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id)->map(function($group) {
+                                    $item = $group->first()->expenseDistribution?->budget?->budgetItem;
+                                    return ['name' => ($item?->code ?? '') . ' - ' . ($item?->name ?? ''), 'amount' => $group->sum('amount')];
+                                })->filter(fn($r) => $r['amount'] > 0);
+                                $activeCdps = $convocatoria->cdps->where('status', 'active');
+                                $cdpByItem = $activeCdps->groupBy('budget_item_id');
+                            @endphp
+                            @if($rubroTotals->count() > 0)
+                                <div class="bg-indigo-50 rounded-xl p-3">
+                                    <p class="text-xs font-semibold text-indigo-700 mb-2">CDPs requeridos por rubro</p>
+                                    <div class="space-y-1">
+                                        @foreach($rubroTotals as $itemId => $info)
+                                            @php
+                                                $cdpAmount = ($cdpByItem[$itemId] ?? collect())->sum('total_amount');
+                                                $pending = max(0, $info['amount'] - $cdpAmount);
+                                                $complete = $pending <= 0;
+                                            @endphp
+                                            <div class="flex justify-between text-xs">
+                                                <span class="text-gray-700 truncate mr-2">{{ $info['name'] }}</span>
+                                                <span class="whitespace-nowrap {{ $complete ? 'text-green-600 font-semibold' : 'text-orange-600 font-semibold' }}">
+                                                    ${{ number_format($cdpAmount, 0, ',', '.') }} / ${{ number_format($info['amount'], 0, ',', '.') }}
+                                                    @if($complete) ✓ @endif
+                                                </span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                    <div class="mt-2 pt-2 border-t border-indigo-200 flex justify-between text-sm font-semibold">
+                                        <span class="text-indigo-800">Total</span>
+                                        <span class="text-indigo-800">${{ number_format($activeCdps->sum('total_amount'), 0, ',', '.') }} / ${{ number_format($convocatoria->assigned_budget, 0, ',', '.') }}</span>
+                                    </div>
+                                </div>
+                            @endif
+                        @endif
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Rubro Presupuestal <span class="text-red-500">*</span></label>
                             <select wire:model.live="cdpBudgetItemId" class="w-full rounded-xl border-gray-300">
@@ -653,7 +708,11 @@
                                             <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
                                                 <div>
                                                     <span class="text-sm font-medium">{{ $afs['name'] }}</span>
-                                                    <span class="text-xs text-gray-500 ml-2">Disponible: ${{ number_format($afs['available'], 0, ',', '.') }}</span>
+                                                    <div class="text-xs text-gray-500">
+                                                        Presupuestado: ${{ number_format($afs['budget_amount'] ?? 0, 0, ',', '.') }}
+                                                        · Comprometido: ${{ number_format($afs['reserved'] ?? 0, 0, ',', '.') }}
+                                                        · <span class="font-semibold text-green-700">Disponible: ${{ number_format($afs['available'], 0, ',', '.') }}</span>
+                                                    </div>
                                                 </div>
                                                 <button type="button" wire:click="addCdpFundingSource({{ $afs['id'] }})" class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-lg hover:bg-blue-200">
                                                     + Agregar
@@ -665,7 +724,7 @@
                             </div>
                         @elseif($cdpBudgetItemId)
                             <div class="bg-yellow-50 rounded-lg p-3 text-sm text-yellow-700">
-                                No hay fuentes con saldo disponible para este rubro. Verifique que existan ingresos reales registrados.
+                                No hay fuentes con saldo disponible para este rubro. El presupuesto de gasto puede estar completamente comprometido por otros CDPs.
                             </div>
                         @endif
 

@@ -665,7 +665,7 @@ class ContractualManagement extends Component
             'annulmentReason.min' => 'La razón debe tener al menos 10 caracteres.',
         ]);
 
-        $contract = Contract::with('paymentOrders')->forSchool($this->schoolId)->findOrFail($this->contractId);
+        $contract = Contract::with(['paymentOrders', 'convocatoria.cdps', 'rps'])->forSchool($this->schoolId)->findOrFail($this->contractId);
 
         if ($contract->hasPaymentOrders()) {
             $this->dispatch('toast', message: 'No se puede anular: tiene órdenes de pago.', type: 'error');
@@ -673,14 +673,40 @@ class ContractualManagement extends Component
             return;
         }
 
-        $contract->update([
-            'status' => 'annulled',
-            'annulment_reason' => $this->annulmentReason,
-            'annulment_date' => now(),
-        ]);
+        DB::transaction(function () use ($contract) {
+            $contract->update([
+                'status' => 'annulled',
+                'annulment_reason' => $this->annulmentReason,
+                'annulment_date' => now(),
+            ]);
+
+            // Cancelar RPs del contrato
+            if ($contract->rps) {
+                foreach ($contract->rps as $rp) {
+                    $rp->update(['status' => 'cancelled']);
+                }
+            }
+
+            // Liberar CDPs: revertir de 'used' a 'cancelled' para que los fondos queden disponibles
+            if ($contract->convocatoria) {
+                $contract->convocatoria->cdps()
+                    ->where('status', 'used')
+                    ->update(['status' => 'cancelled']);
+
+                // También cancelar CDPs activos que no se usaron
+                $contract->convocatoria->cdps()
+                    ->where('status', 'active')
+                    ->update(['status' => 'cancelled']);
+
+                // Revertir convocatoria a cancelada si estaba adjudicada
+                if (in_array($contract->convocatoria->status, ['awarded'])) {
+                    $contract->convocatoria->update(['status' => 'cancelled']);
+                }
+            }
+        });
 
         $this->showAnnulModal = false;
-        $this->dispatch('toast', message: 'Contrato anulado exitosamente.', type: 'success');
+        $this->dispatch('toast', message: 'Contrato anulado. Los CDPs y recursos comprometidos fueron liberados.', type: 'success');
         $this->viewDetail($this->contractId);
     }
 

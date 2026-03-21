@@ -1202,7 +1202,7 @@
                         </div>
                     @elseif($additionCdpBudgetItemId)
                         <div class="bg-yellow-50 rounded-lg p-3 text-sm text-yellow-700">
-                            No hay fuentes con saldo disponible. Verifique que existan ingresos reales registrados.
+                            No hay fuentes con saldo disponible. El presupuesto de gasto puede estar completamente comprometido por otros CDPs.
                         </div>
                     @endif
 

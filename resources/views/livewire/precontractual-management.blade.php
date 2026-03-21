@@ -709,8 +709,8 @@
                                                 <div>
                                                     <span class="text-sm font-medium">{{ $afs['name'] }}</span>
                                                     <div class="text-xs text-gray-500">
-                                                        Presupuestado: ${{ number_format($afs['budget_amount'] ?? 0, 0, ',', '.') }}
-                                                        · Comprometido: ${{ number_format($afs['reserved'] ?? 0, 0, ',', '.') }}
+                                                        Comprometido: ${{ number_format($afs['budget_amount'] ?? 0, 0, ',', '.') }}
+                                                        · Cubierto: ${{ number_format($afs['reserved'] ?? 0, 0, ',', '.') }}
                                                         · <span class="font-semibold text-green-700">Disponible: ${{ number_format($afs['available'], 0, ',', '.') }}</span>
                                                     </div>
                                                 </div>

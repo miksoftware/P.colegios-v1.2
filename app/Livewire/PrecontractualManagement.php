@@ -612,34 +612,42 @@ class PrecontractualManagement extends Component
 
         if (empty($value)) return;
 
-        // Obtener fuentes de financiación con saldo para este rubro y año
-        $sources = FundingSource::where('budget_item_id', $value)
-            ->active()
+        // Obtener las distribuciones de ESTA convocatoria que pertenecen al rubro seleccionado
+        // Cada ConvocatoriaDistribution → ExpenseDistribution → Budget (rubro + fuente)
+        $convDistributions = $this->convocatoria->distributionDetails()
+            ->with('expenseDistribution.budget.fundingSource')
+            ->whereHas('expenseDistribution.budget', function ($q) use ($value) {
+                $q->where('budget_item_id', $value)
+                  ->where('school_id', $this->schoolId)
+                  ->where('fiscal_year', $this->filterYear)
+                  ->where('type', 'expense');
+            })
             ->get();
 
-        $this->availableFundingSources = $sources->map(function ($source) {
-            // Obtener el presupuesto de gasto para esta fuente/rubro/año/colegio
-            $budget = Budget::forSchool($this->schoolId)
-                ->where('funding_source_id', $source->id)
-                ->where('budget_item_id', $this->cdpBudgetItemId)
-                ->where('fiscal_year', $this->filterYear)
-                ->where('type', 'expense')
-                ->first();
+        // Agrupar por funding_source_id del budget → sumar montos comprometidos
+        $byFundingSource = $convDistributions->groupBy(function ($cd) {
+            return $cd->expenseDistribution->budget->funding_source_id;
+        });
 
-            if (!$budget) return null;
+        // CDPs activos de ESTA convocatoria para el rubro seleccionado
+        $existingCdpAmounts = CdpFundingSource::whereHas('cdp', function ($q) use ($value) {
+            $q->where('convocatoria_id', $this->convocatoria->id)
+              ->where('budget_item_id', $value)
+              ->where('status', 'active');
+        })->get()->groupBy('funding_source_id')->map(fn($g) => (float) $g->sum('amount'));
 
-            $budgetAmount = (float) $budget->current_amount;
+        $this->availableFundingSources = $byFundingSource->map(function ($group, $fundingSourceId) use ($existingCdpAmounts) {
+            $source = $group->first()->expenseDistribution->budget->fundingSource;
+            $budget = $group->first()->expenseDistribution->budget;
 
-            // Total reservado por CDPs activos/utilizados que apuntan a este budget_id
-            // (esto incluye CDPs de TODAS las convocatorias, incluyendo esta)
-            $totalReserved = (float) CdpFundingSource::where('budget_id', $budget->id)
-                ->whereHas('cdp', function ($q) {
-                    $q->whereIn('status', ['active', 'used'])
-                      ->where('school_id', $this->schoolId);
-                })
-                ->sum('amount');
+            // Total comprometido en esta convocatoria para esta fuente/rubro
+            $committedInConvocatoria = (float) $group->sum('amount');
 
-            $available = max(0, $budgetAmount - $totalReserved);
+            // Ya cubierto por CDPs activos de esta convocatoria
+            $alreadyCovered = $existingCdpAmounts->get($fundingSourceId, 0);
+
+            // Disponible = comprometido - ya cubierto
+            $available = max(0, $committedInConvocatoria - $alreadyCovered);
 
             return [
                 'id' => $source->id,
@@ -647,11 +655,12 @@ class PrecontractualManagement extends Component
                 'type' => $source->type_name,
                 'available' => $available,
                 'budget_id' => $budget->id,
-                'budget_amount' => $budgetAmount,
-                'reserved' => $totalReserved,
+                'budget_amount' => $committedInConvocatoria,
+                'reserved' => $alreadyCovered,
             ];
-        })->filter(fn($s) => $s !== null && $s['available'] > 0)->values()->toArray();
+        })->filter(fn($s) => $s['available'] > 0)->values()->toArray();
     }
+
 
     public function addCdpFundingSource($sourceId)
     {

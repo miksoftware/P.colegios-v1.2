@@ -440,9 +440,22 @@
                                 </div>
                             </div>
 
+                            {{-- Códigos de gasto asociados --}}
+                            @if(!empty($cdp['expense_codes']))
+                                <div class="bg-gray-50 rounded-xl p-3 mb-4">
+                                    <p class="text-xs font-medium text-gray-600 uppercase mb-1">Códigos de Gasto</p>
+                                    @foreach($cdp['expense_codes'] as $ec)
+                                        <p class="text-xs text-gray-700">• {{ $ec }}</p>
+                                    @endforeach
+                                </div>
+                            @endif
+
                             {{-- Fuentes del CDP (informativo) --}}
                             <div class="bg-blue-50 rounded-xl p-4 mb-4">
-                                <p class="text-xs font-medium text-blue-700 uppercase mb-2">Disponible por Fuente de Financiación</p>
+                                <div class="flex justify-between items-center mb-2">
+                                    <p class="text-xs font-medium text-blue-700 uppercase">Disponible por Fuente de Financiación</p>
+                                    <p class="text-xs text-indigo-600 font-semibold">Comprometido en convocatoria: ${{ number_format($cdp['committed_amount'] ?? 0, 0, ',', '.') }}</p>
+                                </div>
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     @foreach($cdp['funding_sources'] as $fs)
                                         <div class="bg-white rounded-lg p-3 border border-blue-100">
@@ -480,10 +493,14 @@
                                                     <label class="block text-xs font-medium text-gray-500 mb-1">Valor a Contratar *</label>
                                                     <div class="relative">
                                                         <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-400 text-xs">$</span>
-                                                        <input type="number" step="0.01" wire:model="rpAssignments.{{ $cdp['id'] }}.funding_sources.{{ $fsIndex }}.amount"
-                                                            class="w-full rounded-lg border-gray-300 pl-6 text-sm bg-gray-50" readonly>
+                                                        <input type="number" step="0.01" wire:model.live="rpAssignments.{{ $cdp['id'] }}.funding_sources.{{ $fsIndex }}.amount"
+                                                            max="{{ $rpFs['max_amount'] ?? $rpFs['available'] }}"
+                                                            class="w-full rounded-lg border-gray-300 pl-6 text-sm {{ ((float)($rpFs['amount'] ?? 0)) > ((float)($rpFs['max_amount'] ?? $rpFs['available'])) ? 'border-red-500 bg-red-50' : '' }}">
                                                     </div>
-                                                    <p class="text-xs text-gray-400 mt-0.5">Valor desde propuesta ganadora</p>
+                                                    <p class="text-xs text-gray-400 mt-0.5">Máx: ${{ number_format($rpFs['max_amount'] ?? $rpFs['available'], 0, ',', '.') }}</p>
+                                                    @if(((float)($rpFs['amount'] ?? 0)) > ((float)($rpFs['max_amount'] ?? $rpFs['available'])) + 0.01)
+                                                        <p class="text-xs text-red-600 mt-0.5">Excede lo comprometido en la convocatoria</p>
+                                                    @endif
                                                 </div>
                                                 <div>
                                                     <label class="block text-xs font-medium text-gray-500 mb-1">Banco</label>
@@ -520,21 +537,21 @@
                             $totalRpsSum += collect($rpData['funding_sources'] ?? [])->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
                         }
                         $contractVal = (float) ($contractTotal ?? 0);
-                        $rpDiff = abs($totalRpsSum - $contractVal);
+                        $rpExceedsContract = $totalRpsSum > $contractVal + 0.01;
                     @endphp
-                    <div class="mt-4 p-3 rounded-lg {{ $rpDiff > 0.01 ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200' }}">
+                    <div class="mt-4 p-3 rounded-lg {{ $rpExceedsContract ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200' }}">
                         <div class="flex justify-between items-center text-sm">
-                            <span class="font-medium {{ $rpDiff > 0.01 ? 'text-red-700' : 'text-green-700' }}">Total RPs:</span>
-                            <span class="font-bold {{ $rpDiff > 0.01 ? 'text-red-700' : 'text-green-700' }}">${{ number_format($totalRpsSum, 0, ',', '.') }}</span>
+                            <span class="font-medium {{ $rpExceedsContract ? 'text-red-700' : 'text-green-700' }}">Total RPs:</span>
+                            <span class="font-bold {{ $rpExceedsContract ? 'text-red-700' : 'text-green-700' }}">${{ number_format($totalRpsSum, 0, ',', '.') }}</span>
                         </div>
                         <div class="flex justify-between items-center text-sm mt-1">
                             <span class="text-gray-600">Valor del contrato:</span>
                             <span class="font-semibold text-gray-700">${{ number_format($contractVal, 0, ',', '.') }}</span>
                         </div>
-                        @if($rpDiff > 0.01)
-                            <p class="text-xs text-red-600 mt-1">La suma de los RPs debe ser igual al valor del contrato.</p>
+                        @if($rpExceedsContract)
+                            <p class="text-xs text-red-600 mt-1">La suma de los RPs no puede ser mayor al valor del contrato. Ajuste los montos.</p>
                         @else
-                            <p class="text-xs text-green-600 mt-1">Los montos coinciden correctamente.</p>
+                            <p class="text-xs text-green-600 mt-1">Los montos son correctos.</p>
                         @endif
                     </div>
                 </div>

@@ -258,7 +258,22 @@ class ContractualManagement extends Component
             'selectedProposal.supplier.municipality',
             'cdps.budgetItem',
             'cdps.fundingSources.fundingSource',
+            'distributionDetails.expenseDistribution.budget',
+            'distributionDetails.expenseDistribution.expenseCode',
         ])->forSchool($this->schoolId)->findOrFail($this->selectedConvocatoriaId);
+
+        // Calcular comprometido por budget_item_id desde las distribuciones de la convocatoria
+        $committedByBudgetItem = $convocatoria->distributionDetails
+            ->groupBy(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id)
+            ->map(fn($group) => (float) $group->sum('amount'));
+
+        // Códigos de gasto por budget_item_id
+        $expenseCodesByBudgetItem = $convocatoria->distributionDetails
+            ->groupBy(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id)
+            ->map(fn($group) => $group->map(function ($dd) {
+                $ec = $dd->expenseDistribution?->expenseCode;
+                return $ec ? ($ec->code . ' - ' . $ec->name . ' ($' . number_format($dd->amount, 0, ',', '.') . ')') : null;
+            })->filter()->values()->toArray());
 
         // Guardar fecha fin de la convocatoria para restringir fechas del contrato
         $this->convocatoriaEndDate = $convocatoria->end_date->format('Y-m-d');
@@ -308,27 +323,33 @@ class ContractualManagement extends Component
                 ];
             }
 
+            // Monto comprometido en la convocatoria para este rubro
+            $committedAmount = $committedByBudgetItem->get($cdp->budget_item_id, 0);
+            $expenseCodes = $expenseCodesByBudgetItem->get($cdp->budget_item_id, []);
+
             $this->cdpsData[] = [
                 'id'              => $cdp->id,
                 'cdp_number'      => $cdp->formatted_number,
                 'budget_item'     => $cdp->budgetItem->name ?? 'N/A',
                 'budget_item_code' => $cdp->budgetItem->code ?? '',
                 'total_amount'    => (float) $cdp->total_amount,
+                'committed_amount' => $committedAmount,
+                'expense_codes'   => $expenseCodes,
                 'funding_sources' => $cdpFundingSources,
             ];
 
             // Pre-inicializar la asignación de RP para este CDP
-            // El monto del RP es igual al valor de la propuesta, distribuido proporcionalmente entre las fuentes del CDP
+            // El monto del RP se basa en lo comprometido en la convocatoria, distribuido proporcionalmente entre las fuentes
             $cdpTotal = (float) $cdp->total_amount;
-            $proposalTotal = (float) ($this->contractTotal ?? 0);
             $rpFundingSources = [];
             foreach ($cdpFundingSources as $fs) {
                 $proportion = $cdpTotal > 0 ? $fs['amount'] / $cdpTotal : 0;
-                $rpAmount = min($fs['amount'], round($proposalTotal * $proportion, 2));
+                $rpAmount = min($fs['amount'], round($committedAmount * $proportion, 2));
                 $rpFundingSources[] = [
                     'funding_source_id' => $fs['funding_source_id'],
                     'name'              => $fs['name'],
                     'available'         => $fs['amount'],
+                    'max_amount'        => min($fs['amount'], round($committedAmount * $proportion, 2)),
                     'amount'            => $rpAmount,
                     'budget_id'         => $fs['budget_id'],
                     'bank_id'            => '',
@@ -456,13 +477,19 @@ class ContractualManagement extends Component
                     $this->dispatch('toast', message: "El monto del RP para la fuente \"{$fs['name']}\" excede el disponible del CDP.", type: 'error');
                     return;
                 }
+                // Validar que no exceda lo comprometido en la convocatoria
+                $maxAmount = (float) ($fs['max_amount'] ?? $available);
+                if ($amount > $maxAmount + 0.01) {
+                    $this->dispatch('toast', message: "El monto del RP para \"{$fs['name']}\" ($" . number_format($amount, 0, ',', '.') . ") excede lo comprometido en la convocatoria ($" . number_format($maxAmount, 0, ',', '.') . ").", type: 'error');
+                    return;
+                }
             }
         }
 
-        // Validar que la suma total de RPs sea exactamente igual al valor del contrato
+        // Validar que la suma total de RPs no exceda el valor del contrato
         $contractTotalValue = (float) $this->contractTotal;
-        if (abs($totalAllRps - $contractTotalValue) > 0.01) {
-            $this->dispatch('toast', message: 'La suma de los RPs ($' . number_format($totalAllRps, 0, ',', '.') . ') debe ser igual al valor del contrato ($' . number_format($contractTotalValue, 0, ',', '.') . '). Ajuste los montos de las fuentes de financiación.', type: 'error');
+        if ($totalAllRps > $contractTotalValue + 0.01) {
+            $this->dispatch('toast', message: 'La suma de los RPs ($' . number_format($totalAllRps, 0, ',', '.') . ') no puede ser mayor al valor del contrato ($' . number_format($contractTotalValue, 0, ',', '.') . '). Ajuste los montos.', type: 'error');
             return;
         }
 

@@ -612,29 +612,12 @@ class PrecontractualManagement extends Component
 
         if (empty($value)) return;
 
-        // Calcular el tope: monto asignado en la convocatoria para este rubro
-        $this->convocatoria->loadMissing('distributionDetails.expenseDistribution.budget');
-        $convocatoriaLimit = $this->convocatoria->distributionDetails
-            ->filter(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id == $value)
-            ->sum('amount');
-
-        // Restar lo ya reservado por CDPs activos/utilizados de ESTA convocatoria para este rubro
-        $alreadyReservedInConv = $this->convocatoria->cdps
-            ->whereIn('status', ['active', 'used'])
-            ->where('budget_item_id', $value)
-            ->sum('total_amount');
-        $remainingForRubro = max(0, (float) $convocatoriaLimit - (float) $alreadyReservedInConv);
-
-        if ($remainingForRubro <= 0) {
-            return;
-        }
-
         // Obtener fuentes de financiación con saldo para este rubro y año
         $sources = FundingSource::where('budget_item_id', $value)
             ->active()
             ->get();
 
-        $this->availableFundingSources = $sources->map(function ($source) use ($remainingForRubro) {
+        $this->availableFundingSources = $sources->map(function ($source) {
             // Obtener el presupuesto de gasto para esta fuente/rubro/año/colegio
             $budget = Budget::forSchool($this->schoolId)
                 ->where('funding_source_id', $source->id)
@@ -647,12 +630,29 @@ class PrecontractualManagement extends Component
 
             $budgetAmount = (float) $budget->current_amount;
 
-            // Restar lo ya reservado por CDPs activos/utilizados de TODAS las convocatorias para esta fuente
-            $reserved = Cdp::getTotalReservedForFundingSource($source->id, $this->filterYear, $this->schoolId);
-            $sourceAvailable = max(0, $budgetAmount - $reserved);
+            // Restar lo reservado por CDPs activos/utilizados de OTRAS convocatorias
+            // Los CDPs de ESTA convocatoria no se restan porque estamos registrando para esta misma
+            $reservedOther = (float) CdpFundingSource::whereHas('cdp', function ($q) {
+                $q->where('fiscal_year', $this->filterYear)
+                  ->whereIn('status', ['active', 'used'])
+                  ->where('school_id', $this->schoolId)
+                  ->where('convocatoria_id', '!=', $this->convocatoria->id);
+            })
+            ->where('funding_source_id', $source->id)
+            ->sum('amount');
 
-            // El disponible es el menor entre: saldo real de la fuente y lo que queda por asignar en la convocatoria
-            $available = min($sourceAvailable, $remainingForRubro);
+            // También restar lo ya reservado por CDPs de ESTA convocatoria (para no duplicar)
+            $reservedThis = (float) CdpFundingSource::whereHas('cdp', function ($q) {
+                $q->where('fiscal_year', $this->filterYear)
+                  ->whereIn('status', ['active', 'used'])
+                  ->where('school_id', $this->schoolId)
+                  ->where('convocatoria_id', $this->convocatoria->id)
+                  ->where('budget_item_id', $this->cdpBudgetItemId);
+            })
+            ->where('funding_source_id', $source->id)
+            ->sum('amount');
+
+            $available = max(0, $budgetAmount - $reservedOther - $reservedThis);
 
             return [
                 'id' => $source->id,
@@ -661,7 +661,7 @@ class PrecontractualManagement extends Component
                 'available' => $available,
                 'budget_id' => $budget->id,
                 'budget_amount' => $budgetAmount,
-                'reserved' => $reserved,
+                'reserved' => $reservedOther + $reservedThis,
             ];
         })->filter(fn($s) => $s !== null && $s['available'] > 0)->values()->toArray();
     }

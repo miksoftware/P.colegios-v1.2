@@ -425,13 +425,26 @@
                         <div class="space-y-4">
                             @foreach($expenseLines as $index => $line)
                             <div class="border border-gray-200 rounded-xl p-4 bg-gray-50" wire:key="expense-line-{{ $index }}">
-                                <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center justify-between mb-1">
                                     <h3 class="text-sm font-semibold text-gray-800">
                                         <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold mr-2">{{ $index + 1 }}</span>
                                         {{ $line['expense_code_name'] }}
                                     </h3>
                                     <span class="text-xs text-gray-500">Asignado en convocatoria: ${{ number_format($line['max_amount'], 0, ',', '.') }}</span>
                                 </div>
+                                @if(!empty($line['funding_source_name']) || !empty($line['bank_name']))
+                                    <div class="flex flex-wrap gap-x-4 gap-y-1 ml-8 mb-3 text-xs text-gray-500">
+                                        @if(!empty($line['funding_source_name']))
+                                            <span>Fuente: <span class="font-medium text-gray-700">{{ $line['funding_source_name'] }}</span></span>
+                                        @endif
+                                        @if(!empty($line['bank_name']))
+                                            <span>Banco: <span class="font-medium text-gray-700">{{ $line['bank_name'] }}</span></span>
+                                        @endif
+                                        @if(!empty($line['bank_account']))
+                                            <span>Cuenta: <span class="font-medium text-gray-700">{{ $line['bank_account'] }}</span></span>
+                                        @endif
+                                    </div>
+                                @endif
 
                                 {{-- Valores del pago por línea --}}
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
@@ -928,12 +941,41 @@
                         Distribución por Código de Gasto
                         <span class="text-xs font-normal text-gray-400">({{ $paymentOrder->expenseLines->count() }} {{ $paymentOrder->expenseLines->count() === 1 ? 'código' : 'códigos' }})</span>
                     </h2>
+                    @php
+                        // Mapa budget_id → info de RP (fuente, banco, cuenta)
+                        $rpMap = [];
+                        foreach ($paymentOrder->contract->rps ?? [] as $rp) {
+                            foreach ($rp->fundingSources as $rpFs) {
+                                if ($rpFs->budget_id) {
+                                    $rpMap[$rpFs->budget_id] = [
+                                        'funding_source' => $rpFs->fundingSource ? ($rpFs->fundingSource->code . ' - ' . $rpFs->fundingSource->name) : null,
+                                        'bank' => $rpFs->bank?->name,
+                                        'account' => $rpFs->bankAccount ? ($rpFs->bankAccount->account_type . ' - ' . $rpFs->bankAccount->account_number) : null,
+                                    ];
+                                }
+                            }
+                        }
+                    @endphp
                     <div class="space-y-3">
                         @foreach($paymentOrder->expenseLines as $el)
+                        @php $elRpInfo = $rpMap[$el->expenseDistribution?->budget_id ?? 0] ?? []; @endphp
                         <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                            <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center justify-between mb-1">
                                 <p class="text-sm font-semibold text-gray-800">{{ $el->expenseCode?->code }} - {{ $el->expenseCode?->name }}</p>
                             </div>
+                            @if(!empty($elRpInfo['funding_source']) || !empty($elRpInfo['bank']))
+                                <div class="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs text-gray-500">
+                                    @if(!empty($elRpInfo['funding_source']))
+                                        <span>Fuente: <span class="font-medium text-gray-700">{{ $elRpInfo['funding_source'] }}</span></span>
+                                    @endif
+                                    @if(!empty($elRpInfo['bank']))
+                                        <span>Banco: <span class="font-medium text-gray-700">{{ $elRpInfo['bank'] }}</span></span>
+                                    @endif
+                                    @if(!empty($elRpInfo['account']))
+                                        <span>Cuenta: <span class="font-medium text-gray-700">{{ $elRpInfo['account'] }}</span></span>
+                                    @endif
+                                </div>
+                            @endif
                             <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-center">
                                 <div class="bg-white rounded-lg p-2 border border-gray-200">
                                     <p class="text-[10px] text-gray-500">Subtotal</p>

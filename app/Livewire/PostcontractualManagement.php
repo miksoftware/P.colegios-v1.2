@@ -170,7 +170,10 @@ class PostcontractualManagement extends Component
             'contract.supplier.department',
             'contract.supplier.municipality',
             'contract.rps.fundingSources.fundingSource',
+            'contract.rps.fundingSources.bank',
+            'contract.rps.fundingSources.bankAccount',
             'expenseLines.expenseCode',
+            'expenseLines.expenseDistribution.budget.fundingSource',
             'creator',
         ])->forSchool($this->schoolId)->findOrFail($id);
 
@@ -243,7 +246,10 @@ class PostcontractualManagement extends Component
             'supplier.department',
             'supplier.municipality',
             'rps.fundingSources.fundingSource',
+            'rps.fundingSources.bank',
+            'rps.fundingSources.bankAccount',
             'convocatoria.distributionDetails.expenseDistribution.expenseCode',
+            'convocatoria.distributionDetails.expenseDistribution.budget.fundingSource',
         ])->forSchool($this->schoolId)->findOrFail($this->selectedContractId);
 
         $totalPaid = PaymentOrder::getTotalPaidForContract($contract->id, $this->schoolId);
@@ -288,12 +294,20 @@ class PostcontractualManagement extends Component
 
         // Fuentes de financiación desde los RPs
         $sources = [];
+        $rpInfoByBudgetId = []; // Mapa budget_id → info de RP (fuente, banco, cuenta)
         foreach ($contract->rps as $rp) {
             foreach ($rp->fundingSources as $fs) {
                 $sources[] = [
                     'name'   => $fs->fundingSource->name ?? 'N/A',
                     'amount' => (float) $fs->amount,
                 ];
+                if ($fs->budget_id) {
+                    $rpInfoByBudgetId[$fs->budget_id] = [
+                        'funding_source_name' => $fs->fundingSource->code . ' - ' . $fs->fundingSource->name ?? 'N/A',
+                        'bank_name'           => $fs->bank->name ?? null,
+                        'bank_account'        => $fs->bankAccount ? ($fs->bankAccount->account_type . ' - ' . $fs->bankAccount->account_number) : null,
+                    ];
+                }
             }
         }
         $this->fundingSourcesData = $sources;
@@ -309,11 +323,16 @@ class PostcontractualManagement extends Component
             foreach ($distributions as $dist) {
                 $ed = $dist->expenseDistribution;
                 if ($ed && $ed->expenseCode) {
+                    $budgetId = $ed->budget_id;
+                    $rpInfo = $rpInfoByBudgetId[$budgetId] ?? [];
                     $this->expenseDistributions[] = [
                         'id'                      => $ed->id,
                         'expense_code_id'         => $ed->expenseCode->id,
                         'expense_code_name'       => $ed->expenseCode->code . ' - ' . $ed->expenseCode->name,
                         'convocatoria_amount'     => (float) $dist->amount,
+                        'funding_source_name'     => $rpInfo['funding_source_name'] ?? ($ed->budget?->fundingSource ? ($ed->budget->fundingSource->code . ' - ' . $ed->budget->fundingSource->name) : null),
+                        'bank_name'               => $rpInfo['bank_name'] ?? null,
+                        'bank_account'            => $rpInfo['bank_account'] ?? null,
                     ];
                 }
             }
@@ -411,6 +430,9 @@ class PostcontractualManagement extends Component
             'expense_code_id'         => $dist['expense_code_id'],
             'expense_code_name'       => $dist['expense_code_name'],
             'max_amount'              => $dist['convocatoria_amount'],
+            'funding_source_name'     => $dist['funding_source_name'] ?? null,
+            'bank_name'               => $dist['bank_name'] ?? null,
+            'bank_account'            => $dist['bank_account'] ?? null,
             'subtotal'                => '',
             'iva'                     => '',
             'total'                   => 0,

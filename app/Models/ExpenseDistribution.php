@@ -122,10 +122,10 @@ class ExpenseDistribution extends Model
 
     /**
      * Monto realmente bloqueado por convocatorias.
-     * Para cada convocatoria:
-     * - Si la convocatoria tiene contrato con pagos para esta distribución → bloqueo = lo pagado
-     * - Si la convocatoria tiene contrato completado/pagado sin usar esta distribución → bloqueo = 0 (liberado)
-     * - Si la convocatoria tiene contrato activo sin pagos de esta distribución → bloqueo = compromiso original
+     * Para cada convocatoria no cancelada:
+     * - Si la convocatoria tiene contrato anulado → liberado (0)
+     * - Si la convocatoria tiene contrato con pagos para esta distribución → bloqueo = lo pagado (mínimo el compromiso)
+     * - Si la convocatoria tiene contrato (no anulado) → bloqueo = compromiso original
      * - Si la convocatoria NO tiene contrato → bloqueo = compromiso original (aún reservado)
      */
     public function getTotalLockedAttribute(): float
@@ -152,37 +152,21 @@ class ExpenseDistribution extends Model
                 continue;
             }
 
+            $contract = $cd->convocatoria->contract ?? null;
+
+            // Si el contrato está anulado, liberar
+            if ($contract && $contract->status === 'annulled') {
+                continue;
+            }
+
             // Buscar pagos de esta distribución vinculados a esta convocatoria
             $paidForThis = $validPaymentLines
                 ->filter(fn($line) => $line->paymentOrder->contract && $line->paymentOrder->contract->convocatoria_id == $cd->convocatoria_id)
                 ->sum('total');
 
-            if ($paidForThis > 0) {
-                // Convocatoria tiene pagos reales de esta distribución → bloqueo = lo pagado
-                $locked += (float) $paidForThis;
-            } else {
-                // Sin pagos de esta distribución
-                // Verificar si la convocatoria tiene contrato con órdenes de pago (usando otras distribuciones)
-                $contract = $cd->convocatoria->contract;
-                
-                if ($contract) {
-                    // Hay contrato: verificar si tiene alguna orden de pago no anulada
-                    $hasAnyPayments = $contract->relationLoaded('paymentOrders')
-                        ? $contract->paymentOrders->whereIn('status', ['draft', 'approved', 'paid'])->isNotEmpty()
-                        : $contract->paymentOrders()->whereIn('status', ['draft', 'approved', 'paid'])->exists();
-                    
-                    if ($hasAnyPayments) {
-                        // El contrato tiene pagos pero NO usó esta distribución → liberado
-                        $locked += 0;
-                    } else {
-                        // Contrato sin pagos aún → compromiso original
-                        $locked += (float) $cd->amount;
-                    }
-                } else {
-                    // Sin contrato → compromiso original (aún en proceso precontractual)
-                    $locked += (float) $cd->amount;
-                }
-            }
+            // Bloqueo = el mayor entre lo pagado y el compromiso original
+            // (si se pagó más de lo comprometido, usar lo pagado; si no, mantener compromiso)
+            $locked += max((float) $paidForThis, (float) $cd->amount);
         }
 
         return $locked;

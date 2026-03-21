@@ -869,13 +869,7 @@ class ContractualManagement extends Component
             ->get();
 
         $this->additionAvailableFundingSources = $sources->map(function ($source) use ($maxAddition) {
-            $balance = $source->getAvailableBalanceForYear((int) $this->filterYear, $this->schoolId);
-            $reserved = Cdp::getTotalReservedForFundingSource($source->id, (int) $this->filterYear, $this->schoolId);
-            $sourceAvailable = max(0, $balance - $reserved);
-
-            // Limitar al máximo de adición permitido para el contrato
-            $available = min($sourceAvailable, $maxAddition);
-
+            // Obtener el presupuesto de gasto para esta fuente/rubro/año/colegio
             $budget = Budget::forSchool($this->schoolId)
                 ->where('funding_source_id', $source->id)
                 ->where('budget_item_id', $this->additionCdpBudgetItemId)
@@ -883,14 +877,33 @@ class ContractualManagement extends Component
                 ->where('type', 'expense')
                 ->first();
 
+            if (!$budget) return null;
+
+            $budgetAmount = (float) $budget->current_amount;
+
+            // Total reservado por CDPs activos/utilizados que apuntan a este budget_id
+            $totalReserved = (float) CdpFundingSource::where('budget_id', $budget->id)
+                ->whereHas('cdp', function ($q) {
+                    $q->whereIn('status', ['active', 'used'])
+                      ->where('school_id', $this->schoolId);
+                })
+                ->sum('amount');
+
+            $sourceAvailable = max(0, $budgetAmount - $totalReserved);
+
+            // Limitar al máximo de adición permitido para el contrato
+            $available = min($sourceAvailable, $maxAddition);
+
             return [
                 'id' => $source->id,
                 'name' => $source->code . ' - ' . $source->name,
                 'type' => $source->type_name,
                 'available' => $available,
-                'budget_id' => $budget?->id,
+                'budget_id' => $budget->id,
+                'budget_amount' => $budgetAmount,
+                'reserved' => $totalReserved,
             ];
-        })->filter(fn($s) => $s['available'] > 0)->values()->toArray();
+        })->filter(fn($s) => $s !== null && $s['available'] > 0)->values()->toArray();
     }
 
     public function addAdditionFundingSource($sourceId)

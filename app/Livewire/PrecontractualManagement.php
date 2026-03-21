@@ -630,29 +630,16 @@ class PrecontractualManagement extends Component
 
             $budgetAmount = (float) $budget->current_amount;
 
-            // Restar lo reservado por CDPs activos/utilizados de OTRAS convocatorias
-            // Los CDPs de ESTA convocatoria no se restan porque estamos registrando para esta misma
-            $reservedOther = (float) CdpFundingSource::whereHas('cdp', function ($q) {
-                $q->where('fiscal_year', $this->filterYear)
-                  ->whereIn('status', ['active', 'used'])
-                  ->where('school_id', $this->schoolId)
-                  ->where('convocatoria_id', '!=', $this->convocatoria->id);
-            })
-            ->where('funding_source_id', $source->id)
-            ->sum('amount');
+            // Total reservado por CDPs activos/utilizados que apuntan a este budget_id
+            // (esto incluye CDPs de TODAS las convocatorias, incluyendo esta)
+            $totalReserved = (float) CdpFundingSource::where('budget_id', $budget->id)
+                ->whereHas('cdp', function ($q) {
+                    $q->whereIn('status', ['active', 'used'])
+                      ->where('school_id', $this->schoolId);
+                })
+                ->sum('amount');
 
-            // También restar lo ya reservado por CDPs de ESTA convocatoria (para no duplicar)
-            $reservedThis = (float) CdpFundingSource::whereHas('cdp', function ($q) {
-                $q->where('fiscal_year', $this->filterYear)
-                  ->whereIn('status', ['active', 'used'])
-                  ->where('school_id', $this->schoolId)
-                  ->where('convocatoria_id', $this->convocatoria->id)
-                  ->where('budget_item_id', $this->cdpBudgetItemId);
-            })
-            ->where('funding_source_id', $source->id)
-            ->sum('amount');
-
-            $available = max(0, $budgetAmount - $reservedOther - $reservedThis);
+            $available = max(0, $budgetAmount - $totalReserved);
 
             return [
                 'id' => $source->id,
@@ -661,7 +648,7 @@ class PrecontractualManagement extends Component
                 'available' => $available,
                 'budget_id' => $budget->id,
                 'budget_amount' => $budgetAmount,
-                'reserved' => $reservedOther + $reservedThis,
+                'reserved' => $totalReserved,
             ];
         })->filter(fn($s) => $s !== null && $s['available'] > 0)->values()->toArray();
     }

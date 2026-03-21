@@ -1189,8 +1189,11 @@
                                         <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
                                             <div>
                                                 <span class="text-sm font-medium">{{ $afs['name'] }}</span>
-                                                <span class="text-xs text-gray-400 ml-1">({{ $afs['type'] }})</span>
-                                                <span class="text-xs text-gray-500 ml-2">Disponible: ${{ number_format($afs['available'], 0, ',', '.') }}</span>
+                                                <div class="text-xs text-gray-500">
+                                                    Presupuestado: ${{ number_format($afs['budget_amount'] ?? 0, 0, ',', '.') }}
+                                                    · Comprometido: ${{ number_format($afs['reserved'] ?? 0, 0, ',', '.') }}
+                                                    · <span class="font-semibold text-green-700">Disponible: ${{ number_format($afs['available'], 0, ',', '.') }}</span>
+                                                </div>
                                             </div>
                                             <button type="button" wire:click="addAdditionFundingSource({{ $afs['id'] }})" class="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-lg hover:bg-emerald-200">
                                                 + Agregar

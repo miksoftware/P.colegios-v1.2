@@ -10,6 +10,7 @@ class ExpenseCode extends Model
     use LogsActivity;
 
     protected $fillable = [
+        'sifse_code',
         'code',
         'name',
         'is_active',
@@ -26,7 +27,7 @@ class ExpenseCode extends Model
 
     protected function getLogDescription(): string
     {
-        return "{$this->code} - {$this->name}";
+        return "{$this->sifse_code} - {$this->code} - {$this->name}";
     }
 
     public function scopeActive($query)
@@ -37,7 +38,8 @@ class ExpenseCode extends Model
     public function scopeSearch($query, string $search)
     {
         return $query->where(function ($q) use ($search) {
-            $q->where('code', 'like', "%{$search}%")
+            $q->where('sifse_code', 'like', "%{$search}%")
+              ->orWhere('code', 'like', "%{$search}%")
               ->orWhere('name', 'like', "%{$search}%");
         });
     }

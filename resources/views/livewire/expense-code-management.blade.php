@@ -69,7 +69,8 @@
             <table class="w-full">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SIFSE</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código PAA</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -78,6 +79,9 @@
                 <tbody class="divide-y divide-gray-200">
                     @forelse($this->expenseCodes as $expenseCode)
                     <tr class="hover:bg-gray-50" wire:key="expense-code-{{ $expenseCode->id }}">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="font-mono text-sm font-medium text-indigo-600">{{ $expenseCode->sifse_code }}</span>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="font-mono text-sm font-medium text-blue-600">{{ $expenseCode->code }}</span>
                         </td>
@@ -110,7 +114,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="4" class="px-6 py-12 text-center text-gray-500">
+                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">
                             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
                             <p class="mt-2">No se encontraron códigos</p>
                         </td>
@@ -143,7 +147,13 @@
                     
                     <div class="p-6 space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Código <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Código SIFSE <span class="text-red-500">*</span></label>
+                            <input type="text" wire:model="sifse_code" class="w-full rounded-xl border-gray-300 font-mono" placeholder="7">
+                            @error('sifse_code') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Código PAA <span class="text-red-500">*</span></label>
                             <input type="text" wire:model="code" class="w-full rounded-xl border-gray-300 font-mono" placeholder="2.1.2.01.01.003.01.06">
                             @error('code') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>

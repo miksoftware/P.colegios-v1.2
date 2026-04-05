@@ -18,6 +18,7 @@ class ExpenseCodeManagement extends Component
     public $showModal = false;
     public $isEditing = false;
     public $expenseCodeId = null;
+    public $sifse_code = '';
     public $code = '';
     public $name = '';
     public $is_active = true;
@@ -32,20 +33,23 @@ class ExpenseCodeManagement extends Component
 
     protected function rules()
     {
-        $uniqueRule = $this->isEditing 
-            ? "unique:expense_codes,code,{$this->expenseCodeId}" 
-            : 'unique:expense_codes,code';
+        $uniqueRule = $this->isEditing
+            ? "unique:expense_codes,sifse_code,{$this->expenseCodeId},id,code,{$this->code}"
+            : "unique:expense_codes,sifse_code,NULL,id,code,{$this->code}";
 
         return [
-            'code' => ['required', 'string', 'max:50', $uniqueRule],
+            'sifse_code' => ['required', 'string', 'max:10', $uniqueRule],
+            'code' => 'required|string|max:50',
             'name' => 'required|string|max:500',
             'is_active' => 'boolean',
         ];
     }
 
     protected $messages = [
+        'sifse_code.required' => 'El código SIFSE es obligatorio.',
+        'sifse_code.unique' => 'Ya existe un registro con este código SIFSE y código PAA.',
+        'sifse_code.max' => 'El código SIFSE no puede tener más de 10 caracteres.',
         'code.required' => 'El código es obligatorio.',
-        'code.unique' => 'Este código ya existe.',
         'code.max' => 'El código no puede tener más de 50 caracteres.',
         'name.required' => 'El nombre es obligatorio.',
         'name.max' => 'El nombre no puede tener más de 500 caracteres.',
@@ -78,7 +82,7 @@ class ExpenseCodeManagement extends Component
             $query->where('is_active', $this->filterStatus === '1');
         }
 
-        return $query->orderBy('code')->paginate($this->perPage);
+        return $query->orderBy('sifse_code')->orderBy('code')->paginate($this->perPage);
     }
 
     public function getTotalsProperty()
@@ -108,6 +112,7 @@ class ExpenseCodeManagement extends Component
 
         $expenseCode = ExpenseCode::findOrFail($id);
         $this->expenseCodeId = $expenseCode->id;
+        $this->sifse_code = $expenseCode->sifse_code;
         $this->code = $expenseCode->code;
         $this->name = $expenseCode->name;
         $this->is_active = $expenseCode->is_active;
@@ -126,6 +131,7 @@ class ExpenseCodeManagement extends Component
         $this->validate();
 
         $data = [
+            'sifse_code' => strtoupper(trim($this->sifse_code)),
             'code' => strtoupper(trim($this->code)),
             'name' => mb_strtoupper(trim($this->name)),
             'is_active' => $this->is_active,
@@ -198,6 +204,7 @@ class ExpenseCodeManagement extends Component
     public function resetForm()
     {
         $this->expenseCodeId = null;
+        $this->sifse_code = '';
         $this->code = '';
         $this->name = '';
         $this->is_active = true;

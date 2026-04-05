@@ -67,9 +67,9 @@ class DeploySeeder extends Seeder
                 AccountingAccountSeeder::class,
                 RubrosFuentesSeeder::class,
             ],
-            // 5. Códigos de gasto
+            // 5. Códigos de gasto (refresh: limpia viejos + inserta con SIFSE)
             '[5/6] 📄 Códigos de gasto...' => [
-                ExpenseCodeSeeder::class,
+                RefreshExpenseCodesSeeder::class,
             ],
             // 6. Usuario administrador
             '[6/6] 👤 Usuario administrador...' => [

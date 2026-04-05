@@ -45,7 +45,7 @@ class SeedOnce extends Command
         // 4. Datos contables y presupuestales
         \Database\Seeders\AccountingAccountSeeder::class,
         \Database\Seeders\RubrosFuentesSeeder::class,
-        \Database\Seeders\ExpenseCodeSeeder::class,
+        \Database\Seeders\RefreshExpenseCodesSeeder::class,
 
         // 5. Usuario administrador de producción
         \Database\Seeders\ProductionUserSeeder::class,

@@ -794,9 +794,89 @@ public function scopeForSchool($query, int $schoolId)
 | incomes | view, create, edit, delete |
 | budget_transfers | view, create |
 | expenses | view, distribute, delete |
+| expense_codes | view, create, edit, delete |
 | precontractual | view, create, edit, delete, evaluate |
+| contractual | view, create, edit, delete |
+| postcontractual | view, create, edit, delete |
+| banks | view, create, edit, delete |
+| reports | view, export |
 
 ### Roles Predefinidos
 - **Admin**: Todos los permisos + gestión multi-colegio
 - **Rector**: Permisos de visualización y edición de su colegio
 - **Pagador**: Permisos operativos (proveedores, ingresos, etc.)
+
+---
+
+### 16. Códigos de Gasto (`/expense-codes`)
+**Propósito**: Catálogo de códigos presupuestales de gasto con código SIFSE del Ministerio.
+
+**Campos**:
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| sifse_code | string(10) | Código SIFSE del Ministerio |
+| code | string(50) | Código PAA (Plan Anual de Adquisiciones) |
+| name | string(500) | Nombre/descripción del código |
+| is_active | boolean | Estado |
+
+**Reglas de Negocio**:
+- Unique compuesto: `sifse_code + code` (mismo código PAA puede existir con diferente SIFSE)
+- Códigos globales (no por colegio)
+- Se cargan via `RefreshExpenseCodesSeeder` en deploy (truncate + re-seed)
+
+**Permisos**: `expense_codes.view`, `expense_codes.create`, `expense_codes.edit`, `expense_codes.delete`
+
+---
+
+### 17. Reportes (`/reports/*`)
+**Propósito**: Módulo de reportes con informes consolidados para gestión presupuestal.
+
+#### 17.1 Relación de Pagos (`/reports/payment-report`)
+Informe consolidado de comprobantes de egreso.
+
+**Datos mostrados**:
+- Header: Info del colegio (DANE, fondo, municipio, rector, pagador, periodo)
+- Tarjetas: Total pagos, Valor total, Retenciones, Neto transferido
+- Gráficas: Donut por fuente de financiación, Barras por mes
+- Tabla simplificada: No. CE, Fecha, Proveedor, Fuente, Contrato, CDP, RP, Total, Retenciones, Neto
+- Resumen por fuente de financiación
+
+**Filtros**: Vigencia, Mes, Proveedor, Fuente de ingreso
+
+**Fuente de datos**: `PaymentOrder` (approved/paid) → `Contract` → `Supplier`, `Cdp`, `ContractRp`, `FundingSource`
+
+**Export Excel**: Todas las 21 columnas completas (SheetJS/XLSX), formato con header del colegio, merges, formato moneda
+
+#### 17.2 Ejecución de Gastos (`/reports/expense-execution`)
+Informe de ejecución presupuestal de gastos por código de gasto y fuente.
+
+**Columnas**:
+| Columna | Fuente |
+|---------|--------|
+| Rubro | `ExpenseCode.code` |
+| Nombre del Rubro | `ExpenseCode.name` |
+| Fuente de Financiación | `FundingSource.code` + `FundingSource.name` |
+| Apropiación Inicial | `Budget.initial_amount` (prorrateado) |
+| Adición | `BudgetModification` type=addition (prorrateado) |
+| Reducción | `BudgetModification` type=reduction (prorrateado) |
+| Crédito | `BudgetTransfer` incoming (prorrateado) |
+| Contracrédito | `BudgetTransfer` outgoing (prorrateado) |
+| Apropiación Definitiva | `Budget.current_amount` (prorrateado) |
+| Compromisos (RP) | `RpFundingSource.amount` por budget (prorrateado) |
+| Obligaciones | `PaymentOrderExpenseLine.total` por distribución |
+| Pagos | Igual a obligaciones |
+| Por Ejecutar | Definitiva - Compromisos |
+
+**Lógica**: Cada fila = `ExpenseDistribution`. Montos presupuestales se prorratean según proporción de la distribución respecto al total del presupuesto.
+
+**Filtros**: Vigencia
+
+**Export Excel**: Con merges en headers (MODIFICACIONES colspan), formato moneda
+
+**Notas técnicas para reportes**:
+- Scripts JS (Chart.js, SheetJS) se cargan via `@push('scripts')` → `@stack('scripts')` en layout
+- Datos se pasan al JS via `data-*` attributes en un `<div class="hidden">` dentro del root div
+- NO usar `@script`/`@endscript` ni `@assets`/`@endassets` de Livewire (causa error `childNodes on null`)
+- NO usar PowerShell `Set-Content -Encoding UTF8` en archivos blade (agrega BOM que corrompe acentos)
+
+**Permisos**: `reports.view`, `reports.export`

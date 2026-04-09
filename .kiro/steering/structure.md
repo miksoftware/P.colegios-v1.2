@@ -307,10 +307,16 @@ school_id, budget_id, expense_code_id, amount, description, created_by
 - distributions(): HasMany (ExpenseDistribution)
 
 // Scopes
-- active()
+- active(), search($search)
 
 // Campos fillable
-code, name, description, is_active
+sifse_code, code, name, is_active
+
+// Notas
+- sifse_code: Código SIFSE del Ministerio (identifica categoría funcional)
+- code: Código PAA (Plan Anual de Adquisiciones)
+- Unique compuesto: sifse_code + code (mismo PAA puede existir con diferente SIFSE)
+- Búsqueda incluye sifse_code, code y name
 ```
 
 ### Convocatoria (Convocatoria Precontractual)
@@ -563,6 +569,42 @@ old_values => array, new_values => array
 // Nota: ejecución directa removida (ahora pasa por etapa precontractual)
 ```
 
+#### ExpenseCodeManagement
+```php
+// Funcionalidad: CRUD de códigos presupuestales de gasto con código SIFSE
+// Propiedades: sifse_code, code, name, is_active, search, filterStatus
+// Features: tabla con columnas SIFSE + Código PAA + Nombre, toggle estado
+// Unique compuesto: sifse_code + code
+```
+
+#### PaymentReportManagement
+```php
+// Funcionalidad: Reporte de Relación de Pagos (comprobantes de egreso)
+// Ruta: /reports/payment-report
+// Filtros: filterYear, filterMonth, filterSupplier, filterFundingSource
+// Datos: PaymentOrder → Contract → Supplier, CDP, RP, FundingSource
+// Features: tarjetas resumen, gráfica donut por fuente, gráfica barras por mes,
+//   tabla simplificada (CE, fecha, proveedor, fuente, contrato, CDP, RP, total, retenciones, neto),
+//   exportar Excel completo con 21 columnas via SheetJS (XLSX)
+// JS: datos pasados via data-* attributes en div hidden, scripts en @push('scripts')
+// Permisos: reports.view, reports.export
+```
+
+#### ExpenseExecutionReport
+```php
+// Funcionalidad: Reporte de Ejecución de Gastos presupuestal
+// Ruta: /reports/expense-execution
+// Filtros: filterYear
+// Datos: Budget (expense) → ExpenseDistribution → ExpenseCode + FundingSource
+// Columnas: Rubro (ExpenseCode.code), Nombre (ExpenseCode.name), Fuente (FundingSource.code+name),
+//   Aprob. Inicial, Modificaciones (Adición/Reducción/Crédito/Contracrédito),
+//   Aprob. Definitiva, Compromisos (RP), Obligaciones, Pagos, Por Ejecutar
+// Lógica: cada fila = ExpenseDistribution, montos presupuestales prorrateados por proporción
+// Features: tarjetas resumen, gráfica barras ejecución, exportar Excel con merges
+// JS: datos pasados via data-* attributes, scripts en @push('scripts')
+// Permisos: reports.view, reports.export
+```
+
 ---
 
 ## Middleware (`app/Http/Middleware/`)
@@ -609,7 +651,7 @@ old_values => array, new_values => array
 | funding_sources | school, budget_item, incomes | school_id+type |
 | incomes | school, funding_source, creator | school_id+date |
 | budget_transfers | school, budgets, funding_sources | school_id+year |
-| expense_codes | distributions | code |
+| expense_codes | distributions | unique(sifse_code+code) |
 | expense_distributions | school, budget, expense_code | school_id+budget_id |
 | convocatorias | school, expense_distribution, cdps, proposals | school_id+number+year |
 | cdps | school, convocatoria, budget_item, funding_sources | school_id+number+year |
@@ -647,6 +689,11 @@ old_values => array, new_values => array
 2026_02_07_000002_create_cdps_table.php
 2026_02_07_000003_create_cdp_funding_sources_table.php
 2026_02_07_000004_create_proposals_table.php
+2026_02_07_300001_create_contracts_tables.php (contracts, contract_rps, rp_funding_sources)
+2026_01_17_000001_create_expense_codes_table.php
+2026_01_17_000002_create_expense_distributions_table.php
+2026_03_18_000002_create_payment_order_expense_lines_table.php
+2026_04_04_000001_add_sifse_code_to_expense_codes_table.php
 ```
 
 ### Seeders
@@ -668,6 +715,11 @@ old_values => array, new_values => array
 | BudgetTransferPermissionSeeder | Permisos de traslados |
 | ExpensePermissionSeeder | Permisos de gastos |
 | PrecontractualPermissionSeeder | Permisos de etapa precontractual |
+| ContractualPermissionSeeder | Permisos de etapa contractual |
+| PostcontractualPermissionSeeder | Permisos de etapa postcontractual |
+| BankPermissionSeeder | Permisos de bancos |
+| ReportPermissionSeeder | Permisos de reportes (reports.view, reports.export) |
+| RefreshExpenseCodesSeeder | Limpia y recarga códigos de gasto con SIFSE (deploy) |
 
 ---
 
@@ -697,6 +749,15 @@ GET /funding-sources    → FundingSourceManagement    [auth, can, EnsureSchool]
 GET /incomes            → IncomeManagement           [auth, can, EnsureSchool]
 GET /budget-transfers   → BudgetTransferManagement   [auth, can, EnsureSchool]
 GET /expenses           → ExpenseManagement          [auth, can, EnsureSchool]
+
+// Etapas Contractuales
+GET /precontractual     → PrecontractualManagement   [auth, can, EnsureSchool]
+GET /contractual/{id?}  → ContractualManagement      [auth, can, EnsureSchool]
+GET /postcontractual/{id?} → PostcontractualManagement [auth, can, EnsureSchool]
+
+// Reportes
+GET /reports/payment-report    → PaymentReportManagement   [auth, can:reports.view, EnsureSchool]
+GET /reports/expense-execution → ExpenseExecutionReport     [auth, can:reports.view, EnsureSchool]
 ```
 
 ### Middleware Stack
@@ -727,7 +788,15 @@ GET /expenses           → ExpenseManagement          [auth, can, EnsureSchool]
 │   │   ├── Presupuestos
 │   │   ├── Fuentes de Financiación
 │   │   ├── Ingresos
-│   │   └── Traslados
+│   │   ├── Traslados
+│   │   ├── Gastos
+│   │   ├── Precontractual
+│   │   ├── Contractual
+│   │   └── Postcontractual
+│   ├── Documentos
+│   ├── Reportes (expandible)
+│   │   ├── Relación de Pagos
+│   │   └── Ejecución de Gastos
 │   └── Perfil de usuario
 └── Contenido principal (slot)
 ```

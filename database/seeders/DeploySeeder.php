@@ -61,6 +61,7 @@ class DeploySeeder extends Seeder
                 ContractualPermissionSeeder::class,
                 PostcontractualPermissionSeeder::class,
                 BankPermissionSeeder::class,
+                ReportPermissionSeeder::class,
             ],
             // 4. Datos contables y presupuestales
             '[4/6] 💰 Rubros, fuentes y cuentas contables...' => [

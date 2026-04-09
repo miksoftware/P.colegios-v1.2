@@ -88,6 +88,34 @@ Route::get('postcontractual/{contract_id?}', App\Livewire\PostcontractualManagem
     ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('postcontractual.index');
 
+Route::get('reports/payment-report', App\Livewire\PaymentReportManagement::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.payment');
+
+Route::get('reports/expense-execution', App\Livewire\ExpenseExecutionReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.expense-execution');
+
+Route::get('reports/income-execution', App\Livewire\IncomeExecutionReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.income-execution');
+
+Route::get('reports/pac-expense', App\Livewire\PacExpenseReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.pac-expense');
+
+Route::get('reports/pac-income', App\Livewire\PacIncomeReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.pac-income');
+
+Route::get('reports/sifse', App\Livewire\SifseReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.sifse');
+
+Route::get('reports/exogena', App\Livewire\ExogenaReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.exogena');
+
 Route::get('dashboard', App\Livewire\Dashboard::class)
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

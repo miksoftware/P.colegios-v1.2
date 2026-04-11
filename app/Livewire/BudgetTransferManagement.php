@@ -331,7 +331,7 @@ class BudgetTransferManagement extends Component
         // Validar saldo disponible en la distribución origen
         $availableBalance = $sourceDistribution->available_balance;
         if ($amount > $availableBalance) {
-            $this->addError('amount', 'El monto no puede ser mayor al saldo disponible ($' . number_format($availableBalance, 0, ',', '.') . ').');
+            $this->addError('amount', 'El monto no puede ser mayor al saldo disponible ($' . number_format($availableBalance, 2, ',', '.') . ').');
             return;
         }
 

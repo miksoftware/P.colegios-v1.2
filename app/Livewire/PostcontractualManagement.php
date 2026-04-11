@@ -844,7 +844,7 @@ class PostcontractualManagement extends Component
                 if ($selectedDist) {
                     $maxAmount = (float) $selectedDist['convocatoria_amount'];
                     if ((float) $this->payTotal > $maxAmount) {
-                        $this->dispatch('toast', message: "El total del pago (\$" . number_format($this->payTotal, 0, ',', '.') . ") excede lo asignado al código de gasto (\$" . number_format($maxAmount, 0, ',', '.') . ").", type: 'error');
+                        $this->dispatch('toast', message: "El total del pago (\$" . number_format($this->payTotal, 2, ',', '.') . ") excede lo asignado al código de gasto (\$" . number_format($maxAmount, 2, ',', '.') . ").", type: 'error');
                         return;
                     }
                 }
@@ -860,7 +860,7 @@ class PostcontractualManagement extends Component
                     $lineTotal = (float) ($line['subtotal'] ?? 0) + (float) ($line['iva'] ?? 0);
                     $maxAmount = (float) ($line['max_amount'] ?? 0);
                     if ($lineTotal > $maxAmount && $maxAmount > 0) {
-                        $this->dispatch('toast', message: "El monto de '{$line['expense_code_name']}' (\$" . number_format($lineTotal, 0, ',', '.') . ") excede lo asignado en la convocatoria (\$" . number_format($maxAmount, 0, ',', '.') . ").", type: 'error');
+                        $this->dispatch('toast', message: "El monto de '{$line['expense_code_name']}' (\$" . number_format($lineTotal, 2, ',', '.') . ") excede lo asignado en la convocatoria (\$" . number_format($maxAmount, 2, ',', '.') . ").", type: 'error');
                         return;
                     }
                 }
@@ -884,8 +884,8 @@ class PostcontractualManagement extends Component
         // Validar que no exceda el saldo pendiente
         $remaining = $this->contractData['remaining'] ?? 0;
         if ((float) $this->payTotal > $remaining) {
-            $formattedTotal = number_format($this->payTotal, 0, ',', '.');
-            $formattedRemaining = number_format($remaining, 0, ',', '.');
+            $formattedTotal = number_format($this->payTotal, 2, ',', '.');
+            $formattedRemaining = number_format($remaining, 2, ',', '.');
             $this->dispatch('toast', message: "El monto (\${$formattedTotal}) excede el saldo pendiente (\${$formattedRemaining}).", type: 'error');
             return;
         }

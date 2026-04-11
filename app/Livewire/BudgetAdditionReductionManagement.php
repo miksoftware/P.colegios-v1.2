@@ -281,7 +281,7 @@ class BudgetAdditionReductionManagement extends Component
         // Validaciones para reducción
         if ($this->operationType === 'reduction') {
             if ($amount > $incomeBudget->current_amount) {
-                $this->addError('amount', 'La reducción no puede ser mayor al saldo actual ($' . number_format($incomeBudget->current_amount, 0, ',', '.') . ').');
+                $this->addError('amount', 'La reducción no puede ser mayor al saldo actual ($' . number_format($incomeBudget->current_amount, 2, ',', '.') . ').');
                 return;
             }
 
@@ -289,7 +289,7 @@ class BudgetAdditionReductionManagement extends Component
             $totalDistributed = $expenseBudget->distributions()->sum('amount');
             $newExpenseAmount = $expenseBudget->current_amount - $amount;
             if ($newExpenseAmount < $totalDistributed) {
-                $this->addError('amount', 'La reducción dejaría el presupuesto de gasto ($' . number_format($newExpenseAmount, 0, ',', '.') . ') por debajo del total distribuido ($' . number_format($totalDistributed, 0, ',', '.') . ').');
+                $this->addError('amount', 'La reducción dejaría el presupuesto de gasto ($' . number_format($newExpenseAmount, 2, ',', '.') . ') por debajo del total distribuido ($' . number_format($totalDistributed, 2, ',', '.') . ').');
                 return;
             }
         }

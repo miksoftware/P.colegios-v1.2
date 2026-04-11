@@ -20,7 +20,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Total Ingresos</p>
-                        <p class="text-2xl font-bold text-green-600">${{ number_format($this->totals['total_income'], 0, ',', '.') }}</p>
+                        <p class="text-2xl font-bold text-green-600">${{ number_format($this->totals['total_income'], 2, ',', '.') }}</p>
                     </div>
                     <div class="p-3 bg-green-100 rounded-xl">
                         <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/></svg>
@@ -31,7 +31,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Total Gastos</p>
-                        <p class="text-2xl font-bold text-red-600">${{ number_format($this->totals['total_expense'], 0, ',', '.') }}</p>
+                        <p class="text-2xl font-bold text-red-600">${{ number_format($this->totals['total_expense'], 2, ',', '.') }}</p>
                     </div>
                     <div class="p-3 bg-red-100 rounded-xl">
                         <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"/></svg>
@@ -42,7 +42,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Balance</p>
-                        <p class="text-2xl font-bold {{ $this->totals['balance'] >= 0 ? 'text-blue-600' : 'text-orange-600' }}">${{ number_format($this->totals['balance'], 0, ',', '.') }}</p>
+                        <p class="text-2xl font-bold {{ $this->totals['balance'] >= 0 ? 'text-blue-600' : 'text-orange-600' }}">${{ number_format($this->totals['balance'], 2, ',', '.') }}</p>
                     </div>
                     <div class="p-3 {{ $this->totals['balance'] >= 0 ? 'bg-blue-100' : 'bg-orange-100' }} rounded-xl">
                         @if($this->totals['balance'] == 0)
@@ -128,7 +128,7 @@
                     <div class="flex items-center gap-4">
                         <div class="text-right">
                             <p class="text-xs text-gray-500">Monto Presupuestado</p>
-                            <p class="text-xl font-bold text-gray-900">${{ number_format($group['income']?->initial_amount ?? 0, 0, ',', '.') }}</p>
+                            <p class="text-xl font-bold text-gray-900">${{ number_format($group['income']?->initial_amount ?? 0, 2, ',', '.') }}</p>
                         </div>
                         <svg class="w-5 h-5 text-gray-400 transition-transform duration-200" 
                              :class="{ 'rotate-180': expanded }" 
@@ -163,12 +163,12 @@
                             <div class="space-y-3">
                                 <div class="flex justify-between items-center">
                                     <span class="text-sm text-gray-500">Inicial</span>
-                                    <span class="font-medium">${{ number_format($group['income']->initial_amount, 0, ',', '.') }}</span>
+                                    <span class="font-medium">${{ number_format($group['income']->initial_amount, 2, ',', '.') }}</span>
                                 </div>
                                 <div class="flex justify-between items-center">
                                     <span class="text-sm text-gray-500">Actual</span>
                                     <span class="font-bold text-lg {{ $group['income']->current_amount >= $group['income']->initial_amount ? 'text-green-600' : 'text-orange-600' }}">
-                                        ${{ number_format($group['income']->current_amount, 0, ',', '.') }}
+                                        ${{ number_format($group['income']->current_amount, 2, ',', '.') }}
                                     </span>
                                 </div>
                                 @if($group['income']->modifications->count() > 0)
@@ -217,12 +217,12 @@
                             <div class="space-y-3">
                                 <div class="flex justify-between items-center">
                                     <span class="text-sm text-gray-500">Inicial</span>
-                                    <span class="font-medium">${{ number_format($group['expense']->initial_amount, 0, ',', '.') }}</span>
+                                    <span class="font-medium">${{ number_format($group['expense']->initial_amount, 2, ',', '.') }}</span>
                                 </div>
                                 <div class="flex justify-between items-center">
                                     <span class="text-sm text-gray-500">Actual</span>
                                     <span class="font-bold text-lg {{ $group['expense']->current_amount >= $group['expense']->initial_amount ? 'text-green-600' : 'text-orange-600' }}">
-                                        ${{ number_format($group['expense']->current_amount, 0, ',', '.') }}
+                                        ${{ number_format($group['expense']->current_amount, 2, ',', '.') }}
                                     </span>
                                 </div>
                                 @if($group['expense']->modifications->count() > 0)

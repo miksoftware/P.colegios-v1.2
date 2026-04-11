@@ -20,7 +20,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-xs font-medium text-gray-500 uppercase">Presupuesto Inicial</p>
-                        <p class="text-xl font-bold text-gray-900 mt-1">${{ number_format($this->totals['total_initial'], 0, ',', '.') }}</p>
+                        <p class="text-xl font-bold text-gray-900 mt-1">${{ number_format($this->totals['total_initial'], 2, ',', '.') }}</p>
                     </div>
                     <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
                         <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -31,7 +31,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-xs font-medium text-gray-500 uppercase">Total Adiciones</p>
-                        <p class="text-xl font-bold text-green-600 mt-1">${{ number_format($this->totals['total_additions'], 0, ',', '.') }}</p>
+                        <p class="text-xl font-bold text-green-600 mt-1">${{ number_format($this->totals['total_additions'], 2, ',', '.') }}</p>
                     </div>
                     <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
                         <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
@@ -42,7 +42,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-xs font-medium text-gray-500 uppercase">Total Reducciones</p>
-                        <p class="text-xl font-bold text-orange-600 mt-1">${{ number_format($this->totals['total_reductions'], 0, ',', '.') }}</p>
+                        <p class="text-xl font-bold text-orange-600 mt-1">${{ number_format($this->totals['total_reductions'], 2, ',', '.') }}</p>
                     </div>
                     <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
                         <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
@@ -53,7 +53,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-xs font-medium text-gray-500 uppercase">Presupuesto Actual</p>
-                        <p class="text-xl font-bold text-gray-900 mt-1">${{ number_format($this->totals['total_current'], 0, ',', '.') }}</p>
+                        <p class="text-xl font-bold text-gray-900 mt-1">${{ number_format($this->totals['total_current'], 2, ',', '.') }}</p>
                     </div>
                     <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
                         <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
@@ -118,24 +118,24 @@
                                 <div class="text-xs text-gray-500">{{ $group['funding_source']->code ?? '' }}</div>
                             </td>
                             <td class="px-6 py-4 text-right text-sm text-gray-600">
-                                ${{ number_format($ref->initial_amount, 0, ',', '.') }}
+                                ${{ number_format($ref->initial_amount, 2, ',', '.') }}
                             </td>
                             <td class="px-6 py-4 text-right text-sm font-medium text-green-600">
                                 @if($ref->total_additions > 0)
-                                    +${{ number_format($ref->total_additions, 0, ',', '.') }}
+                                    +${{ number_format($ref->total_additions, 2, ',', '.') }}
                                 @else
                                     <span class="text-gray-400">$0</span>
                                 @endif
                             </td>
                             <td class="px-6 py-4 text-right text-sm font-medium text-orange-600">
                                 @if($ref->total_reductions > 0)
-                                    -${{ number_format($ref->total_reductions, 0, ',', '.') }}
+                                    -${{ number_format($ref->total_reductions, 2, ',', '.') }}
                                 @else
                                     <span class="text-gray-400">$0</span>
                                 @endif
                             </td>
                             <td class="px-6 py-4 text-right text-sm font-bold text-gray-900">
-                                ${{ number_format($ref->current_amount, 0, ',', '.') }}
+                                ${{ number_format($ref->current_amount, 2, ',', '.') }}
                             </td>
                             <td class="px-6 py-4 text-right">
                                 @if($incomeBudget && $expenseBudget)
@@ -204,7 +204,7 @@
                                 <div class="text-xs text-gray-500">{{ $mod->budget->fundingSource->name ?? '' }}</div>
                             </td>
                             <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-semibold {{ $mod->type === 'addition' ? 'text-green-600' : 'text-orange-600' }}">
-                                {{ $mod->type === 'addition' ? '+' : '-' }}${{ number_format($mod->amount, 0, ',', '.') }}
+                                {{ $mod->type === 'addition' ? '+' : '-' }}${{ number_format($mod->amount, 2, ',', '.') }}
                             </td>
                             <td class="px-6 py-3 text-sm text-gray-600 max-w-xs truncate" title="{{ $mod->reason }}">{{ \Illuminate\Support\Str::limit($mod->reason, 40) }}</td>
                             <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-600">{{ $mod->creator->name ?? 'N/A' }}</td>
@@ -255,7 +255,7 @@
                             </div>
                             <div>
                                 <span class="text-gray-500">Monto Inicial:</span>
-                                <span class="font-medium text-gray-900 ml-1">${{ number_format($selectedBudgetInfo['initial_amount'], 0, ',', '.') }}</span>
+                                <span class="font-medium text-gray-900 ml-1">${{ number_format($selectedBudgetInfo['initial_amount'], 2, ',', '.') }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Aplica a:</span>
@@ -267,7 +267,7 @@
                         </div>
                         <div class="mt-3 pt-3 border-t border-blue-200 flex items-center justify-between">
                             <span class="text-sm text-gray-600">Monto Actual:</span>
-                            <span class="text-lg font-bold text-blue-700">${{ number_format($selectedBudgetInfo['current_amount'], 0, ',', '.') }}</span>
+                            <span class="text-lg font-bold text-blue-700">${{ number_format($selectedBudgetInfo['current_amount'], 2, ',', '.') }}</span>
                         </div>
                     </div>
 
@@ -288,12 +288,12 @@
                                     @foreach($affectedDistributions as $dist)
                                     <div class="flex justify-between text-xs">
                                         <span class="text-gray-600">{{ $dist['expense_code_code'] }} - {{ $dist['expense_code'] }}</span>
-                                        <span class="font-medium text-gray-900">${{ number_format($dist['amount'], 0, ',', '.') }}</span>
+                                        <span class="font-medium text-gray-900">${{ number_format($dist['amount'], 2, ',', '.') }}</span>
                                     </div>
                                     @endforeach
                                     <div class="flex justify-between text-xs font-bold pt-1 border-t border-amber-200">
                                         <span class="text-amber-800">Total Distribuido</span>
-                                        <span class="text-amber-800">${{ number_format(collect($affectedDistributions)->sum('amount'), 0, ',', '.') }}</span>
+                                        <span class="text-amber-800">${{ number_format(collect($affectedDistributions)->sum('amount'), 2, ',', '.') }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -333,13 +333,13 @@
                         <div class="flex items-center justify-between text-sm">
                             <div>
                                 <span class="text-gray-600">Monto Actual:</span>
-                                <span class="font-medium ml-1">${{ number_format($selectedBudgetInfo['current_amount'], 0, ',', '.') }}</span>
+                                <span class="font-medium ml-1">${{ number_format($selectedBudgetInfo['current_amount'], 2, ',', '.') }}</span>
                             </div>
                             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                             <div>
                                 <span class="text-gray-600">Nuevo Monto:</span>
                                 <span class="font-bold ml-1 {{ $operationType === 'addition' ? 'text-green-700' : 'text-orange-700' }}">
-                                    ${{ number_format($operationType === 'addition' ? $selectedBudgetInfo['current_amount'] + (float)$amount : max(0, $selectedBudgetInfo['current_amount'] - (float)$amount), 0, ',', '.') }}
+                                    ${{ number_format($operationType === 'addition' ? $selectedBudgetInfo['current_amount'] + (float)$amount : max(0, $selectedBudgetInfo['current_amount'] - (float)$amount), 2, ',', '.') }}
                                 </span>
                             </div>
                         </div>
@@ -381,7 +381,7 @@
                     <div class="grid grid-cols-3 gap-4 mb-4">
                         <div class="text-center p-3 bg-blue-50 rounded-xl">
                             <p class="text-xs text-gray-500">Monto Inicial</p>
-                            <p class="text-sm font-bold text-blue-700">${{ number_format($historyIncomeBudget->initial_amount, 0, ',', '.') }}</p>
+                            <p class="text-sm font-bold text-blue-700">${{ number_format($historyIncomeBudget->initial_amount, 2, ',', '.') }}</p>
                         </div>
                         <div class="text-center p-3 bg-gray-50 rounded-xl">
                             <p class="text-xs text-gray-500">Fuente</p>
@@ -389,7 +389,7 @@
                         </div>
                         <div class="text-center p-3 bg-indigo-50 rounded-xl">
                             <p class="text-xs text-gray-500">Monto Actual</p>
-                            <p class="text-sm font-bold text-indigo-700">${{ number_format($historyIncomeBudget->current_amount, 0, ',', '.') }}</p>
+                            <p class="text-sm font-bold text-indigo-700">${{ number_format($historyIncomeBudget->current_amount, 2, ',', '.') }}</p>
                         </div>
                     </div>
 
@@ -404,13 +404,13 @@
                                     <span class="text-xs text-gray-500">#{{ $mod->formatted_number }}</span>
                                 </div>
                                 <span class="text-lg font-bold {{ $mod->type === 'addition' ? 'text-green-600' : 'text-orange-600' }}">
-                                    {{ $mod->type === 'addition' ? '+' : '-' }}${{ number_format($mod->amount, 0, ',', '.') }}
+                                    {{ $mod->type === 'addition' ? '+' : '-' }}${{ number_format($mod->amount, 2, ',', '.') }}
                                 </span>
                             </div>
                             <div class="flex gap-2 text-xs text-gray-500 mb-1">
-                                <span>${{ number_format($mod->previous_amount, 0, ',', '.') }}</span>
+                                <span>${{ number_format($mod->previous_amount, 2, ',', '.') }}</span>
                                 <span>→</span>
-                                <span class="font-medium">${{ number_format($mod->new_amount, 0, ',', '.') }}</span>
+                                <span class="font-medium">${{ number_format($mod->new_amount, 2, ',', '.') }}</span>
                             </div>
                             <p class="text-xs text-gray-600">{{ $mod->reason }}</p>
                             <div class="flex justify-between mt-2 text-xs text-gray-400">
@@ -537,11 +537,11 @@
                             </div>
                             <div>
                                 <span class="text-gray-500">Adición:</span>
-                                <span class="font-bold text-green-600 ml-1">+${{ number_format((float)$principalAmount, 0, ',', '.') }}</span>
+                                <span class="font-bold text-green-600 ml-1">+${{ number_format((float)$principalAmount, 2, ',', '.') }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Monto Final:</span>
-                                <span class="font-bold text-green-700 ml-1">${{ number_format((float)$principalAmount, 0, ',', '.') }}</span>
+                                <span class="font-bold text-green-700 ml-1">${{ number_format((float)$principalAmount, 2, ',', '.') }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Aplica a:</span>

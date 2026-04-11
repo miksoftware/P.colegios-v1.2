@@ -564,7 +564,7 @@ class IncomeManagement extends Component
         // Validar que la suma de líneas coincida con el monto total
         $linesTotal = collect($this->bankAccountLines)->sum(fn($l) => (float) ($l['amount'] ?? 0));
         if (abs($linesTotal - (float) $this->amount) > 0.01) {
-            $this->dispatch('toast', message: 'La suma de las líneas bancarias ($' . number_format($linesTotal, 0, ',', '.') . ') no coincide con el monto total ($' . number_format($this->amount, 0, ',', '.') . ').', type: 'error');
+            $this->dispatch('toast', message: 'La suma de las líneas bancarias ($' . number_format($linesTotal, 2, ',', '.') . ') no coincide con el monto total ($' . number_format($this->amount, 2, ',', '.') . ').', type: 'error');
             return;
         }
 
@@ -703,7 +703,7 @@ class IncomeManagement extends Component
             DB::commit();
 
             $this->dispatch('toast', 
-                message: "Adición de $" . number_format($additionAmount, 0, ',', '.') . " aplicada exitosamente.", 
+                message: "Adición de $" . number_format($additionAmount, 2, ',', '.') . " aplicada exitosamente.", 
                 type: 'success'
             );
 
@@ -821,8 +821,8 @@ class IncomeManagement extends Component
                 'previous_amount' => $previousAmount,
                 'new_amount' => $newAmount,
                 'reason' => "Ajuste por cierre de recaudo. El ingreso real fue menor al presupuestado. " .
-                           "Presupuestado: $" . number_format($previousAmount, 0, ',', '.') . " - " .
-                           "Recaudado: $" . number_format($this->budgetToComplete['collected'], 0, ',', '.'),
+                           "Presupuestado: $" . number_format($previousAmount, 2, ',', '.') . " - " .
+                           "Recaudado: $" . number_format($this->budgetToComplete['collected'], 2, ',', '.'),
                 'document_number' => null,
                 'document_date' => now(),
                 'created_by' => auth()->id(),
@@ -833,7 +833,7 @@ class IncomeManagement extends Component
             DB::commit();
 
             $this->dispatch('toast', 
-                message: "Presupuesto cerrado. Se aplicó una reducción de $" . number_format($pendingAmount, 0, ',', '.'), 
+                message: "Presupuesto cerrado. Se aplicó una reducción de $" . number_format($pendingAmount, 2, ',', '.'), 
                 type: 'success'
             );
 

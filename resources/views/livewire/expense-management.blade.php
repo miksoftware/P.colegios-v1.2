@@ -14,7 +14,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Presupuestado</p>
-                        <p class="text-2xl font-bold text-gray-900">${{ number_format($this->summary['budgeted'], 0, ',', '.') }}</p>
+                        <p class="text-2xl font-bold text-gray-900">${{ number_format($this->summary['budgeted'], 2, ',', '.') }}</p>
                     </div>
                     <div class="p-3 bg-blue-100 rounded-xl">
                         <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -25,7 +25,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Distribuido</p>
-                        <p class="text-2xl font-bold text-purple-600">${{ number_format($this->summary['distributed'], 0, ',', '.') }}</p>
+                        <p class="text-2xl font-bold text-purple-600">${{ number_format($this->summary['distributed'], 2, ',', '.') }}</p>
                         <p class="text-xs text-gray-400 mt-1">{{ $this->summary['distribution_percentage'] }}% del presupuesto</p>
                     </div>
                     <div class="p-3 bg-purple-100 rounded-xl">
@@ -37,7 +37,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Ejecutado (Pagado)</p>
-                        <p class="text-2xl font-bold text-emerald-600">${{ number_format($this->summary['paid'], 0, ',', '.') }}</p>
+                        <p class="text-2xl font-bold text-emerald-600">${{ number_format($this->summary['paid'], 2, ',', '.') }}</p>
                     </div>
                     <div class="p-3 bg-emerald-100 rounded-xl">
                         <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -48,7 +48,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-500">Sin Distribuir</p>
-                        <p class="text-2xl font-bold text-orange-600">${{ number_format($this->summary['available'], 0, ',', '.') }}</p>
+                        <p class="text-2xl font-bold text-orange-600">${{ number_format($this->summary['available'], 2, ',', '.') }}</p>
                     </div>
                     <div class="p-3 bg-orange-100 rounded-xl">
                         <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -121,13 +121,13 @@
                                 <td class="px-6 py-4 text-right" x-data="{ open: false }">
                                     <div class="relative">
                                         <button type="button" @click="open = !open" class="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer inline-flex items-center gap-1">
-                                            ${{ number_format($budget->current_amount, 0, ',', '.') }}
+                                            ${{ number_format($budget->current_amount, 2, ',', '.') }}
                                             @if($budget->current_amount != $budget->initial_amount)
                                                 <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                             @endif
                                         </button>
                                         @if($budget->initial_amount != $budget->current_amount)
-                                            <div class="text-[10px] text-gray-400">Inicial: ${{ number_format($budget->initial_amount, 0, ',', '.') }}</div>
+                                            <div class="text-[10px] text-gray-400">Inicial: ${{ number_format($budget->initial_amount, 2, ',', '.') }}</div>
                                         @endif
                                         {{-- Popover de desglose --}}
                                         <div x-show="open" @click.away="open = false" x-transition
@@ -136,7 +136,7 @@
                                             <div class="space-y-1.5 text-xs">
                                                 <div class="flex justify-between">
                                                     <span class="text-gray-600">Monto Inicial</span>
-                                                    <span class="font-medium">${{ number_format($budget->initial_amount, 0, ',', '.') }}</span>
+                                                    <span class="font-medium">${{ number_format($budget->initial_amount, 2, ',', '.') }}</span>
                                                 </div>
                                                 @php
                                                     $additions = $budget->modifications->where('type', 'addition');
@@ -149,63 +149,63 @@
                                                 @if($totalAdditions > 0)
                                                     <div class="flex justify-between text-green-700">
                                                         <span>+ Adiciones ({{ $additions->count() }})</span>
-                                                        <span class="font-medium">+ ${{ number_format($totalAdditions, 0, ',', '.') }}</span>
+                                                        <span class="font-medium">+ ${{ number_format($totalAdditions, 2, ',', '.') }}</span>
                                                     </div>
                                                     @foreach($additions as $mod)
                                                         <div class="flex justify-between pl-3 text-green-600/80">
                                                             <span class="truncate mr-2">{{ Str::limit($mod->reason, 35) }}</span>
-                                                            <span>+ ${{ number_format($mod->amount, 0, ',', '.') }}</span>
+                                                            <span>+ ${{ number_format($mod->amount, 2, ',', '.') }}</span>
                                                         </div>
                                                     @endforeach
                                                 @endif
                                                 @if($totalReductions > 0)
                                                     <div class="flex justify-between text-red-700">
                                                         <span>- Reducciones ({{ $reductions->count() }})</span>
-                                                        <span class="font-medium">- ${{ number_format($totalReductions, 0, ',', '.') }}</span>
+                                                        <span class="font-medium">- ${{ number_format($totalReductions, 2, ',', '.') }}</span>
                                                     </div>
                                                     @foreach($reductions as $mod)
                                                         <div class="flex justify-between pl-3 text-red-600/80">
                                                             <span class="truncate mr-2">{{ Str::limit($mod->reason, 35) }}</span>
-                                                            <span>- ${{ number_format($mod->amount, 0, ',', '.') }}</span>
+                                                            <span>- ${{ number_format($mod->amount, 2, ',', '.') }}</span>
                                                         </div>
                                                     @endforeach
                                                 @endif
                                                 @if($totalCreditos > 0)
                                                     <div class="flex justify-between text-blue-700">
                                                         <span>+ Créditos ({{ $budget->incomingTransfers->count() }})</span>
-                                                        <span class="font-medium">+ ${{ number_format($totalCreditos, 0, ',', '.') }}</span>
+                                                        <span class="font-medium">+ ${{ number_format($totalCreditos, 2, ',', '.') }}</span>
                                                     </div>
                                                     @foreach($budget->incomingTransfers as $tr)
                                                         <div class="flex justify-between pl-3 text-blue-600/80">
                                                             <span class="truncate mr-2">Desde: {{ $tr->sourceBudget?->budgetItem?->name ?? '?' }} / {{ $tr->sourceBudget?->fundingSource?->name ?? '?' }}</span>
-                                                            <span>+ ${{ number_format($tr->amount, 0, ',', '.') }}</span>
+                                                            <span>+ ${{ number_format($tr->amount, 2, ',', '.') }}</span>
                                                         </div>
                                                     @endforeach
                                                 @endif
                                                 @if($totalContracreditos > 0)
                                                     <div class="flex justify-between text-orange-700">
                                                         <span>- Contracréditos ({{ $budget->outgoingTransfers->count() }})</span>
-                                                        <span class="font-medium">- ${{ number_format($totalContracreditos, 0, ',', '.') }}</span>
+                                                        <span class="font-medium">- ${{ number_format($totalContracreditos, 2, ',', '.') }}</span>
                                                     </div>
                                                     @foreach($budget->outgoingTransfers as $tr)
                                                         <div class="flex justify-between pl-3 text-orange-600/80">
                                                             <span class="truncate mr-2">Hacia: {{ $tr->destinationBudget?->budgetItem?->name ?? '?' }} / {{ $tr->destinationBudget?->fundingSource?->name ?? '?' }}</span>
-                                                            <span>- ${{ number_format($tr->amount, 0, ',', '.') }}</span>
+                                                            <span>- ${{ number_format($tr->amount, 2, ',', '.') }}</span>
                                                         </div>
                                                     @endforeach
                                                 @endif
                                                 <div class="flex justify-between pt-1.5 border-t font-semibold text-gray-900">
                                                     <span>Monto Actual</span>
-                                                    <span>${{ number_format($budget->current_amount, 0, ',', '.') }}</span>
+                                                    <span>${{ number_format($budget->current_amount, 2, ',', '.') }}</span>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-right">
-                                    <span class="font-medium text-purple-600">${{ number_format($distributed, 0, ',', '.') }}</span>
+                                    <span class="font-medium text-purple-600">${{ number_format($distributed, 2, ',', '.') }}</span>
                                     @if($availableToDistribute > 0)
-                                        <div class="text-xs text-gray-400">Disponible: ${{ number_format($availableToDistribute, 0, ',', '.') }}</div>
+                                        <div class="text-xs text-gray-400">Disponible: ${{ number_format($availableToDistribute, 2, ',', '.') }}</div>
                                     @endif
                                 </td>
                                 <td class="px-6 py-4">
@@ -250,18 +250,18 @@
                                         </div>
                                     </td>
                                     <td class="px-6 py-3 text-right text-sm text-gray-600">
-                                        ${{ number_format($distribution->amount, 0, ',', '.') }}
+                                        ${{ number_format($distribution->amount, 2, ',', '.') }}
                                     </td>
                                     <td class="px-6 py-3 text-right text-sm" x-data="{ showDetail: false }">
                                         <div class="relative">
                                             @if($distPaid > 0 || $distCommitted > 0)
                                                 <button type="button" @click="showDetail = !showDetail" class="text-right hover:opacity-80 cursor-pointer">
                                                     @if($distPaid > 0)
-                                                        <span class="text-emerald-600 font-medium">${{ number_format($distPaid, 0, ',', '.') }}</span>
+                                                        <span class="text-emerald-600 font-medium">${{ number_format($distPaid, 2, ',', '.') }}</span>
                                                         <div class="text-[10px] text-gray-400">Pagado</div>
                                                     @endif
                                                     @if($distCommitted > 0 && $distCommitted > $distPaid)
-                                                        <span class="text-amber-600 {{ $distPaid > 0 ? 'text-xs' : '' }}">${{ number_format($distCommitted - $distPaid, 0, ',', '.') }}</span>
+                                                        <span class="text-amber-600 {{ $distPaid > 0 ? 'text-xs' : '' }}">${{ number_format($distCommitted - $distPaid, 2, ',', '.') }}</span>
                                                         <div class="text-[10px] text-gray-400">Comprometido</div>
                                                     @endif
                                                 </button>
@@ -289,7 +289,7 @@
                                                                         <span class="font-semibold text-indigo-600">Conv. #{{ $conv->formatted_number }}</span>
                                                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium {{ $conv->status_color }} ml-1">{{ $conv->status_name }}</span>
                                                                     </div>
-                                                                    <span class="font-medium text-amber-700">${{ number_format($cd->amount, 0, ',', '.') }}</span>
+                                                                    <span class="font-medium text-amber-700">${{ number_format($cd->amount, 2, ',', '.') }}</span>
                                                                 </div>
                                                                 <div class="text-[10px] text-gray-500 mt-0.5 truncate">{{ Str::limit($conv->object, 60) }}</div>
                                                                 @if($contract)
@@ -300,7 +300,7 @@
                                                                         </div>
                                                                         <div class="text-[10px] text-gray-500">{{ $contract->supplier?->full_name ?? '' }}</div>
                                                                         @if($paidForConv > 0)
-                                                                            <div class="text-[10px] text-emerald-600 font-medium mt-0.5">Pagado: ${{ number_format($paidForConv, 0, ',', '.') }}</div>
+                                                                            <div class="text-[10px] text-emerald-600 font-medium mt-0.5">Pagado: ${{ number_format($paidForConv, 2, ',', '.') }}</div>
                                                                         @endif
                                                                     </div>
                                                                 @else
@@ -314,17 +314,17 @@
                                                         <div class="border-t pt-2 mt-2 space-y-1">
                                                             <div class="flex justify-between font-medium">
                                                                 <span class="text-gray-600">Total comprometido</span>
-                                                                <span class="text-amber-700">${{ number_format($distCommitted, 0, ',', '.') }}</span>
+                                                                <span class="text-amber-700">${{ number_format($distCommitted, 2, ',', '.') }}</span>
                                                             </div>
                                                             @if($distPaid > 0)
                                                                 <div class="flex justify-between font-medium">
                                                                     <span class="text-gray-600">Total pagado</span>
-                                                                    <span class="text-emerald-700">${{ number_format($distPaid, 0, ',', '.') }}</span>
+                                                                    <span class="text-emerald-700">${{ number_format($distPaid, 2, ',', '.') }}</span>
                                                                 </div>
                                                             @endif
                                                             <div class="flex justify-between font-medium">
                                                                 <span class="text-gray-600">Disponible</span>
-                                                                <span class="{{ $distAvailable > 0 ? 'text-green-700' : 'text-gray-400' }}">${{ number_format($distAvailable, 0, ',', '.') }}</span>
+                                                                <span class="{{ $distAvailable > 0 ? 'text-green-700' : 'text-gray-400' }}">${{ number_format($distAvailable, 2, ',', '.') }}</span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -336,7 +336,7 @@
                                     </td>
                                     <td class="px-6 py-3 text-sm text-center">
                                         @if($distAvailable > 0)
-                                            <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">${{ number_format($distAvailable, 0, ',', '.') }} disp.</span>
+                                            <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">${{ number_format($distAvailable, 2, ',', '.') }} disp.</span>
                                         @elseif($distAvailable <= 0 && $distribution->amount > 0)
                                             <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Agotado</span>
                                         @else
@@ -394,15 +394,15 @@
                         <div class="bg-gray-50 rounded-xl p-4 grid grid-cols-2 gap-4 text-sm">
                             <div>
                                 <span class="text-gray-500">Presupuestado:</span>
-                                <span class="font-semibold text-gray-900 ml-2">${{ number_format($selectedBudget->current_amount, 0, ',', '.') }}</span>
+                                <span class="font-semibold text-gray-900 ml-2">${{ number_format($selectedBudget->current_amount, 2, ',', '.') }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Ya distribuido:</span>
-                                <span class="font-semibold text-purple-600 ml-2">${{ number_format($selectedBudget->distributions->sum('amount'), 0, ',', '.') }}</span>
+                                <span class="font-semibold text-purple-600 ml-2">${{ number_format($selectedBudget->distributions->sum('amount'), 2, ',', '.') }}</span>
                             </div>
                             <div class="col-span-2">
                                 <span class="text-gray-500">Disponible para distribuir:</span>
-                                <span class="font-bold text-green-600 ml-2">${{ number_format($selectedBudget->current_amount - $selectedBudget->distributions->sum('amount'), 0, ',', '.') }}</span>
+                                <span class="font-bold text-green-600 ml-2">${{ number_format($selectedBudget->current_amount - $selectedBudget->distributions->sum('amount'), 2, ',', '.') }}</span>
                             </div>
                         </div>
 
@@ -475,18 +475,18 @@
                     <div class="grid grid-cols-3 gap-4 mb-6">
                         <div class="bg-blue-50 rounded-xl p-4 text-center">
                             <p class="text-xs text-blue-600 uppercase">Presupuestado</p>
-                            <p class="text-xl font-bold text-blue-700">${{ number_format($detailBudget->current_amount, 0, ',', '.') }}</p>
+                            <p class="text-xl font-bold text-blue-700">${{ number_format($detailBudget->current_amount, 2, ',', '.') }}</p>
                             @if($hasMovements)
-                                <p class="text-[10px] text-blue-500 mt-0.5">Inicial: ${{ number_format($detailBudget->initial_amount, 0, ',', '.') }}</p>
+                                <p class="text-[10px] text-blue-500 mt-0.5">Inicial: ${{ number_format($detailBudget->initial_amount, 2, ',', '.') }}</p>
                             @endif
                         </div>
                         <div class="bg-purple-50 rounded-xl p-4 text-center">
                             <p class="text-xs text-purple-600 uppercase">Distribuido</p>
-                            <p class="text-xl font-bold text-purple-700">${{ number_format($totalDist, 0, ',', '.') }}</p>
+                            <p class="text-xl font-bold text-purple-700">${{ number_format($totalDist, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-orange-50 rounded-xl p-4 text-center">
                             <p class="text-xs text-orange-600 uppercase">Sin Distribuir</p>
-                            <p class="text-xl font-bold text-orange-700">${{ number_format($detailBudget->current_amount - $totalDist, 0, ',', '.') }}</p>
+                            <p class="text-xl font-bold text-orange-700">${{ number_format($detailBudget->current_amount - $totalDist, 2, ',', '.') }}</p>
                         </div>
                     </div>
 
@@ -497,18 +497,18 @@
                             <div class="space-y-2 text-sm">
                                 <div class="flex justify-between">
                                     <span class="text-gray-600">Monto Inicial</span>
-                                    <span class="font-medium">${{ number_format($detailBudget->initial_amount, 0, ',', '.') }}</span>
+                                    <span class="font-medium">${{ number_format($detailBudget->initial_amount, 2, ',', '.') }}</span>
                                 </div>
                                 @if($dTotalAdditions > 0)
                                     <div class="border-t pt-2">
                                         <div class="flex justify-between text-green-700 font-medium">
                                             <span>Adiciones</span>
-                                            <span>+ ${{ number_format($dTotalAdditions, 0, ',', '.') }}</span>
+                                            <span>+ ${{ number_format($dTotalAdditions, 2, ',', '.') }}</span>
                                         </div>
                                         @foreach($dAdditions as $mod)
                                             <div class="flex justify-between pl-4 text-xs text-green-600 mt-1">
                                                 <span>{{ $mod->reason }} <span class="text-gray-400">({{ $mod->document_date?->format('d/m/Y') ?? $mod->created_at->format('d/m/Y') }})</span></span>
-                                                <span>+ ${{ number_format($mod->amount, 0, ',', '.') }}</span>
+                                                <span>+ ${{ number_format($mod->amount, 2, ',', '.') }}</span>
                                             </div>
                                         @endforeach
                                     </div>
@@ -517,12 +517,12 @@
                                     <div class="border-t pt-2">
                                         <div class="flex justify-between text-red-700 font-medium">
                                             <span>Reducciones</span>
-                                            <span>- ${{ number_format($dTotalReductions, 0, ',', '.') }}</span>
+                                            <span>- ${{ number_format($dTotalReductions, 2, ',', '.') }}</span>
                                         </div>
                                         @foreach($dReductions as $mod)
                                             <div class="flex justify-between pl-4 text-xs text-red-600 mt-1">
                                                 <span>{{ $mod->reason }} <span class="text-gray-400">({{ $mod->document_date?->format('d/m/Y') ?? $mod->created_at->format('d/m/Y') }})</span></span>
-                                                <span>- ${{ number_format($mod->amount, 0, ',', '.') }}</span>
+                                                <span>- ${{ number_format($mod->amount, 2, ',', '.') }}</span>
                                             </div>
                                         @endforeach
                                     </div>
@@ -531,12 +531,12 @@
                                     <div class="border-t pt-2">
                                         <div class="flex justify-between text-blue-700 font-medium">
                                             <span>Créditos (traslados entrantes)</span>
-                                            <span>+ ${{ number_format($dTotalCreditos, 0, ',', '.') }}</span>
+                                            <span>+ ${{ number_format($dTotalCreditos, 2, ',', '.') }}</span>
                                         </div>
                                         @foreach($detailBudget->incomingTransfers as $tr)
                                             <div class="flex justify-between pl-4 text-xs text-blue-600 mt-1">
                                                 <span>Desde: {{ $tr->sourceBudget?->budgetItem?->name }} / {{ $tr->sourceBudget?->fundingSource?->name }} <span class="text-gray-400">({{ $tr->document_date?->format('d/m/Y') ?? $tr->created_at->format('d/m/Y') }})</span></span>
-                                                <span>+ ${{ number_format($tr->amount, 0, ',', '.') }}</span>
+                                                <span>+ ${{ number_format($tr->amount, 2, ',', '.') }}</span>
                                             </div>
                                         @endforeach
                                     </div>
@@ -545,19 +545,19 @@
                                     <div class="border-t pt-2">
                                         <div class="flex justify-between text-orange-700 font-medium">
                                             <span>Contracréditos (traslados salientes)</span>
-                                            <span>- ${{ number_format($dTotalContracreditos, 0, ',', '.') }}</span>
+                                            <span>- ${{ number_format($dTotalContracreditos, 2, ',', '.') }}</span>
                                         </div>
                                         @foreach($detailBudget->outgoingTransfers as $tr)
                                             <div class="flex justify-between pl-4 text-xs text-orange-600 mt-1">
                                                 <span>Hacia: {{ $tr->destinationBudget?->budgetItem?->name }} / {{ $tr->destinationBudget?->fundingSource?->name }} <span class="text-gray-400">({{ $tr->document_date?->format('d/m/Y') ?? $tr->created_at->format('d/m/Y') }})</span></span>
-                                                <span>- ${{ number_format($tr->amount, 0, ',', '.') }}</span>
+                                                <span>- ${{ number_format($tr->amount, 2, ',', '.') }}</span>
                                             </div>
                                         @endforeach
                                     </div>
                                 @endif
                                 <div class="flex justify-between pt-2 border-t font-bold text-gray-900">
                                     <span>Monto Actual</span>
-                                    <span>${{ number_format($detailBudget->current_amount, 0, ',', '.') }}</span>
+                                    <span>${{ number_format($detailBudget->current_amount, 2, ',', '.') }}</span>
                                 </div>
                             </div>
                         </div>
@@ -578,25 +578,25 @@
                                     <span class="text-gray-700 ml-2">{{ Str::limit($dist->expenseCode?->name, 60) }}</span>
                                 </div>
                                 <div class="text-right">
-                                    <span class="font-semibold">${{ number_format($dist->amount, 0, ',', '.') }}</span>
+                                    <span class="font-semibold">${{ number_format($dist->amount, 2, ',', '.') }}</span>
                                 </div>
                             </div>
                             <div class="px-4 py-3 grid grid-cols-4 gap-3 text-center text-sm">
                                 <div>
                                     <p class="text-xs text-amber-600">Comprometido</p>
-                                    <p class="font-semibold text-amber-700">${{ number_format($dCommitted, 0, ',', '.') }}</p>
+                                    <p class="font-semibold text-amber-700">${{ number_format($dCommitted, 2, ',', '.') }}</p>
                                 </div>
                                 <div>
                                     <p class="text-xs text-emerald-600">Pagado</p>
-                                    <p class="font-semibold text-emerald-700">${{ number_format($dPaid, 0, ',', '.') }}</p>
+                                    <p class="font-semibold text-emerald-700">${{ number_format($dPaid, 2, ',', '.') }}</p>
                                 </div>
                                 <div>
                                     <p class="text-xs text-red-600">Bloqueado</p>
-                                    <p class="font-semibold text-red-700">${{ number_format($dLocked, 0, ',', '.') }}</p>
+                                    <p class="font-semibold text-red-700">${{ number_format($dLocked, 2, ',', '.') }}</p>
                                 </div>
                                 <div>
                                     <p class="text-xs text-blue-600">Disponible</p>
-                                    <p class="font-semibold {{ $dAvailable > 0 ? 'text-blue-700' : 'text-gray-400' }}">${{ number_format($dAvailable, 0, ',', '.') }}</p>
+                                    <p class="font-semibold {{ $dAvailable > 0 ? 'text-blue-700' : 'text-gray-400' }}">${{ number_format($dAvailable, 2, ',', '.') }}</p>
                                 </div>
                             </div>
                             {{-- Detalle de convocatorias/contratos --}}
@@ -630,11 +630,11 @@
                                                             <span class="text-[10px] text-gray-500">{{ $contract->supplier?->full_name ?? '' }}</span>
                                                         </div>
                                                         @if($paidForConv > 0)
-                                                            <div class="text-[10px] text-emerald-600 font-medium">Pagado: ${{ number_format($paidForConv, 0, ',', '.') }}</div>
+                                                            <div class="text-[10px] text-emerald-600 font-medium">Pagado: ${{ number_format($paidForConv, 2, ',', '.') }}</div>
                                                         @endif
                                                     @endif
                                                 </div>
-                                                <span class="font-semibold text-amber-700 ml-2 whitespace-nowrap">${{ number_format($cd->amount, 0, ',', '.') }}</span>
+                                                <span class="font-semibold text-amber-700 ml-2 whitespace-nowrap">${{ number_format($cd->amount, 2, ',', '.') }}</span>
                                             </div>
                                         @endforeach
                                     </div>

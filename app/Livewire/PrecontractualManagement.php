@@ -359,7 +359,7 @@ class PrecontractualManagement extends Component
 
             $dist = collect($this->distributions)->firstWhere('id', (int) $distId);
             if ($dist && $amount > $dist['available']) {
-                $this->dispatch('toast', message: 'El monto para "' . $dist['budget_item'] . '" excede el disponible ($' . number_format($dist['available'], 0, ',', '.') . ').', type: 'error');
+                $this->dispatch('toast', message: 'El monto para "' . $dist['budget_item'] . '" excede el disponible ($' . number_format($dist['available'], 2, ',', '.') . ').', type: 'error');
                 return;
             }
         }

@@ -104,7 +104,7 @@
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 text-right">
-                                        <span class="font-semibold">${{ number_format($conv->assigned_budget, 0, ',', '.') }}</span>
+                                        <span class="font-semibold">${{ number_format($conv->assigned_budget, 2, ',', '.') }}</span>
                                     </td>
                                     <td class="px-6 py-4 text-center">
                                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
@@ -195,7 +195,7 @@
                                                 <span class="text-gray-700">{{ $dd->expenseDistribution?->expenseCode?->code }} - {{ $dd->expenseDistribution?->expenseCode?->name }}</span>
                                                 <span class="text-xs text-gray-400 ml-1">({{ $dd->expenseDistribution?->budget?->budgetItem?->name }})</span>
                                             </div>
-                                            <span class="font-semibold text-blue-700">${{ number_format($dd->amount, 0, ',', '.') }}</span>
+                                            <span class="font-semibold text-blue-700">${{ number_format($dd->amount, 2, ',', '.') }}</span>
                                         </div>
                                     @endforeach
                                 </div>
@@ -208,7 +208,7 @@
                         </div>
                         <div class="text-right">
                             <p class="text-sm text-gray-500">Presupuesto asignado</p>
-                            <p class="text-3xl font-bold text-indigo-600">${{ number_format($convocatoria->assigned_budget, 0, ',', '.') }}</p>
+                            <p class="text-3xl font-bold text-indigo-600">${{ number_format($convocatoria->assigned_budget, 2, ',', '.') }}</p>
                             
                             {{-- Botones de acción según estado --}}
                             <div class="mt-4 flex flex-wrap gap-2 justify-end">
@@ -277,7 +277,7 @@
                                                 </span>
                                             </div>
                                             <div class="flex items-center gap-3">
-                                                <span class="font-semibold text-gray-900">${{ number_format($cdp->total_amount, 0, ',', '.') }}</span>
+                                                <span class="font-semibold text-gray-900">${{ number_format($cdp->total_amount, 2, ',', '.') }}</span>
                                                 @if($cdp->status === 'active' && $convocatoria->status === 'draft')
                                                     @can('precontractual.edit')
                                                         <button wire:click="cancelCdp({{ $cdp->id }})" wire:confirm="¿Está seguro de anular este CDP?" class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Anular CDP">
@@ -294,8 +294,8 @@
                                                     <div class="py-2 flex justify-between items-center text-sm">
                                                         <span class="text-gray-600">{{ $cdpFs->fundingSource?->code }} - {{ $cdpFs->fundingSource?->name }}</span>
                                                         <div class="text-right">
-                                                            <span class="font-medium">${{ number_format($cdpFs->amount, 0, ',', '.') }}</span>
-                                                            <span class="text-xs text-gray-400 ml-2">(Saldo al crear: ${{ number_format($cdpFs->available_balance_at_creation, 0, ',', '.') }})</span>
+                                                            <span class="font-medium">${{ number_format($cdpFs->amount, 2, ',', '.') }}</span>
+                                                            <span class="text-xs text-gray-400 ml-2">(Saldo al crear: ${{ number_format($cdpFs->available_balance_at_creation, 2, ',', '.') }})</span>
                                                         </div>
                                                     </div>
                                                 @endforeach
@@ -318,13 +318,13 @@
                                         @foreach($cdpsByItem as $itemId => $cdpsGroup)
                                             <div class="flex justify-between text-sm">
                                                 <span class="text-gray-600">{{ $cdpsGroup->first()->budgetItem?->code }} - {{ $cdpsGroup->first()->budgetItem?->name }}</span>
-                                                <span class="font-medium">${{ number_format($cdpsGroup->sum('total_amount'), 0, ',', '.') }}</span>
+                                                <span class="font-medium">${{ number_format($cdpsGroup->sum('total_amount'), 2, ',', '.') }}</span>
                                             </div>
                                         @endforeach
                                     </div>
                                     <div class="mt-2 pt-2 border-t flex justify-between items-center">
                                         <span class="font-medium text-gray-700">Total CDPs activos</span>
-                                        <span class="text-xl font-bold text-blue-600">${{ number_format($totalCdps, 0, ',', '.') }}</span>
+                                        <span class="text-xl font-bold text-blue-600">${{ number_format($totalCdps, 2, ',', '.') }}</span>
                                     </div>
                                 </div>
                             @endif
@@ -389,9 +389,9 @@
                                                     <div class="font-medium text-gray-900">{{ $proposal->supplier?->full_name }}</div>
                                                     <div class="text-xs text-gray-500">{{ $proposal->supplier?->full_document }}</div>
                                                 </td>
-                                                <td class="px-4 py-3 text-right text-sm">${{ number_format($proposal->subtotal, 0, ',', '.') }}</td>
-                                                <td class="px-4 py-3 text-right text-sm">${{ number_format($proposal->iva, 0, ',', '.') }}</td>
-                                                <td class="px-4 py-3 text-right font-semibold">${{ number_format($proposal->total, 0, ',', '.') }}</td>
+                                                <td class="px-4 py-3 text-right text-sm">${{ number_format($proposal->subtotal, 2, ',', '.') }}</td>
+                                                <td class="px-4 py-3 text-right text-sm">${{ number_format($proposal->iva, 2, ',', '.') }}</td>
+                                                <td class="px-4 py-3 text-right font-semibold">${{ number_format($proposal->total, 2, ',', '.') }}</td>
                                                 <td class="px-4 py-3 text-center">
                                                     @if($proposal->score !== null)
                                                         <span class="font-bold {{ $proposal->score >= 70 ? 'text-green-600' : ($proposal->score >= 50 ? 'text-yellow-600' : 'text-red-600') }}">
@@ -514,7 +514,7 @@
                                                 @endif
                                             </span>
                                             <span class="flex-1 text-sm font-medium text-gray-900">{{ $group['expense_code'] }}</span>
-                                            <span class="text-xs text-gray-500">Disp: <span class="font-bold text-blue-700">${{ number_format($group['total_available'], 0, ',', '.') }}</span></span>
+                                            <span class="text-xs text-gray-500">Disp: <span class="font-bold text-blue-700">${{ number_format($group['total_available'], 2, ',', '.') }}</span></span>
                                         </button>
                                     @endforeach
                                 </div>
@@ -550,7 +550,7 @@
                                                     </div>
                                                     <div class="text-right shrink-0">
                                                         <p class="text-xs text-gray-400">Disponible</p>
-                                                        <p class="text-sm font-bold text-blue-700">${{ number_format($dist['available'], 0, ',', '.') }}</p>
+                                                        <p class="text-sm font-bold text-blue-700">${{ number_format($dist['available'], 2, ',', '.') }}</p>
                                                     </div>
                                                 </div>
                                                 @if($isSelected)
@@ -673,7 +673,7 @@
                                             <div class="flex justify-between text-xs">
                                                 <span class="text-gray-700 truncate mr-2">{{ $info['name'] }}</span>
                                                 <span class="whitespace-nowrap {{ $complete ? 'text-green-600 font-semibold' : 'text-orange-600 font-semibold' }}">
-                                                    ${{ number_format($cdpAmount, 0, ',', '.') }} / ${{ number_format($info['amount'], 0, ',', '.') }}
+                                                    ${{ number_format($cdpAmount, 2, ',', '.') }} / ${{ number_format($info['amount'], 2, ',', '.') }}
                                                     @if($complete) ✓ @endif
                                                 </span>
                                             </div>
@@ -681,7 +681,7 @@
                                     </div>
                                     <div class="mt-2 pt-2 border-t border-indigo-200 flex justify-between text-sm font-semibold">
                                         <span class="text-indigo-800">Total</span>
-                                        <span class="text-indigo-800">${{ number_format($activeCdps->sum('total_amount'), 0, ',', '.') }} / ${{ number_format($convocatoria->assigned_budget, 0, ',', '.') }}</span>
+                                        <span class="text-indigo-800">${{ number_format($activeCdps->sum('total_amount'), 2, ',', '.') }} / ${{ number_format($convocatoria->assigned_budget, 2, ',', '.') }}</span>
                                     </div>
                                 </div>
                             @endif
@@ -709,11 +709,11 @@
                                                 <div>
                                                     <span class="text-sm font-medium">{{ $afs['name'] }}</span>
                                                     <div class="text-xs text-gray-500">
-                                                        Total gasto: ${{ number_format($afs['budget_amount'] ?? 0, 0, ',', '.') }}
+                                                        Total gasto: ${{ number_format($afs['budget_amount'] ?? 0, 2, ',', '.') }}
                                                         @if(($afs['reserved'] ?? 0) > 0)
-                                                            · Cubierto: ${{ number_format($afs['reserved'], 0, ',', '.') }}
+                                                            · Cubierto: ${{ number_format($afs['reserved'], 2, ',', '.') }}
                                                         @endif
-                                                        · <span class="font-semibold text-green-700">Disponible: ${{ number_format($afs['available'], 0, ',', '.') }}</span>
+                                                        · <span class="font-semibold text-green-700">Disponible: ${{ number_format($afs['available'], 2, ',', '.') }}</span>
                                                     </div>
                                                 </div>
                                                 <button type="button" wire:click="addCdpFundingSource({{ $afs['id'] }})" class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-lg hover:bg-blue-200">
@@ -749,7 +749,7 @@
                                                     <span class="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
                                                     <input type="number" wire:model="cdpFundingSources.{{ $index }}.amount" step="0.01" min="0.01" max="{{ $fs['available'] }}" class="flex-1 rounded-r-lg border-gray-300 text-sm bg-gray-50 font-semibold" readonly>
                                                 </div>
-                                                <span class="text-xs text-gray-400">/ ${{ number_format($fs['available'], 0, ',', '.') }}</span>
+                                                <span class="text-xs text-gray-400">/ ${{ number_format($fs['available'], 2, ',', '.') }}</span>
                                             </div>
                                             @error("cdpFundingSources.{$index}.amount") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                                         </div>
@@ -758,7 +758,7 @@
                                 @php $totalCdp = collect($cdpFundingSources)->sum(fn($fs) => (float) ($fs['amount'] ?? 0)); @endphp
                                 <div class="mt-3 pt-3 border-t flex justify-between items-center">
                                     <span class="font-medium text-gray-700">Total CDP</span>
-                                    <span class="text-lg font-bold text-blue-600">${{ number_format($totalCdp, 0, ',', '.') }}</span>
+                                    <span class="text-lg font-bold text-blue-600">${{ number_format($totalCdp, 2, ',', '.') }}</span>
                                 </div>
                             </div>
                         @endif
@@ -821,7 +821,7 @@
                         @if($proposalSubtotal)
                             <div class="bg-gray-50 rounded-xl p-3 text-right">
                                 <span class="text-sm text-gray-500">Total:</span>
-                                <span class="text-lg font-bold text-gray-900 ml-2">${{ number_format(($proposalSubtotal ?: 0) + ($proposalIva ?: 0), 0, ',', '.') }}</span>
+                                <span class="text-lg font-bold text-gray-900 ml-2">${{ number_format(($proposalSubtotal ?: 0) + ($proposalIva ?: 0), 2, ',', '.') }}</span>
                             </div>
                         @endif
                     </div>
@@ -855,7 +855,7 @@
                                     <div class="flex items-center justify-between mb-3">
                                         <div>
                                             <span class="font-medium text-gray-900">{{ $ps['supplier'] }}</span>
-                                            <span class="text-sm text-gray-500 ml-3">Total: ${{ number_format($ps['total'], 0, ',', '.') }}</span>
+                                            <span class="text-sm text-gray-500 ml-3">Total: ${{ number_format($ps['total'], 2, ',', '.') }}</span>
                                         </div>
                                         <button type="button" wire:click="selectProposal({{ $index }})" class="px-3 py-1 text-sm rounded-lg {{ $ps['is_selected'] ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-100' }}">
                                             {{ $ps['is_selected'] ? '★ Seleccionada' : 'Seleccionar' }}

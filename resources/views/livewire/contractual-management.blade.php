@@ -108,7 +108,7 @@
                                         <p class="text-xs text-gray-500">{{ $ct->supplier?->full_document }}</p>
                                     </td>
                                     <td class="px-6 py-4 text-right">
-                                        <span class="font-semibold">${{ number_format($ct->total, 0, ',', '.') }}</span>
+                                        <span class="font-semibold">${{ number_format($ct->total, 2, ',', '.') }}</span>
                                     </td>
                                     <td class="px-6 py-4 text-center">
                                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
@@ -436,7 +436,7 @@
                                 </div>
                                 <div class="text-right">
                                     <p class="text-xs text-gray-500">Total CDP</p>
-                                    <p class="text-lg font-bold text-indigo-600">${{ number_format($cdp['total_amount'], 0, ',', '.') }}</p>
+                                    <p class="text-lg font-bold text-indigo-600">${{ number_format($cdp['total_amount'], 2, ',', '.') }}</p>
                                 </div>
                             </div>
 
@@ -454,13 +454,13 @@
                             <div class="bg-blue-50 rounded-xl p-4 mb-4">
                                 <div class="flex justify-between items-center mb-2">
                                     <p class="text-xs font-medium text-blue-700 uppercase">Disponible por Fuente de Financiación</p>
-                                    <p class="text-xs text-indigo-600 font-semibold">Comprometido en convocatoria: ${{ number_format($cdp['committed_amount'] ?? 0, 0, ',', '.') }}</p>
+                                    <p class="text-xs text-indigo-600 font-semibold">Comprometido en convocatoria: ${{ number_format($cdp['committed_amount'] ?? 0, 2, ',', '.') }}</p>
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     @foreach($cdp['funding_sources'] as $fs)
                                         <div class="bg-white rounded-lg p-3 border border-blue-100">
                                             <p class="text-xs text-gray-500">{{ $fs['name'] }}</p>
-                                            <p class="text-sm font-semibold text-gray-900">${{ number_format($fs['amount'], 0, ',', '.') }}</p>
+                                            <p class="text-sm font-semibold text-gray-900">${{ number_format($fs['amount'], 2, ',', '.') }}</p>
                                         </div>
                                     @endforeach
                                 </div>
@@ -497,7 +497,7 @@
                                                             max="{{ $rpFs['max_amount'] ?? $rpFs['available'] }}"
                                                             class="w-full rounded-lg border-gray-300 pl-6 text-sm {{ ((float)($rpFs['amount'] ?? 0)) > ((float)($rpFs['max_amount'] ?? $rpFs['available'])) ? 'border-red-500 bg-red-50' : '' }}">
                                                     </div>
-                                                    <p class="text-xs text-gray-400 mt-0.5">Máx: ${{ number_format($rpFs['max_amount'] ?? $rpFs['available'], 0, ',', '.') }}</p>
+                                                    <p class="text-xs text-gray-400 mt-0.5">Máx: ${{ number_format($rpFs['max_amount'] ?? $rpFs['available'], 2, ',', '.') }}</p>
                                                     @if(((float)($rpFs['amount'] ?? 0)) > ((float)($rpFs['max_amount'] ?? $rpFs['available'])) + 0.01)
                                                         <p class="text-xs text-red-600 mt-0.5">Excede lo comprometido en la convocatoria</p>
                                                     @endif
@@ -542,11 +542,11 @@
                     <div class="mt-4 p-3 rounded-lg {{ $rpExceedsContract ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200' }}">
                         <div class="flex justify-between items-center text-sm">
                             <span class="font-medium {{ $rpExceedsContract ? 'text-red-700' : 'text-green-700' }}">Total RPs:</span>
-                            <span class="font-bold {{ $rpExceedsContract ? 'text-red-700' : 'text-green-700' }}">${{ number_format($totalRpsSum, 0, ',', '.') }}</span>
+                            <span class="font-bold {{ $rpExceedsContract ? 'text-red-700' : 'text-green-700' }}">${{ number_format($totalRpsSum, 2, ',', '.') }}</span>
                         </div>
                         <div class="flex justify-between items-center text-sm mt-1">
                             <span class="text-gray-600">Valor del contrato:</span>
-                            <span class="font-semibold text-gray-700">${{ number_format($contractVal, 0, ',', '.') }}</span>
+                            <span class="font-semibold text-gray-700">${{ number_format($contractVal, 2, ',', '.') }}</span>
                         </div>
                         @if($rpExceedsContract)
                             <p class="text-xs text-red-600 mt-1">La suma de los RPs no puede ser mayor al valor del contrato. Ajuste los montos.</p>
@@ -644,9 +644,9 @@
                             @if($contract->addition_amount > 0)
                                 <div class="mt-2 bg-emerald-50 rounded-lg px-3 py-2 text-sm">
                                     <span class="font-medium text-emerald-700">Adición:</span>
-                                    <span class="text-emerald-600">${{ number_format($contract->addition_amount, 0, ',', '.') }}</span>
+                                    <span class="text-emerald-600">${{ number_format($contract->addition_amount, 2, ',', '.') }}</span>
                                     @if($contract->original_total)
-                                        <span class="text-gray-500 ml-2">(Valor original: ${{ number_format($contract->original_total, 0, ',', '.') }})</span>
+                                        <span class="text-gray-500 ml-2">(Valor original: ${{ number_format($contract->original_total, 2, ',', '.') }})</span>
                                     @endif
                                     @if($contract->addition_document_path)
                                         <a href="{{ Storage::url($contract->addition_document_path) }}" target="_blank" class="ml-2 text-emerald-600 underline hover:text-emerald-800">Ver Otrosí</a>
@@ -670,10 +670,10 @@
                         </div>
                         <div class="text-right">
                             <p class="text-sm text-gray-500">Valor total del contrato</p>
-                            <p class="text-3xl font-bold text-indigo-600">${{ number_format($contract->total, 0, ',', '.') }}</p>
+                            <p class="text-3xl font-bold text-indigo-600">${{ number_format($contract->total, 2, ',', '.') }}</p>
                             <p class="text-xs text-gray-400 mt-1">
-                                Subtotal: ${{ number_format($contract->subtotal, 0, ',', '.') }}
-                                @if($contract->iva > 0) | IVA: ${{ number_format($contract->iva, 0, ',', '.') }} @endif
+                                Subtotal: ${{ number_format($contract->subtotal, 2, ',', '.') }}
+                                @if($contract->iva > 0) | IVA: ${{ number_format($contract->iva, 2, ',', '.') }} @endif
                             </p>
 
                             {{-- Botones de acción según estado --}}
@@ -809,7 +809,7 @@
                                 </div>
                                 <div class="text-right mt-2 md:mt-0">
                                     <p class="text-xs text-gray-500">Total RP</p>
-                                    <p class="text-lg font-bold text-green-600">${{ number_format($rp->total_amount, 0, ',', '.') }}</p>
+                                    <p class="text-lg font-bold text-green-600">${{ number_format($rp->total_amount, 2, ',', '.') }}</p>
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $rp->status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
                                         {{ $rp->status_name }}
                                     </span>
@@ -831,7 +831,7 @@
                                         @foreach($rp->fundingSources as $rpFs)
                                             <tr>
                                                 <td class="px-4 py-2 text-gray-900">{{ $rpFs->fundingSource?->name ?? 'N/D' }}</td>
-                                                <td class="px-4 py-2 text-right font-semibold">${{ number_format($rpFs->amount, 0, ',', '.') }}</td>
+                                                <td class="px-4 py-2 text-right font-semibold">${{ number_format($rpFs->amount, 2, ',', '.') }}</td>
                                                 <td class="px-4 py-2 text-gray-600">{{ $rpFs->bankAccount?->account_number ?? '-' }}</td>
                                                 <td class="px-4 py-2 text-gray-600">{{ $rpFs->bank?->name ?? '-' }}</td>
                                             </tr>
@@ -866,15 +866,15 @@
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
                         <div class="bg-indigo-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-indigo-500">Valor del Contrato</p>
-                            <p class="text-lg font-bold text-indigo-700">${{ number_format($contract->total, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-indigo-700">${{ number_format($contract->total, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-green-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-green-500">Total Pagado</p>
-                            <p class="text-lg font-bold text-green-700">${{ number_format($totalPaid, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-green-700">${{ number_format($totalPaid, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-amber-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-amber-500">Saldo Pendiente</p>
-                            <p class="text-lg font-bold {{ $isFullyPaid ? 'text-green-600' : 'text-amber-700' }}">${{ number_format(max(0, $remaining), 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold {{ $isFullyPaid ? 'text-green-600' : 'text-amber-700' }}">${{ number_format(max(0, $remaining), 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">Forma de Pago</p>
@@ -921,8 +921,8 @@
                                             </div>
                                         </div>
                                         <div class="text-right">
-                                            <p class="text-sm font-bold text-gray-900">${{ number_format($po->total, 0, ',', '.') }}</p>
-                                            <p class="text-xs text-gray-500">Neto: ${{ number_format($po->net_payment, 0, ',', '.') }}</p>
+                                            <p class="text-sm font-bold text-gray-900">${{ number_format($po->total, 2, ',', '.') }}</p>
+                                            <p class="text-xs text-gray-500">Neto: ${{ number_format($po->net_payment, 2, ',', '.') }}</p>
                                         </div>
                                     </div>
                                 @endforeach
@@ -940,7 +940,7 @@
                                         <div class="flex items-center justify-between">
                                             <div>
                                                 <p class="text-sm font-medium text-gray-700">Este contrato requiere un pago único al finalizar a satisfacción.</p>
-                                                <p class="text-xs text-gray-500 mt-1">Valor a pagar: ${{ number_format($contract->total, 0, ',', '.') }}</p>
+                                                <p class="text-xs text-gray-500 mt-1">Valor a pagar: ${{ number_format($contract->total, 2, ',', '.') }}</p>
                                             </div>
                                             <a href="{{ route('postcontractual.index', ['contract_id' => $contract->id]) }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
@@ -959,7 +959,7 @@
                                             <p class="text-sm font-medium text-gray-700">Este contrato permite pagos parciales según ejecución.</p>
                                             <p class="text-xs text-gray-500 mt-1">
                                                 Pagos realizados: {{ $activePayments->count() }}
-                                                · Pendiente: ${{ number_format(max(0, $remaining), 0, ',', '.') }}
+                                                · Pendiente: ${{ number_format(max(0, $remaining), 2, ',', '.') }}
                                             </p>
                                         </div>
                                         <a href="{{ route('postcontractual.index', ['contract_id' => $contract->id]) }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium">
@@ -1156,22 +1156,22 @@
                     <div class="bg-emerald-50 rounded-lg p-3 text-sm">
                         <div class="flex justify-between">
                             <span class="text-gray-600">Valor actual del contrato:</span>
-                            <span class="font-semibold text-emerald-700">${{ number_format($contract->total, 0, ',', '.') }}</span>
+                            <span class="font-semibold text-emerald-700">${{ number_format($contract->total, 2, ',', '.') }}</span>
                         </div>
                         @if($contract->original_total)
                             <div class="flex justify-between mt-1">
                                 <span class="text-gray-600">Valor original:</span>
-                                <span class="text-gray-500">${{ number_format($contract->original_total, 0, ',', '.') }}</span>
+                                <span class="text-gray-500">${{ number_format($contract->original_total, 2, ',', '.') }}</span>
                             </div>
                         @endif
                         <div class="flex justify-between mt-1">
                             <span class="text-gray-600">Máximo adición permitida (50%):</span>
-                            <span class="font-bold text-emerald-700">${{ number_format($contract->max_addition, 0, ',', '.') }}</span>
+                            <span class="font-bold text-emerald-700">${{ number_format($contract->max_addition, 2, ',', '.') }}</span>
                         </div>
                         @if($contract->addition_amount > 0)
                             <div class="flex justify-between mt-1">
                                 <span class="text-gray-600">Ya adicionado:</span>
-                                <span class="text-orange-600">${{ number_format($contract->addition_amount, 0, ',', '.') }}</span>
+                                <span class="text-orange-600">${{ number_format($contract->addition_amount, 2, ',', '.') }}</span>
                             </div>
                         @endif
                     </div>
@@ -1207,9 +1207,9 @@
                                             <div>
                                                 <span class="text-sm font-medium">{{ $afs['name'] }}</span>
                                                 <div class="text-xs text-gray-500">
-                                                    Presupuestado: ${{ number_format($afs['budget_amount'] ?? 0, 0, ',', '.') }}
-                                                    · Comprometido: ${{ number_format($afs['reserved'] ?? 0, 0, ',', '.') }}
-                                                    · <span class="font-semibold text-green-700">Disponible: ${{ number_format($afs['available'], 0, ',', '.') }}</span>
+                                                    Presupuestado: ${{ number_format($afs['budget_amount'] ?? 0, 2, ',', '.') }}
+                                                    · Comprometido: ${{ number_format($afs['reserved'] ?? 0, 2, ',', '.') }}
+                                                    · <span class="font-semibold text-green-700">Disponible: ${{ number_format($afs['available'], 2, ',', '.') }}</span>
                                                 </div>
                                             </div>
                                             <button type="button" wire:click="addAdditionFundingSource({{ $afs['id'] }})" class="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-lg hover:bg-emerald-200">
@@ -1245,7 +1245,7 @@
                                                 <span class="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
                                                 <input type="number" wire:model="additionCdpFundingSources.{{ $index }}.amount" step="0.01" min="0.01" max="{{ $fs['available'] }}" class="flex-1 min-w-0 rounded-r-lg border-gray-300 text-sm" placeholder="0.00">
                                             </div>
-                                            <span class="text-xs text-gray-400 shrink-0">/ ${{ number_format($fs['available'], 0, ',', '.') }}</span>
+                                            <span class="text-xs text-gray-400 shrink-0">/ ${{ number_format($fs['available'], 2, ',', '.') }}</span>
                                         </div>
                                         @error("additionCdpFundingSources.{$index}.amount") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                                     </div>
@@ -1254,7 +1254,7 @@
                             @php $totalAdd = collect($additionCdpFundingSources)->sum(fn($fs) => (float) ($fs['amount'] ?? 0)); @endphp
                             <div class="mt-3 pt-3 border-t flex justify-between items-center">
                                 <span class="font-medium text-gray-700">Total adición</span>
-                                <span class="text-lg font-bold {{ $totalAdd > ($contract->max_addition ?? 0) ? 'text-red-600' : 'text-emerald-600' }}">${{ number_format($totalAdd, 0, ',', '.') }}</span>
+                                <span class="text-lg font-bold {{ $totalAdd > ($contract->max_addition ?? 0) ? 'text-red-600' : 'text-emerald-600' }}">${{ number_format($totalAdd, 2, ',', '.') }}</span>
                             </div>
                             @if($totalAdd > ($contract->max_addition ?? 0))
                                 <p class="text-xs text-red-600 text-right">Excede el máximo permitido</p>

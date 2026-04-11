@@ -13,11 +13,11 @@
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                 <div class="text-center px-4 py-2 border-r border-gray-100">
                     <p class="text-xs font-medium text-gray-500 uppercase">Presupuestado</p>
-                    <p class="text-xl font-bold text-gray-900 mt-1">${{ number_format($this->summary['budgeted'], 0, ',', '.') }}</p>
+                    <p class="text-xl font-bold text-gray-900 mt-1">${{ number_format($this->summary['budgeted'], 2, ',', '.') }}</p>
                 </div>
                 <div class="text-center px-4 py-2 border-r border-gray-100">
                     <p class="text-xs font-medium text-gray-500 uppercase">Recaudado</p>
-                    <p class="text-xl font-bold text-green-600 mt-1">${{ number_format($this->summary['executed'], 0, ',', '.') }}</p>
+                    <p class="text-xl font-bold text-green-600 mt-1">${{ number_format($this->summary['executed'], 2, ',', '.') }}</p>
                     <p class="text-xs text-green-600">{{ number_format($this->summary['percentage'], 1) }}%</p>
                 </div>
                 <div class="text-center px-4 py-2 border-r border-gray-100">
@@ -46,7 +46,7 @@
                 @if($this->summary['total_pending_addition'] > 0)
                 <div class="text-center px-4 py-2 bg-orange-50 rounded-xl">
                     <p class="text-xs font-medium text-orange-600 uppercase">Por Adicionar</p>
-                    <p class="text-lg font-bold text-orange-700 mt-1">${{ number_format($this->summary['total_pending_addition'], 0, ',', '.') }}</p>
+                    <p class="text-lg font-bold text-orange-700 mt-1">${{ number_format($this->summary['total_pending_addition'], 2, ',', '.') }}</p>
                 </div>
                 @endif
             </div>
@@ -158,17 +158,17 @@
                             <div class="text-xs text-gray-500 mt-1">{{ $budget['funding_source']->name }}</div>
                         </td>
                         <td class="px-6 py-4 text-right text-sm font-medium text-gray-900">
-                            ${{ number_format($budget['budgeted'], 0, ',', '.') }}
+                            ${{ number_format($budget['budgeted'], 2, ',', '.') }}
                         </td>
                         <td class="px-6 py-4 text-right text-sm font-medium text-green-600">
-                            ${{ number_format($budget['collected'], 0, ',', '.') }}
+                            ${{ number_format($budget['collected'], 2, ',', '.') }}
                         </td>
                         <td class="px-6 py-4 text-right text-sm font-medium {{ $budget['pending'] > 0 ? 'text-blue-600' : ($budget['pending'] < 0 ? 'text-orange-600' : 'text-gray-500') }}">
                             @if($budget['pending'] > 0)
-                                -${{ number_format($budget['pending'], 0, ',', '.') }}
+                                -${{ number_format($budget['pending'], 2, ',', '.') }}
                                 <div class="text-xs text-gray-400">por recaudar</div>
                             @elseif($budget['pending'] < 0)
-                                +${{ number_format(abs($budget['pending']), 0, ',', '.') }}
+                                +${{ number_format(abs($budget['pending']), 2, ',', '.') }}
                                 <div class="text-xs text-orange-500">exceso</div>
                             @else
                                 $0
@@ -285,13 +285,13 @@
                                 <div class="text-sm {{ !$loop->first ? 'mt-1 pt-1 border-t border-gray-100' : '' }}">
                                     <span class="font-medium text-gray-700">{{ $ba->bank->name }}</span>
                                     <div class="text-xs text-gray-500">{{ $ba->bankAccount->account_type_name }} - {{ $ba->bankAccount->account_number }}
-                                        <span class="text-green-600 font-medium">${{ number_format($ba->amount, 0, ',', '.') }}</span>
+                                        <span class="text-green-600 font-medium">${{ number_format($ba->amount, 2, ',', '.') }}</span>
                                     </div>
                                 </div>
                             @endforeach
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-green-600">
-                            ${{ number_format($income->amount, 0, ',', '.') }}
+                            ${{ number_format($income->amount, 2, ',', '.') }}
                         </td>
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end gap-1">
@@ -366,7 +366,7 @@
                                 @foreach($fundingSources as $source)
                                     <option value="{{ $source['id'] }}">
                                         {{ $source['name'] }} 
-                                        (Pend: ${{ number_format($source['pending'], 0, ',', '.') }})
+                                        (Pend: ${{ number_format($source['pending'], 2, ',', '.') }})
                                     </option>
                                 @endforeach
                             </select>
@@ -380,16 +380,16 @@
                         <div class="grid grid-cols-3 gap-2 text-sm">
                             <div>
                                 <p class="text-xs text-blue-600">Presupuestado</p>
-                                <p class="font-bold text-blue-900">${{ number_format($selectedBudgetInfo['budgeted'], 0, ',', '.') }}</p>
+                                <p class="font-bold text-blue-900">${{ number_format($selectedBudgetInfo['budgeted'], 2, ',', '.') }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-green-600">Ya Recaudado</p>
-                                <p class="font-bold text-green-700">${{ number_format($selectedBudgetInfo['collected'], 0, ',', '.') }}</p>
+                                <p class="font-bold text-green-700">${{ number_format($selectedBudgetInfo['collected'], 2, ',', '.') }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-orange-600">Pendiente</p>
                                 <p class="font-bold {{ $selectedBudgetInfo['pending'] > 0 ? 'text-orange-700' : 'text-purple-700' }}">
-                                    ${{ number_format(abs($selectedBudgetInfo['pending']), 0, ',', '.') }}
+                                    ${{ number_format(abs($selectedBudgetInfo['pending']), 2, ',', '.') }}
                                     @if($selectedBudgetInfo['pending'] < 0) <span class="text-xs">(exceso)</span> @endif
                                 </p>
                             </div>
@@ -436,7 +436,7 @@
                                 <h4 class="font-semibold text-orange-800">Ingreso excede el presupuesto</h4>
                                 <p class="text-sm text-orange-700 mt-1">
                                     Este ingreso supera el monto presupuestado en 
-                                    <strong>${{ number_format($exceedsAmount, 0, ',', '.') }}</strong>.
+                                    <strong>${{ number_format($exceedsAmount, 2, ',', '.') }}</strong>.
                                 </p>
                                 <p class="text-sm text-orange-600 mt-2 font-medium">
                                     ⚠️ Quedará pendiente una adición presupuestal que deberá aplicar manualmente cuando sea aprobada.
@@ -516,7 +516,7 @@
                         @if(count($bankAccountLines) > 1)
                         <div class="flex justify-end pt-2 border-t border-gray-100">
                             <div class="text-sm text-gray-600">
-                                Total líneas: <span class="font-bold text-gray-900">${{ number_format(collect($bankAccountLines)->sum(fn($l) => (float)($l['amount'] ?? 0)), 0, ',', '.') }}</span>
+                                Total líneas: <span class="font-bold text-gray-900">${{ number_format(collect($bankAccountLines)->sum(fn($l) => (float)($l['amount'] ?? 0)), 2, ',', '.') }}</span>
                                 @if($amount && abs(collect($bankAccountLines)->sum(fn($l) => (float)($l['amount'] ?? 0)) - (float)$amount) > 0.01)
                                     <span class="text-red-500 text-xs ml-2">⚠ No coincide con el monto total</span>
                                 @endif
@@ -550,7 +550,7 @@
                 </div>
                 <div class="px-6 py-5">
                     <p class="text-gray-600">¿Está seguro de eliminar el ingreso <strong class="text-gray-900">{{ $itemToDelete->name }}</strong>?</p>
-                    <p class="text-sm text-gray-500 mt-2">Monto: ${{ number_format($itemToDelete->amount, 0, ',', '.') }}</p>
+                    <p class="text-sm text-gray-500 mt-2">Monto: ${{ number_format($itemToDelete->amount, 2, ',', '.') }}</p>
                 </div>
                 <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
                     <button type="button" wire:click="closeDeleteModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cancelar</button>
@@ -584,22 +584,22 @@
                     <div class="grid grid-cols-3 gap-3 mb-4 p-3 bg-gray-50 rounded-xl">
                         <div class="text-center">
                             <p class="text-xs text-gray-500">Presupuestado</p>
-                            <p class="font-bold text-gray-900">${{ number_format($budgetToComplete['budgeted'], 0, ',', '.') }}</p>
+                            <p class="font-bold text-gray-900">${{ number_format($budgetToComplete['budgeted'], 2, ',', '.') }}</p>
                         </div>
                         <div class="text-center">
                             <p class="text-xs text-green-600">Recaudado</p>
-                            <p class="font-bold text-green-600">${{ number_format($budgetToComplete['collected'], 0, ',', '.') }}</p>
+                            <p class="font-bold text-green-600">${{ number_format($budgetToComplete['collected'], 2, ',', '.') }}</p>
                         </div>
                         <div class="text-center">
                             <p class="text-xs text-red-600">Reducción</p>
-                            <p class="font-bold text-red-600">${{ number_format($budgetToComplete['pending'], 0, ',', '.') }}</p>
+                            <p class="font-bold text-red-600">${{ number_format($budgetToComplete['pending'], 2, ',', '.') }}</p>
                         </div>
                     </div>
 
                     <div class="p-4 bg-yellow-50 rounded-xl border border-yellow-200">
                         <p class="text-sm text-yellow-700">
                             <strong>⚠️ Atención:</strong> Se reducirá el presupuesto en 
-                            <strong>${{ number_format($budgetToComplete['pending'], 0, ',', '.') }}</strong>
+                            <strong>${{ number_format($budgetToComplete['pending'], 2, ',', '.') }}</strong>
                             porque no se espera recibir más ingresos.
                         </p>
                     </div>
@@ -638,22 +638,22 @@
                     <div class="grid grid-cols-3 gap-3 p-3 bg-gray-50 rounded-xl">
                         <div class="text-center">
                             <p class="text-xs text-gray-500">Presupuesto Actual</p>
-                            <p class="font-bold text-gray-900">${{ number_format($budgetForAddition['current_budgeted'], 0, ',', '.') }}</p>
+                            <p class="font-bold text-gray-900">${{ number_format($budgetForAddition['current_budgeted'], 2, ',', '.') }}</p>
                         </div>
                         <div class="text-center">
                             <p class="text-xs text-green-600">Recaudado</p>
-                            <p class="font-bold text-green-600">${{ number_format($budgetForAddition['collected'], 0, ',', '.') }}</p>
+                            <p class="font-bold text-green-600">${{ number_format($budgetForAddition['collected'], 2, ',', '.') }}</p>
                         </div>
                         <div class="text-center">
                             <p class="text-xs text-orange-600">Adición</p>
-                            <p class="font-bold text-orange-600">${{ number_format($budgetForAddition['pending_addition'], 0, ',', '.') }}</p>
+                            <p class="font-bold text-orange-600">${{ number_format($budgetForAddition['pending_addition'], 2, ',', '.') }}</p>
                         </div>
                     </div>
 
                     <div class="p-4 bg-green-50 rounded-xl border border-green-200">
                         <p class="text-sm text-green-700">
                             <strong>✓ Nuevo presupuesto:</strong> 
-                            ${{ number_format($budgetForAddition['current_budgeted'] + $budgetForAddition['pending_addition'], 0, ',', '.') }}
+                            ${{ number_format($budgetForAddition['current_budgeted'] + $budgetForAddition['pending_addition'], 2, ',', '.') }}
                         </p>
                     </div>
 

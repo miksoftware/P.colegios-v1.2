@@ -100,7 +100,7 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
-                                ${{ number_format($transfer->amount, 0, ',', '.') }}
+                                ${{ number_format($transfer->amount, 2, ',', '.') }}
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <button wire:click="showDetail({{ $transfer->id }})" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Ver detalle">
@@ -168,7 +168,7 @@
                             <select wire:model.live="source_distribution_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
                                 <option value="">Seleccione un gasto...</option>
                                 @foreach($sourceDistributions as $dist)
-                                    <option value="{{ $dist['id'] }}">{{ $dist['name'] }} — ${{ number_format($dist['available_balance'], 0, ',', '.') }}</option>
+                                    <option value="{{ $dist['id'] }}">{{ $dist['name'] }} — ${{ number_format($dist['available_balance'], 2, ',', '.') }}</option>
                                 @endforeach
                             </select>
                             @error('source_distribution_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
@@ -193,11 +193,11 @@
                             </div>
                             <div class="flex justify-between text-sm">
                                 <span class="text-gray-600">Monto asignado:</span>
-                                <span class="font-medium text-gray-900">${{ number_format($selectedSourceInfo['amount'], 0, ',', '.') }}</span>
+                                <span class="font-medium text-gray-900">${{ number_format($selectedSourceInfo['amount'], 2, ',', '.') }}</span>
                             </div>
                             <div class="flex justify-between text-sm">
                                 <span class="text-gray-600">Saldo disponible:</span>
-                                <span class="font-bold text-red-700">${{ number_format($selectedSourceInfo['available_balance'], 0, ',', '.') }}</span>
+                                <span class="font-bold text-red-700">${{ number_format($selectedSourceInfo['available_balance'], 2, ',', '.') }}</span>
                             </div>
                         </div>
                         @endif
@@ -243,7 +243,7 @@
                                 @if($selectedDestinationInfo['is_new'] ?? false)
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Nuevo — $0</span>
                                 @else
-                                    <span class="font-bold text-green-700">${{ number_format($selectedDestinationInfo['current_amount'], 0, ',', '.') }}</span>
+                                    <span class="font-bold text-green-700">${{ number_format($selectedDestinationInfo['current_amount'], 2, ',', '.') }}</span>
                                 @endif
                             </div>
                         </div>
@@ -258,15 +258,15 @@
                         <div class="grid grid-cols-2 gap-4 text-sm">
                             <div class="p-3 bg-red-50/50 rounded-lg">
                                 <p class="text-xs text-gray-500 mb-1">Contracrédito (Origen)</p>
-                                <p class="text-sm font-medium text-gray-900">${{ number_format($selectedSourceInfo['amount'], 0, ',', '.') }}</p>
+                                <p class="text-sm font-medium text-gray-900">${{ number_format($selectedSourceInfo['amount'], 2, ',', '.') }}</p>
                                 <p class="text-xs text-gray-400">→</p>
-                                <p class="text-sm font-bold text-red-600">${{ number_format($selectedSourceInfo['amount'] - (float)$amount, 0, ',', '.') }}</p>
+                                <p class="text-sm font-bold text-red-600">${{ number_format($selectedSourceInfo['amount'] - (float)$amount, 2, ',', '.') }}</p>
                             </div>
                             <div class="p-3 bg-green-50/50 rounded-lg">
                                 <p class="text-xs text-gray-500 mb-1">Crédito (Destino)</p>
-                                <p class="text-sm font-medium text-gray-900">${{ number_format($selectedDestinationInfo['current_amount'], 0, ',', '.') }}</p>
+                                <p class="text-sm font-medium text-gray-900">${{ number_format($selectedDestinationInfo['current_amount'], 2, ',', '.') }}</p>
                                 <p class="text-xs text-gray-400">→</p>
-                                <p class="text-sm font-bold text-green-600">${{ number_format($selectedDestinationInfo['current_amount'] + (float)$amount, 0, ',', '.') }}</p>
+                                <p class="text-sm font-bold text-green-600">${{ number_format($selectedDestinationInfo['current_amount'] + (float)$amount, 2, ',', '.') }}</p>
                             </div>
                         </div>
                     </div>
@@ -316,7 +316,7 @@
                     </div>
                     <div class="flex justify-between py-2 border-b">
                         <span class="text-sm text-gray-500">Monto</span>
-                        <span class="text-lg font-bold text-blue-600">${{ number_format($detailTransfer->amount, 0, ',', '.') }}</span>
+                        <span class="text-lg font-bold text-blue-600">${{ number_format($detailTransfer->amount, 2, ',', '.') }}</span>
                     </div>
 
                     <!-- Fuente de financiación -->
@@ -338,9 +338,9 @@
                         @endif
                         <p class="text-xs text-gray-500">Fuente: {{ $detailTransfer->sourceFundingSource->name ?? 'N/A' }}</p>
                         <div class="flex gap-2 mt-2 text-xs">
-                            <span class="text-gray-500">Antes: ${{ number_format($detailTransfer->source_previous_amount, 0, ',', '.') }}</span>
+                            <span class="text-gray-500">Antes: ${{ number_format($detailTransfer->source_previous_amount, 2, ',', '.') }}</span>
                             <span>→</span>
-                            <span class="font-semibold text-red-600">Después: ${{ number_format($detailTransfer->source_new_amount, 0, ',', '.') }}</span>
+                            <span class="font-semibold text-red-600">Después: ${{ number_format($detailTransfer->source_new_amount, 2, ',', '.') }}</span>
                         </div>
                     </div>
 
@@ -355,9 +355,9 @@
                         @endif
                         <p class="text-xs text-gray-500">Fuente: {{ $detailTransfer->destinationFundingSource->name ?? 'N/A' }}</p>
                         <div class="flex gap-2 mt-2 text-xs">
-                            <span class="text-gray-500">Antes: ${{ number_format($detailTransfer->destination_previous_amount, 0, ',', '.') }}</span>
+                            <span class="text-gray-500">Antes: ${{ number_format($detailTransfer->destination_previous_amount, 2, ',', '.') }}</span>
                             <span>→</span>
-                            <span class="font-semibold text-green-600">Después: ${{ number_format($detailTransfer->destination_new_amount, 0, ',', '.') }}</span>
+                            <span class="font-semibold text-green-600">Después: ${{ number_format($detailTransfer->destination_new_amount, 2, ',', '.') }}</span>
                         </div>
                     </div>
 

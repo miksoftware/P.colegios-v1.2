@@ -36,7 +36,7 @@
                 </div>
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
                     <p class="text-xs text-emerald-500 uppercase">Total Pagado</p>
-                    <p class="text-lg font-bold text-emerald-600">${{ number_format($summary['total_value'], 0, ',', '.') }}</p>
+                    <p class="text-lg font-bold text-emerald-600">${{ number_format($summary['total_value'], 2, ',', '.') }}</p>
                 </div>
             </div>
 
@@ -104,9 +104,9 @@
                                         <p class="text-sm font-medium text-gray-900">{{ $po->contract?->supplier?->full_name }}</p>
                                         <p class="text-xs text-gray-500">{{ $po->contract?->supplier?->full_document }}</p>
                                     </td>
-                                    <td class="px-6 py-4 text-right font-semibold">${{ number_format($po->total, 0, ',', '.') }}</td>
-                                    <td class="px-6 py-4 text-right text-red-600">${{ number_format($po->total_retentions, 0, ',', '.') }}</td>
-                                    <td class="px-6 py-4 text-right font-bold text-emerald-700">${{ number_format($po->net_payment, 0, ',', '.') }}</td>
+                                    <td class="px-6 py-4 text-right font-semibold">${{ number_format($po->total, 2, ',', '.') }}</td>
+                                    <td class="px-6 py-4 text-right text-red-600">${{ number_format($po->total_retentions, 2, ',', '.') }}</td>
+                                    <td class="px-6 py-4 text-right font-bold text-emerald-700">${{ number_format($po->net_payment, 2, ',', '.') }}</td>
                                     <td class="px-6 py-4 text-center">
                                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ $po->status_color }}">
                                             {{ $po->status_name }}
@@ -231,19 +231,19 @@
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">Subtotal</p>
-                            <p class="text-lg font-bold text-gray-900">${{ number_format($contractData['subtotal'], 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-gray-900">${{ number_format($contractData['subtotal'], 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">IVA</p>
-                            <p class="text-lg font-bold text-gray-900">${{ number_format($contractData['iva'], 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-gray-900">${{ number_format($contractData['iva'], 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-emerald-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-emerald-600">Total Contrato</p>
-                            <p class="text-lg font-bold text-emerald-700">${{ number_format($contractData['total'], 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-emerald-700">${{ number_format($contractData['total'], 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-amber-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-amber-600">Saldo Pendiente</p>
-                            <p class="text-lg font-bold text-amber-700">${{ number_format($contractData['remaining'], 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-amber-700">${{ number_format($contractData['remaining'], 2, ',', '.') }}</p>
                         </div>
                     </div>
 
@@ -254,7 +254,7 @@
                             @foreach($fundingSourcesData as $fs)
                                 <div class="bg-white rounded-lg p-3 border border-blue-100">
                                     <p class="text-xs text-gray-500">{{ $fs['name'] }}</p>
-                                    <p class="text-sm font-bold text-blue-700">${{ number_format($fs['amount'], 0, ',', '.') }}</p>
+                                    <p class="text-sm font-bold text-blue-700">${{ number_format($fs['amount'], 2, ',', '.') }}</p>
                                 </div>
                             @endforeach
                         </div>
@@ -264,8 +264,8 @@
                     @if($contractData['total_paid'] > 0)
                     <div class="mt-4 bg-orange-50 border border-orange-200 rounded-xl p-3">
                         <p class="text-xs text-orange-700">
-                            Ya se han registrado pagos por <span class="font-bold">${{ number_format($contractData['total_paid'], 0, ',', '.') }}</span>.
-                            Saldo pendiente: <span class="font-bold">${{ number_format($contractData['remaining'], 0, ',', '.') }}</span>
+                            Ya se han registrado pagos por <span class="font-bold">${{ number_format($contractData['total_paid'], 2, ',', '.') }}</span>.
+                            Saldo pendiente: <span class="font-bold">${{ number_format($contractData['remaining'], 2, ',', '.') }}</span>
                         </p>
                     </div>
                     @endif
@@ -405,7 +405,7 @@
                                 @foreach($expenseDistributions as $dist)
                                     @php $canCover = (float)$dist['convocatoria_amount'] >= (float)$payTotal; @endphp
                                     <option value="{{ $dist['id'] }}" {{ !$canCover ? 'disabled' : '' }}>
-                                        {{ $dist['expense_code_name'] }} (Asignado: ${{ number_format($dist['convocatoria_amount'], 0, ',', '.') }})
+                                        {{ $dist['expense_code_name'] }} (Asignado: ${{ number_format($dist['convocatoria_amount'], 2, ',', '.') }})
                                         {{ !$canCover ? '— Insuficiente' : '' }}
                                     </option>
                                 @endforeach
@@ -416,7 +416,7 @@
                                     $selMax = $selDist ? (float)$selDist['convocatoria_amount'] : 0;
                                 @endphp
                                 @if((float)$payTotal > $selMax && $selMax > 0)
-                                    <p class="mt-1 text-sm text-red-600">El total del pago (${{ number_format($payTotal, 0, ',', '.') }}) excede lo asignado (${{ number_format($selMax, 0, ',', '.') }}).</p>
+                                    <p class="mt-1 text-sm text-red-600">El total del pago (${{ number_format($payTotal, 2, ',', '.') }}) excede lo asignado (${{ number_format($selMax, 2, ',', '.') }}).</p>
                                 @endif
                             @endif
                         </div>
@@ -430,7 +430,7 @@
                                         <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold mr-2">{{ $index + 1 }}</span>
                                         {{ $line['expense_code_name'] }}
                                     </h3>
-                                    <span class="text-xs text-gray-500">Asignado en convocatoria: ${{ number_format($line['max_amount'], 0, ',', '.') }}</span>
+                                    <span class="text-xs text-gray-500">Asignado en convocatoria: ${{ number_format($line['max_amount'], 2, ',', '.') }}</span>
                                 </div>
                                 @if(!empty($line['funding_source_name']) || !empty($line['bank_name']))
                                     <div class="flex flex-wrap gap-x-4 gap-y-1 ml-8 mb-3 text-xs text-gray-500">
@@ -505,30 +505,30 @@
                                 {{-- Resultados de retención de la línea --}}
                                 @if(!empty($line['exceeded']))
                                 <div class="bg-red-50 border border-red-300 rounded-xl p-2 mb-2">
-                                    <p class="text-xs text-red-700 font-medium">⚠ El monto (${{ number_format($line['total'] ?? 0, 0, ',', '.') }}) excede lo asignado en la convocatoria (${{ number_format($line['max_amount'] ?? 0, 0, ',', '.') }}).</p>
+                                    <p class="text-xs text-red-700 font-medium">⚠ El monto (${{ number_format($line['total'] ?? 0, 2, ',', '.') }}) excede lo asignado en la convocatoria (${{ number_format($line['max_amount'] ?? 0, 2, ',', '.') }}).</p>
                                 </div>
                                 @endif
                                 @if((float)($line['subtotal'] ?? 0) > 0)
                                 <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
                                     <div class="bg-white rounded-lg p-2 text-center border border-gray-200">
                                         <p class="text-[10px] text-gray-500">Retefuente {{ number_format($line['retention_percentage'] ?? 0, 1) }}%</p>
-                                        <p class="text-sm font-bold text-red-600">${{ number_format($line['retefuente'] ?? 0, 0, ',', '.') }}</p>
+                                        <p class="text-sm font-bold text-red-600">${{ number_format($line['retefuente'] ?? 0, 2, ',', '.') }}</p>
                                     </div>
                                     <div class="bg-white rounded-lg p-2 text-center border border-gray-200">
                                         <p class="text-[10px] text-gray-500">ReteIVA</p>
-                                        <p class="text-sm font-bold text-red-600">${{ number_format($line['reteiva'] ?? 0, 0, ',', '.') }}</p>
+                                        <p class="text-sm font-bold text-red-600">${{ number_format($line['reteiva'] ?? 0, 2, ',', '.') }}</p>
                                     </div>
                                     <div class="bg-white rounded-lg p-2 text-center border border-gray-200">
                                         <p class="text-[10px] text-gray-500">Est. Produlto</p>
-                                        <p class="text-sm font-bold {{ ($line['estampilla_produlto_mayor'] ?? 0) > 0 ? 'text-orange-600' : 'text-gray-400' }}">${{ number_format($line['estampilla_produlto_mayor'] ?? 0, 0, ',', '.') }}</p>
+                                        <p class="text-sm font-bold {{ ($line['estampilla_produlto_mayor'] ?? 0) > 0 ? 'text-orange-600' : 'text-gray-400' }}">${{ number_format($line['estampilla_produlto_mayor'] ?? 0, 2, ',', '.') }}</p>
                                     </div>
                                     <div class="bg-white rounded-lg p-2 text-center border border-gray-200">
                                         <p class="text-[10px] text-gray-500">Total Desc.</p>
-                                        <p class="text-sm font-bold text-red-700">${{ number_format($line['total_retentions'] ?? 0, 0, ',', '.') }}</p>
+                                        <p class="text-sm font-bold text-red-700">${{ number_format($line['total_retentions'] ?? 0, 2, ',', '.') }}</p>
                                     </div>
                                     <div class="bg-emerald-50 rounded-lg p-2 text-center border border-emerald-200">
                                         <p class="text-[10px] text-emerald-600">Neto Línea</p>
-                                        <p class="text-sm font-bold text-emerald-700">${{ number_format($line['net_payment'] ?? 0, 0, ',', '.') }}</p>
+                                        <p class="text-sm font-bold text-emerald-700">${{ number_format($line['net_payment'] ?? 0, 2, ',', '.') }}</p>
                                     </div>
                                 </div>
                                 @endif
@@ -583,7 +583,7 @@
                                     <p class="font-medium text-gray-700">{{ \App\Models\PaymentOrder::RETENTION_CONCEPTS[$concept] }}</p>
                                     <p class="text-gray-500">No declara: {{ $rates[0] }}%</p>
                                     <p class="text-gray-500">Declara: {{ $rates[1] }}%</p>
-                                    <p class="text-gray-400 mt-1">Base mín: ${{ number_format($minBase, 0, ',', '.') }}</p>
+                                    <p class="text-gray-400 mt-1">Base mín: ${{ number_format($minBase, 2, ',', '.') }}</p>
                                 </div>
                             @endforeach
                         </div>
@@ -614,17 +614,17 @@
                         </div>
                         <div class="bg-red-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-500">Retefuente</p>
-                            <p class="text-lg font-bold text-red-700">${{ number_format($retefuente, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-red-700">${{ number_format($retefuente, 2, ',', '.') }}</p>
                             <p class="text-[10px] text-red-400">Se calcula sobre el subtotal</p>
                         </div>
                         <div class="bg-red-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-500">ReteIVA (15% del IVA)</p>
-                            <p class="text-lg font-bold text-red-700">${{ number_format($reteiva, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-red-700">${{ number_format($reteiva, 2, ',', '.') }}</p>
                             <p class="text-[10px] text-red-400">Se calcula sobre el IVA</p>
                         </div>
                         <div class="bg-red-100 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-600 font-medium">Total Retenciones DIAN</p>
-                            <p class="text-lg font-bold text-red-800">${{ number_format($totalRetentionsDian, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-red-800">${{ number_format($totalRetentionsDian, 2, ',', '.') }}</p>
                         </div>
                     </div>
                 </div>
@@ -640,17 +640,17 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">Estampilla Produlto Mayor</p>
-                            <p class="text-lg font-bold {{ $estampillaProdultoMayor > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProdultoMayor, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold {{ $estampillaProdultoMayor > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProdultoMayor, 2, ',', '.') }}</p>
                             <p class="text-[10px] text-gray-400">2% del subtotal (solo Bucaramanga, subtotal ≥ $1)</p>
                         </div>
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">Estampilla Procultura</p>
-                            <p class="text-lg font-bold {{ $estampillaProcultura > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProcultura, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold {{ $estampillaProcultura > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProcultura, 2, ',', '.') }}</p>
                             <p class="text-[10px] text-gray-400">2% del subtotal (solo Bucaramanga, subtotal ≥ $35.018.010)</p>
                         </div>
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">Retención ICA</p>
-                            <p class="text-lg font-bold text-gray-400">${{ number_format($retencionIca, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-gray-400">${{ number_format($retencionIca, 2, ',', '.') }}</p>
                             <p class="text-[10px] text-gray-400">Solo Piedecuesta y Villanueva</p>
                         </div>
                     </div>
@@ -658,7 +658,7 @@
                     @if($otherTaxesTotal > 0)
                     <div class="bg-orange-100 rounded-xl p-3 text-center">
                         <p class="text-xs text-orange-600 font-medium">Total Otros Impuestos</p>
-                        <p class="text-lg font-bold text-orange-800">${{ number_format($otherTaxesTotal, 0, ',', '.') }}</p>
+                        <p class="text-lg font-bold text-orange-800">${{ number_format($otherTaxesTotal, 2, ',', '.') }}</p>
                     </div>
                     @endif
                 </div>
@@ -671,16 +671,16 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">Total Factura</p>
-                            <p class="text-lg font-bold text-gray-900">${{ number_format($payTotal, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-gray-900">${{ number_format($payTotal, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-red-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-500">Total Descuentos</p>
-                            <p class="text-lg font-bold text-red-700">- ${{ number_format($totalRetentions, 0, ',', '.') }}</p>
-                            <p class="text-[10px] text-red-400">DIAN: ${{ number_format($totalRetentionsDian, 0, ',', '.') }} + Otros: ${{ number_format($otherTaxesTotal, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-red-700">- ${{ number_format($totalRetentions, 2, ',', '.') }}</p>
+                            <p class="text-[10px] text-red-400">DIAN: ${{ number_format($totalRetentionsDian, 2, ',', '.') }} + Otros: ${{ number_format($otherTaxesTotal, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-emerald-100 rounded-xl p-4 text-center">
                             <p class="text-sm text-emerald-700 font-medium">VALOR NETO A PAGAR</p>
-                            <p class="text-3xl font-bold text-emerald-800">${{ number_format($netPayment, 0, ',', '.') }}</p>
+                            <p class="text-3xl font-bold text-emerald-800">${{ number_format($netPayment, 2, ',', '.') }}</p>
                         </div>
                     </div>
 
@@ -772,31 +772,31 @@
                                     {{ \App\Models\PaymentOrder::ACCOUNTING_CODES['retefuente_honorarios'] }}
                                 @endif
                             </span>
-                            <span class="text-sm font-bold text-red-600">${{ number_format($retefuente, 0, ',', '.') }}</span>
+                            <span class="text-sm font-bold text-red-600">${{ number_format($retefuente, 2, ',', '.') }}</span>
                         </div>
                         @endif
                         @if($reteiva > 0)
                         <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
                             <span class="text-sm text-gray-700">{{ \App\Models\PaymentOrder::ACCOUNTING_CODES['reteiva'] }}</span>
-                            <span class="text-sm font-bold text-red-600">${{ number_format($reteiva, 0, ',', '.') }}</span>
+                            <span class="text-sm font-bold text-red-600">${{ number_format($reteiva, 2, ',', '.') }}</span>
                         </div>
                         @endif
                         @if($estampillaProdultoMayor > 0)
                         <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
                             <span class="text-sm text-gray-700">{{ \App\Models\PaymentOrder::ACCOUNTING_CODES['estampilla_produlto_mayor'] }}</span>
-                            <span class="text-sm font-bold text-orange-600">${{ number_format($estampillaProdultoMayor, 0, ',', '.') }}</span>
+                            <span class="text-sm font-bold text-orange-600">${{ number_format($estampillaProdultoMayor, 2, ',', '.') }}</span>
                         </div>
                         @endif
                         @if($estampillaProcultura > 0)
                         <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
                             <span class="text-sm text-gray-700">{{ \App\Models\PaymentOrder::ACCOUNTING_CODES['estampilla_procultura'] }}</span>
-                            <span class="text-sm font-bold text-orange-600">${{ number_format($estampillaProcultura, 0, ',', '.') }}</span>
+                            <span class="text-sm font-bold text-orange-600">${{ number_format($estampillaProcultura, 2, ',', '.') }}</span>
                         </div>
                         @endif
                         @if($retencionIca > 0)
                         <div class="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
                             <span class="text-sm text-gray-700">{{ \App\Models\PaymentOrder::ACCOUNTING_CODES['retencion_ica'] }}</span>
-                            <span class="text-sm font-bold text-orange-600">${{ number_format($retencionIca, 0, ',', '.') }}</span>
+                            <span class="text-sm font-bold text-orange-600">${{ number_format($retencionIca, 2, ',', '.') }}</span>
                         </div>
                         @endif
                     </div>
@@ -901,15 +901,15 @@
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">Subtotal</p>
-                            <p class="text-lg font-bold text-gray-900">${{ number_format($paymentOrder->subtotal, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-gray-900">${{ number_format($paymentOrder->subtotal, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">IVA</p>
-                            <p class="text-lg font-bold text-gray-900">${{ number_format($paymentOrder->iva, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-gray-900">${{ number_format($paymentOrder->iva, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-emerald-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-emerald-600">Total</p>
-                            <p class="text-lg font-bold text-emerald-700">${{ number_format($paymentOrder->total, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-emerald-700">${{ number_format($paymentOrder->total, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-blue-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-blue-600">Tipo de Pago</p>
@@ -979,27 +979,27 @@
                             <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-center">
                                 <div class="bg-white rounded-lg p-2 border border-gray-200">
                                     <p class="text-[10px] text-gray-500">Subtotal</p>
-                                    <p class="text-sm font-bold text-gray-900">${{ number_format($el->subtotal, 0, ',', '.') }}</p>
+                                    <p class="text-sm font-bold text-gray-900">${{ number_format($el->subtotal, 2, ',', '.') }}</p>
                                 </div>
                                 <div class="bg-white rounded-lg p-2 border border-gray-200">
                                     <p class="text-[10px] text-gray-500">IVA</p>
-                                    <p class="text-sm font-bold text-gray-900">${{ number_format($el->iva, 0, ',', '.') }}</p>
+                                    <p class="text-sm font-bold text-gray-900">${{ number_format($el->iva, 2, ',', '.') }}</p>
                                 </div>
                                 <div class="bg-white rounded-lg p-2 border border-gray-200">
                                     <p class="text-[10px] text-gray-500">Retefuente</p>
-                                    <p class="text-sm font-bold text-red-600">${{ number_format($el->retefuente, 0, ',', '.') }}</p>
+                                    <p class="text-sm font-bold text-red-600">${{ number_format($el->retefuente, 2, ',', '.') }}</p>
                                 </div>
                                 <div class="bg-white rounded-lg p-2 border border-gray-200">
                                     <p class="text-[10px] text-gray-500">ReteIVA</p>
-                                    <p class="text-sm font-bold text-red-600">${{ number_format($el->reteiva, 0, ',', '.') }}</p>
+                                    <p class="text-sm font-bold text-red-600">${{ number_format($el->reteiva, 2, ',', '.') }}</p>
                                 </div>
                                 <div class="bg-white rounded-lg p-2 border border-gray-200">
                                     <p class="text-[10px] text-gray-500">Total Desc.</p>
-                                    <p class="text-sm font-bold text-red-700">${{ number_format($el->total_retentions, 0, ',', '.') }}</p>
+                                    <p class="text-sm font-bold text-red-700">${{ number_format($el->total_retentions, 2, ',', '.') }}</p>
                                 </div>
                                 <div class="bg-emerald-50 rounded-lg p-2 border border-emerald-200">
                                     <p class="text-[10px] text-emerald-600">Neto</p>
-                                    <p class="text-sm font-bold text-emerald-700">${{ number_format($el->net_payment, 0, ',', '.') }}</p>
+                                    <p class="text-sm font-bold text-emerald-700">${{ number_format($el->net_payment, 2, ',', '.') }}</p>
                                 </div>
                             </div>
                         </div>
@@ -1022,11 +1022,11 @@
                         </div>
                         <div class="bg-red-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-500">Retefuente</p>
-                            <p class="text-lg font-bold text-red-700">${{ number_format($paymentOrder->retefuente, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-red-700">${{ number_format($paymentOrder->retefuente, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-red-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-500">ReteIVA</p>
-                            <p class="text-lg font-bold text-red-700">${{ number_format($paymentOrder->reteiva, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-red-700">${{ number_format($paymentOrder->reteiva, 2, ',', '.') }}</p>
                         </div>
                         <div class="bg-red-100 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-600 font-medium">Total Ret. DIAN</p>
@@ -1041,19 +1041,19 @@
                         @if((float)$paymentOrder->estampilla_produlto_mayor > 0)
                         <div class="bg-orange-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-orange-500">Estampilla Produlto Mayor</p>
-                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->estampilla_produlto_mayor, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->estampilla_produlto_mayor, 2, ',', '.') }}</p>
                         </div>
                         @endif
                         @if((float)$paymentOrder->estampilla_procultura > 0)
                         <div class="bg-orange-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-orange-500">Estampilla Procultura</p>
-                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->estampilla_procultura, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->estampilla_procultura, 2, ',', '.') }}</p>
                         </div>
                         @endif
                         @if((float)$paymentOrder->retencion_ica > 0)
                         <div class="bg-orange-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-orange-500">Retención ICA</p>
-                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->retencion_ica, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->retencion_ica, 2, ',', '.') }}</p>
                         </div>
                         @endif
                     </div>
@@ -1064,17 +1064,17 @@
                         <div class="flex justify-center items-center gap-6 mb-2">
                             <div>
                                 <p class="text-xs text-gray-500">Total Factura</p>
-                                <p class="text-sm font-bold text-gray-700">${{ number_format($paymentOrder->total, 0, ',', '.') }}</p>
+                                <p class="text-sm font-bold text-gray-700">${{ number_format($paymentOrder->total, 2, ',', '.') }}</p>
                             </div>
                             <span class="text-gray-400">−</span>
                             <div>
                                 <p class="text-xs text-red-500">Total Descuentos</p>
-                                <p class="text-sm font-bold text-red-700">${{ number_format($paymentOrder->total_retentions, 0, ',', '.') }}</p>
+                                <p class="text-sm font-bold text-red-700">${{ number_format($paymentOrder->total_retentions, 2, ',', '.') }}</p>
                             </div>
                             <span class="text-gray-400">=</span>
                         </div>
                         <p class="text-sm text-emerald-700 font-medium">NETO PAGADO AL PROVEEDOR</p>
-                        <p class="text-3xl font-bold text-emerald-800">${{ number_format($paymentOrder->net_payment, 0, ',', '.') }}</p>
+                        <p class="text-3xl font-bold text-emerald-800">${{ number_format($paymentOrder->net_payment, 2, ',', '.') }}</p>
                     </div>
                 </div>
 

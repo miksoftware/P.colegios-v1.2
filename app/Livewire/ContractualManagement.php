@@ -272,7 +272,7 @@ class ContractualManagement extends Component
             ->groupBy(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id)
             ->map(fn($group) => $group->map(function ($dd) {
                 $ec = $dd->expenseDistribution?->expenseCode;
-                return $ec ? ($ec->code . ' - ' . $ec->name . ' ($' . number_format($dd->amount, 0, ',', '.') . ')') : null;
+                return $ec ? ($ec->code . ' - ' . $ec->name . ' ($' . number_format($dd->amount, 2, ',', '.') . ')') : null;
             })->filter()->values()->toArray());
 
         // Guardar fecha fin de la convocatoria para restringir fechas del contrato
@@ -480,7 +480,7 @@ class ContractualManagement extends Component
                 // Validar que no exceda lo comprometido en la convocatoria
                 $maxAmount = (float) ($fs['max_amount'] ?? $available);
                 if ($amount > $maxAmount + 0.01) {
-                    $this->dispatch('toast', message: "El monto del RP para \"{$fs['name']}\" ($" . number_format($amount, 0, ',', '.') . ") excede lo comprometido en la convocatoria ($" . number_format($maxAmount, 0, ',', '.') . ").", type: 'error');
+                    $this->dispatch('toast', message: "El monto del RP para \"{$fs['name']}\" ($" . number_format($amount, 2, ',', '.') . ") excede lo comprometido en la convocatoria ($" . number_format($maxAmount, 2, ',', '.') . ").", type: 'error');
                     return;
                 }
             }
@@ -489,7 +489,7 @@ class ContractualManagement extends Component
         // Validar que la suma total de RPs no exceda el valor del contrato
         $contractTotalValue = (float) $this->contractTotal;
         if ($totalAllRps > $contractTotalValue + 0.01) {
-            $this->dispatch('toast', message: 'La suma de los RPs ($' . number_format($totalAllRps, 0, ',', '.') . ') no puede ser mayor al valor del contrato ($' . number_format($contractTotalValue, 0, ',', '.') . '). Ajuste los montos.', type: 'error');
+            $this->dispatch('toast', message: 'La suma de los RPs ($' . number_format($totalAllRps, 2, ',', '.') . ') no puede ser mayor al valor del contrato ($' . number_format($contractTotalValue, 2, ',', '.') . '). Ajuste los montos.', type: 'error');
             return;
         }
 
@@ -981,7 +981,7 @@ class ContractualManagement extends Component
         $totalAddition = collect($this->additionCdpFundingSources)->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
 
         if ($totalAddition > $contract->max_addition) {
-            $this->dispatch('toast', message: 'El monto excede el máximo permitido (50% del valor inicial). Máximo: $' . number_format($contract->max_addition, 0, ',', '.'), type: 'error');
+            $this->dispatch('toast', message: 'El monto excede el máximo permitido (50% del valor inicial). Máximo: $' . number_format($contract->max_addition, 2, ',', '.'), type: 'error');
             return;
         }
 
@@ -1058,7 +1058,7 @@ class ContractualManagement extends Component
 
             $this->showAdditionModal = false;
             $this->additionDocument = null;
-            $this->dispatch('toast', message: 'Adición de $' . number_format($totalAddition, 0, ',', '.') . ' registrada con CDP #' . $cdp->formatted_number . ' y RP #' . str_pad($rp->rp_number, 4, '0', STR_PAD_LEFT) . '.', type: 'success');
+            $this->dispatch('toast', message: 'Adición de $' . number_format($totalAddition, 2, ',', '.') . ' registrada con CDP #' . $cdp->formatted_number . ' y RP #' . str_pad($rp->rp_number, 4, '0', STR_PAD_LEFT) . '.', type: 'success');
             $this->viewDetail($this->contractId);
 
         } catch (\Exception $e) {

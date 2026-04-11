@@ -180,18 +180,24 @@ class ExpenseManagement extends Component
         }
 
         $currentDistributed = $this->selectedBudget->distributions->sum('amount');
-        $available = $this->selectedBudget->current_amount - $currentDistributed;
+        $available = round($this->selectedBudget->current_amount - $currentDistributed, 2);
+        $amount = round((float) $this->distributeAmount, 2);
 
-        if ($this->distributeAmount > $available) {
-            $this->dispatch('toast', message: 'El monto supera el disponible ($' . number_format($available, 2) . ').', type: 'error');
+        if ($amount > $available + 0.01) {
+            $this->dispatch('toast', message: 'El monto supera el disponible ($' . number_format($available, 2, ',', '.') . ').', type: 'error');
             return;
+        }
+
+        // Ajustar si es prácticamente igual al disponible (diferencia por redondeo)
+        if ($amount > $available) {
+            $amount = $available;
         }
 
         ExpenseDistribution::create([
             'school_id' => $this->schoolId,
             'budget_id' => $this->selectedBudget->id,
             'expense_code_id' => $this->distributeExpenseCodeId,
-            'amount' => $this->distributeAmount,
+            'amount' => $amount,
             'description' => $this->distributeDescription,
             'created_by' => auth()->id(),
         ]);

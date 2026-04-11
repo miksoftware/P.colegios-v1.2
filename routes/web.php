@@ -116,6 +116,14 @@ Route::get('reports/exogena', App\Livewire\ExogenaReport::class)
     ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('reports.exogena');
 
+Route::get('reports/contracting', App\Livewire\ContractingReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.contracting');
+
+Route::get('reports/retention-liquidation', App\Livewire\RetentionLiquidationReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.retention-liquidation');
+
 Route::get('dashboard', App\Livewire\Dashboard::class)
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

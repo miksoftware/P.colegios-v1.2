@@ -80,6 +80,42 @@ Route::get('precontractual', App\Livewire\PrecontractualManagement::class)
     ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('precontractual.index');
 
+Route::get('precontractual/{convocatoriaId}/estudios-previos/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'estudiosPrevios'])
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.estudios-previos.pdf');
+
+Route::get('precontractual/{convocatoriaId}/disponibilidad-presupuestal/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'disponibilidadPresupuestal'])
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.disponibilidad-presupuestal.pdf');
+
+Route::get('precontractual/{convocatoriaId}/requisicion-necesidades/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'requisicionNecesidades'])
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.requisicion-necesidades.pdf');
+
+Route::get('precontractual/{convocatoriaId}/certificado-plan-compras/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'certificadoPlanCompras'])
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.certificado-plan-compras.pdf');
+
+Route::get('precontractual/{convocatoriaId}/convocatoria-veedurias/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'convocatoriaVeedurias'])
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.convocatoria-veedurias.pdf');
+
+Route::get('precontractual/{convocatoriaId}/invitacion-cotizar/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'invitacionCotizar'])
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.invitacion-cotizar.pdf');
+
+Route::get('precontractual/{convocatoriaId}/acta-evaluacion/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'actaEvaluacion'])
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.acta-evaluacion.pdf');
+
+Route::get('precontractual/{convocatoriaId}/aceptacion-propuesta/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'aceptacionPropuesta'])
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.aceptacion-propuesta.pdf');
+
+Route::get('precontractual/{convocatoriaId}/certificado-disponibilidad/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'certificadoDisponibilidad'])
+    ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('precontractual.certificado-disponibilidad.pdf');
+
 Route::get('contractual/{convocatoria_id?}', App\Livewire\ContractualManagement::class)
     ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contractual.index');

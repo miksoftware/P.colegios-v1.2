@@ -212,6 +212,12 @@
                             
                             {{-- Botones de acción según estado --}}
                             <div class="mt-4 flex flex-wrap gap-2 justify-end">
+                                {{-- Botón Imprimir --}}
+                                <button wire:click="openPrintModal" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 inline-flex items-center gap-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                    Imprimir
+                                </button>
+
                                 @can('precontractual.edit')
                                     @if($convocatoria->status === 'draft')
                                         <button wire:click="openStatusModal('open')" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
@@ -935,4 +941,153 @@
         </div>
     </div>
     @endif
+
+    {{-- Modal Imprimir Documentos --}}
+    @if($showPrintModal)
+    <div class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="closePrintModal"></div>
+            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-md">
+                <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-700 to-gray-800">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                        Imprimir Documentos
+                    </h3>
+                    <p class="text-sm text-gray-300 mt-1">Seleccione los documentos que desea generar en PDF</p>
+                </div>
+                <div class="p-6">
+                    <div class="space-y-3">
+                        {{-- Estudios Previos --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.estudios_previos" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Estudios Previos de la Contratación</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Documento con análisis de necesidad, objeto, presupuesto, CDPs y requisitos del proceso contractual.</p>
+                            </div>
+                        </label>
+
+                        {{-- Disponibilidad Presupuestal --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.disponibilidad_presupuestal" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Solicitud de Disponibilidad Presupuestal</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Solicitud de expedición del CDP con objeto, valor, rubro presupuestal y necesidad.</p>
+                            </div>
+                        </label>
+
+                        {{-- Placeholder para futuros documentos --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.requisicion_necesidades" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Requisición de Necesidades</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Solicitud formal con descripción, valor aproximado y necesidad a satisfacer.</p>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.certificado_plan_compras" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Certificado de Bienes y Servicios - Plan de Compras</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Certificación de incorporación en el plan anual de adquisiciones con acuerdo del Consejo Directivo.</p>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.convocatoria_veedurias" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Convocatoria a Veedurías Ciudadanas</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Convocatoria pública según Ley 715 Dec 1075 de 2015 con objeto, presupuesto y lugar de consulta.</p>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.invitacion_cotizar" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Invitación a Cotizar</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Invitación pública con requisitos, documentos, plazos, descuentos y criterios de selección.</p>
+                            </div>
+                        </label>
+
+                        {{-- Acta de Evaluación (solo si hay propuestas) --}}
+                        @if($convocatoria && $convocatoria->proposals->count() > 0)
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.acta_evaluacion" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Acta de Evaluación</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Acta con propuestas recibidas, verificación de requisitos, evaluación económica y adjudicación.</p>
+                            </div>
+                        </label>
+                        @else
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-50">
+                            <input type="checkbox" disabled class="mt-0.5 rounded border-gray-300">
+                            <div>
+                                <span class="font-medium text-gray-400">Acta de Evaluación</span>
+                                <p class="text-xs text-gray-400 mt-0.5">Disponible cuando existan propuestas registradas.</p>
+                            </div>
+                        </label>
+                        @endif
+
+                        {{-- Aceptación de Propuesta (solo si hay propuesta ganadora) --}}
+                        @if($convocatoria && $convocatoria->proposals->where('is_selected', true)->count() > 0)
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.aceptacion_propuesta" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Aceptación de Propuesta</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Comunicación de aceptación al proveedor ganador con datos contractuales y garantías.</p>
+                            </div>
+                        </label>
+                        @else
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-50">
+                            <input type="checkbox" disabled class="mt-0.5 rounded border-gray-300">
+                            <div>
+                                <span class="font-medium text-gray-400">Aceptación de Propuesta</span>
+                                <p class="text-xs text-gray-400 mt-0.5">Disponible cuando exista una propuesta ganadora.</p>
+                            </div>
+                        </label>
+                        @endif
+
+                        {{-- Certificado de Disponibilidad Presupuestal (solo si hay CDPs) --}}
+                        @if($convocatoria && $convocatoria->cdps->where('status', '!=', 'cancelled')->count() > 0)
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.certificado_disponibilidad" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Certificado de Disponibilidad Presupuestal</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Certificado formal del CDP con código, rubro, fuentes de financiación y valor.</p>
+                            </div>
+                        </label>
+                        @else
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-50">
+                            <input type="checkbox" disabled class="mt-0.5 rounded border-gray-300">
+                            <div>
+                                <span class="font-medium text-gray-400">Certificado de Disponibilidad Presupuestal</span>
+                                <p class="text-xs text-gray-400 mt-0.5">Disponible cuando se asignen CDPs a la convocatoria.</p>
+                            </div>
+                        </label>
+                        @endif
+                    </div>
+                </div>
+                <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                    <button type="button" wire:click="closePrintModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="button" wire:click="printSelectedDocuments" class="px-4 py-2 bg-gray-700 text-white rounded-xl hover:bg-gray-800 transition-colors inline-flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                        Generar PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
+
+@push('scripts')
+<script>
+    document.addEventListener('livewire:init', () => {
+        Livewire.on('openPdfWindow', (data) => {
+            const url = Array.isArray(data) ? data[0].url : data.url;
+            window.open(url, '_blank');
+        });
+    });
+</script>
+@endpush

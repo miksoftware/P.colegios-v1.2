@@ -841,3 +841,55 @@ GET /reports/expense-execution → ExpenseExecutionReport     [auth, can:reports
 ### Idioma
 - **UI**: Español
 - **Código**: Inglés (variables, métodos, clases)
+
+---
+
+## PDFs Precontractuales (`app/Http/Controllers/PrecontractualPdfController.php`)
+
+### Arquitectura
+- Controlador: `PrecontractualPdfController` con un método por cada PDF
+- Librería: `barryvdh/laravel-dompdf` (Pdf::loadView + setPaper('letter') + stream)
+- Vistas: `resources/views/pdf/` con CSS inline (DejaVu Sans, tablas con display:table)
+- Rutas: `precontractual/{convocatoriaId}/{documento}/pdf` con middleware auth+verified+can:precontractual.view+EnsureSchoolSelected
+- Modal de selección: Checkboxes en `PrecontractualManagement` con propiedad `$printDocuments` (array de booleans)
+- Apertura: Evento Livewire `openPdfWindow` → JS `window.open(url, '_blank')` via `@push('scripts')`
+- Método helper: `amountToWords()` convierte montos a palabras en español
+
+### Documentos Disponibles
+
+| # | Documento | Ruta nombre | Condición | Datos principales |
+|---|-----------|-------------|-----------|-------------------|
+| 1 | Estudios Previos de la Contratación | `precontractual.estudios-previos.pdf` | Siempre | 12 secciones: necesidad, objeto, definición técnica, modalidad, condiciones (duración contrato), soporte económico (tabla CDPs con ExpenseCode.code/name), obligaciones, criterios, lugar ejecución, documentos, supervisión, riesgos, conclusión. Firma rector. |
+| 2 | Solicitud de Disponibilidad Presupuestal | `precontractual.disponibilidad-presupuestal.pdf` | Siempre | PARA: rector. Texto solicitud CDP. Tabla: Valor/Código Rubro (ExpenseCode.code)/Rubro (ExpenseCode.name). Monto en letras. Necesidad. Firma rector. |
+| 3 | Requisición de Necesidades | `precontractual.requisicion-necesidades.pdf` | Siempre | Fecha solicitud, solicitante (rector), dependencia (Rectoría). Tabla: Descripción (objeto)/Valor Aproximado (assigned_budget). Necesidad. Firmas: solicitante + rector ordenador. |
+| 4 | Certificado Bienes y Servicios - Plan de Compras | `precontractual.certificado-plan-compras.pdf` | Siempre | Verificación del rector. Tabla: Rubro (ExpenseCode.code)/Bien o Servicio (ExpenseCode.name)/Valor. Certificación inclusión en plan anual. ACUERDO No. (School.budget_agreement_number). Firmas: rector + auxiliar administrativo (pagador). |
+| 5 | Convocatoria a Veedurías Ciudadanas | `precontractual.convocatoria-veedurias.pdf` | Siempre | Título enmarcado con No. convocatoria + fecha. Texto legal (art. 66 ley 80/1993, ley 850/2003). Modalidad, objeto, presupuesto oficial (monto en letras + valor). Lugar consulta (dirección colegio). Email colegio. Firma rector. |
+| 6 | Invitación a Cotizar | `precontractual.invitacion-cotizar.pdf` | Siempre | Texto legal manual contratación. Recuadro: objeto/presupuesto/fecha. Tabla 14 documentos (Persona Natural/Jurídica). Elaboración propuesta. Plazos (presentación/revisión/firma). Forma pago. Descuentos (retención, estampillas). Veedurías. Consulta docs. Declaratoria desierta. Criterio selección (tabla puntaje). Empate (Decreto 1082/2015). Firma rector con cédula. |
+| 7 | Acta de Evaluación | `precontractual.acta-evaluacion.pdf` | Solo si hay propuestas | Tabla propuestas recibidas (fecha/hora/proponente/valor). Tabla requisitos por proponente (17 docs con X). Tabla evaluación económica (proponente/valor/puntaje). Adjudicación con datos ganador. Tabla CDPs + rubros. Firma rector. |
+| 8 | Aceptación de Propuesta | `precontractual.aceptacion-propuesta.pdf` | Solo si hay propuesta ganadora (is_selected=true) | Destinatario: proveedor ganador. Texto legal (Ley 1474/2011, Decreto 1510/2013). Tabla contractual: contratista, NIT/DV, rep legal, dirección, teléfono, cotización, objeto, CDP, valor, plazo, supervisor, forma pago. Garantías. Firma rector. |
+| 9 | Certificado de Disponibilidad Presupuestal | `precontractual.certificado-disponibilidad.pdf` | Solo si hay CDPs asignados (activos) | No. CDP. Texto certificación ordenador del gasto. Tabla: Código (BudgetItem.code)/Nombre Rubro (BudgetItem.name)/Fuente Financiación (FundingSource.name con montos)/Valor. Objeto. Lugar y fecha expedición. Firmas: auxiliar administrativo + Vo.Bo. rector. |
+
+### Estructura del Modal de Impresión
+- Propiedad: `$showPrintModal` (boolean), `$printDocuments` (array 9 keys → boolean)
+- Método `openPrintModal()`: resetea todos a false
+- Método `printSelectedDocuments()`: itera `$printDocuments`, despacha `openPdfWindow` por cada seleccionado
+- Checkboxes condicionales: docs 7-9 se muestran habilitados/deshabilitados según estado de la convocatoria
+- Botón "Imprimir" visible en la vista de detalle de la convocatoria (siempre, independiente del estado)
+
+### Datos Comunes en PDFs
+- `$school`: nombre, nit, dane_code, municipality, address, email, rector_name, rector_document, pagador_name, budget_agreement_number
+- `$convocatoria`: formatted_number, fiscal_year, start_date, end_date, object, justification, assigned_budget
+- `$contract` (si existe): duration_days, start_date, end_date, execution_place, supervisor, payment_method
+- CDPs: cdp_number, budgetItem (code/name), fundingSources (code/name/amount)
+- Distribuciones: ConvocatoriaDistribution → ExpenseDistribution → ExpenseCode (code/name)
+- Propuestas: supplier (full_name, full_document, address), total, score, is_selected
+
+### Estilo Visual de PDFs
+- Font: DejaVu Sans 8.5-10px
+- Color principal: `#1e3a5f` (azul oscuro)
+- Bordes: 2px solid #1e3a5f
+- Headers de sección: background #1e3a5f, color blanco, uppercase, 8-9px
+- Tablas: th con background #e8edf3, bordes #aaa/#ccc
+- Firmas: línea border-top 1px, nombre bold uppercase, rol italic gris
+- Footer: generado por usuario + fecha + colegio, 7px gris
+- Paper: letter

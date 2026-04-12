@@ -75,6 +75,20 @@ class PrecontractualManagement extends Component
     public $showStatusModal = false;
     public $newStatus = '';
 
+    // Modal Imprimir Documentos
+    public $showPrintModal = false;
+    public $printDocuments = [
+        'estudios_previos' => false,
+        'disponibilidad_presupuestal' => false,
+        'requisicion_necesidades' => false,
+        'certificado_plan_compras' => false,
+        'convocatoria_veedurias' => false,
+        'invitacion_cotizar' => false,
+        'acta_evaluacion' => false,
+        'aceptacion_propuesta' => false,
+        'certificado_disponibilidad' => false,
+    ];
+
     protected $queryString = [
         'filterYear' => ['except' => ''],
         'filterStatus' => ['except' => ''],
@@ -1048,6 +1062,78 @@ class PrecontractualManagement extends Component
         $this->showDeleteModal = false;
         $this->itemToDelete = null;
         $this->deleteType = '';
+    }
+
+    // === IMPRIMIR DOCUMENTOS ===
+
+    public function openPrintModal()
+    {
+        $this->printDocuments = [
+            'estudios_previos' => false,
+            'disponibilidad_presupuestal' => false,
+            'requisicion_necesidades' => false,
+            'certificado_plan_compras' => false,
+            'convocatoria_veedurias' => false,
+            'invitacion_cotizar' => false,
+            'acta_evaluacion' => false,
+            'aceptacion_propuesta' => false,
+            'certificado_disponibilidad' => false,
+        ];
+        $this->showPrintModal = true;
+    }
+
+    public function closePrintModal()
+    {
+        $this->showPrintModal = false;
+    }
+
+    public function printSelectedDocuments()
+    {
+        $selected = array_filter($this->printDocuments);
+
+        if (empty($selected)) {
+            $this->dispatch('toast', message: 'Seleccione al menos un documento para imprimir.', type: 'error');
+            return;
+        }
+
+        // Por ahora solo tenemos estudios previos
+        if (!empty($selected['estudios_previos'])) {
+            $this->dispatch('openPdfWindow', url: route('precontractual.estudios-previos.pdf', $this->convocatoriaId));
+        }
+
+        if (!empty($selected['disponibilidad_presupuestal'])) {
+            $this->dispatch('openPdfWindow', url: route('precontractual.disponibilidad-presupuestal.pdf', $this->convocatoriaId));
+        }
+
+        if (!empty($selected['requisicion_necesidades'])) {
+            $this->dispatch('openPdfWindow', url: route('precontractual.requisicion-necesidades.pdf', $this->convocatoriaId));
+        }
+
+        if (!empty($selected['certificado_plan_compras'])) {
+            $this->dispatch('openPdfWindow', url: route('precontractual.certificado-plan-compras.pdf', $this->convocatoriaId));
+        }
+
+        if (!empty($selected['convocatoria_veedurias'])) {
+            $this->dispatch('openPdfWindow', url: route('precontractual.convocatoria-veedurias.pdf', $this->convocatoriaId));
+        }
+
+        if (!empty($selected['invitacion_cotizar'])) {
+            $this->dispatch('openPdfWindow', url: route('precontractual.invitacion-cotizar.pdf', $this->convocatoriaId));
+        }
+
+        if (!empty($selected['acta_evaluacion'])) {
+            $this->dispatch('openPdfWindow', url: route('precontractual.acta-evaluacion.pdf', $this->convocatoriaId));
+        }
+
+        if (!empty($selected['aceptacion_propuesta'])) {
+            $this->dispatch('openPdfWindow', url: route('precontractual.aceptacion-propuesta.pdf', $this->convocatoriaId));
+        }
+
+        if (!empty($selected['certificado_disponibilidad'])) {
+            $this->dispatch('openPdfWindow', url: route('precontractual.certificado-disponibilidad.pdf', $this->convocatoriaId));
+        }
+
+        $this->closePrintModal();
     }
 
     // === FILTROS ===

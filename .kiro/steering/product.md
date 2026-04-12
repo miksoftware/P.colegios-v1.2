@@ -880,3 +880,48 @@ Informe de ejecución presupuestal de gastos por código de gasto y fuente.
 - NO usar PowerShell `Set-Content -Encoding UTF8` en archivos blade (agrega BOM que corrompe acentos)
 
 **Permisos**: `reports.view`, `reports.export`
+
+---
+
+### 18. Documentos PDF Precontractuales (desde detalle de convocatoria)
+**Propósito**: Generación de documentos PDF del proceso precontractual desde el detalle de cada convocatoria.
+
+**Acceso**: Botón "Imprimir" en la vista de detalle de la convocatoria → Modal con checkboxes para seleccionar documentos → Genera PDF en nueva pestaña.
+
+**Documentos disponibles (9 total)**:
+
+| # | Documento | Condición de visibilidad |
+|---|-----------|--------------------------|
+| 1 | Estudios Previos de la Contratación | Siempre |
+| 2 | Solicitud de Disponibilidad Presupuestal | Siempre |
+| 3 | Requisición de Necesidades | Siempre |
+| 4 | Certificado de Bienes y Servicios - Plan de Compras | Siempre |
+| 5 | Convocatoria a Veedurías Ciudadanas | Siempre |
+| 6 | Invitación a Cotizar | Siempre |
+| 7 | Acta de Evaluación | Solo si hay propuestas registradas |
+| 8 | Aceptación de Propuesta | Solo si hay propuesta ganadora (is_selected=true) |
+| 9 | Certificado de Disponibilidad Presupuestal | Solo si hay CDPs asignados (activos) |
+
+**Datos dinámicos del sistema usados en los PDFs**:
+- School: nombre, NIT, DANE, municipio, dirección, email, rector, pagador, acuerdo presupuestal
+- Convocatoria: número, año fiscal, fechas, objeto, justificación, presupuesto asignado
+- Contrato (si existe): duración, fechas, lugar ejecución, supervisor, forma de pago
+- CDPs: número, rubro presupuestal (BudgetItem), fuentes de financiación (FundingSource) con montos
+- Distribuciones: ConvocatoriaDistribution → ExpenseDistribution → ExpenseCode (código y nombre del gasto)
+- Propuestas: proveedor (nombre, documento, dirección), total, puntaje, seleccionada
+
+**Textos legales fijos en los PDFs**:
+- Ley 80 de 1993, Ley 715 de 2001, Decreto 1075 de 2015
+- Ley 850 de 2003 (veedurías ciudadanas)
+- Ley 1474 de 2011, Decreto 1510 de 2013 (aceptación propuesta)
+- Decreto 1082 de 2015 (empate en invitación a cotizar)
+- Ley 100 de 1993, Decreto 1703 de 2002, Ley 797 de 2003 (seguridad social)
+
+**Notas técnicas**:
+- Controlador: `PrecontractualPdfController` con método por cada PDF
+- Librería: `barryvdh/laravel-dompdf` (ya instalada)
+- Vistas: `resources/views/pdf/` con CSS inline (DomPDF no soporta Tailwind)
+- Apertura: Evento Livewire `openPdfWindow` → JS `window.open()` via `@push('scripts')`
+- Montos en letras: método `amountToWords()` en el controlador
+
+**Permisos**: `precontractual.view` (mismo permiso de visualización del módulo)

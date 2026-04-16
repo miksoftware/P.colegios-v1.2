@@ -3,6 +3,8 @@
 namespace App\Livewire;
 
 use App\Models\Contract;
+use App\Models\ContractRp;
+use App\Models\Cdp;
 use App\Models\PaymentOrder;
 use App\Models\PaymentOrderExpenseLine;
 use App\Models\School;
@@ -12,6 +14,7 @@ use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PostcontractualManagement extends Component
 {
@@ -87,6 +90,29 @@ class PostcontractualManagement extends Component
     public $newStatus = '';
     public $showDeleteModal = false;
 
+    // Modal Imprimir Documentos
+    public $showPrintModal = false;
+    public $printDocuments = [
+        'comprobante_egreso' => false,
+        'orden_pago' => false,
+        'constancia_recibido' => false,
+        'certificado_retenciones' => false,
+        'documento_soporte' => false,
+    ];
+
+    // ── Pago Directo (sin contrato) ──────────────────────────
+    public $paymentType = 'contract'; // 'contract' o 'direct'
+    public $selectedSupplierId = '';
+    public $directDescription = '';
+    public $availableSuppliers = [];
+    public $availableCdps = [];
+    public $selectedCdpId = '';
+    public $cdpData = [];
+    public $availableRps = [];
+    public $selectedRpId = '';
+    public $rpData = [];
+    public $directBudgetItemName = '';
+
     protected $queryString = [
         'filterYear'   => ['except' => ''],
         'filterStatus' => ['except' => ''],
@@ -137,7 +163,7 @@ class PostcontractualManagement extends Component
 
     public function getPaymentOrdersProperty()
     {
-        return PaymentOrder::with(['contract.supplier', 'creator'])
+        return PaymentOrder::with(['contract.supplier', 'supplier', 'creator'])
             ->forSchool($this->schoolId)
             ->when($this->filterYear, fn($q) => $q->forYear($this->filterYear))
             ->when($this->filterStatus, fn($q) => $q->byStatus($this->filterStatus))
@@ -172,6 +198,12 @@ class PostcontractualManagement extends Component
             'contract.rps.fundingSources.fundingSource',
             'contract.rps.fundingSources.bank',
             'contract.rps.fundingSources.bankAccount',
+            'supplier.department',
+            'supplier.municipality',
+            'cdp.budgetItem',
+            'cdp.fundingSources.fundingSource',
+            'contractRp.fundingSources.fundingSource',
+            'budgetItem',
             'expenseLines.expenseCode',
             'expenseLines.expenseDistribution.budget.fundingSource',
             'creator',
@@ -202,8 +234,20 @@ class PostcontractualManagement extends Component
 
         $this->resetCreateForm();
         $this->loadContracts();
+        $this->loadSuppliers();
         $this->invoiceNumber = PaymentOrder::getNextInvoiceNumber($this->schoolId, (int) $this->filterYear);
         $this->currentView = 'create';
+    }
+
+    public function updatedPaymentType()
+    {
+        // Limpiar datos del formulario al cambiar tipo
+        $this->resetCreateFormData();
+        if ($this->paymentType === 'contract') {
+            $this->loadContracts();
+        } else {
+            $this->loadSuppliers();
+        }
     }
 
     public function loadContracts()
@@ -224,6 +268,227 @@ class PostcontractualManagement extends Component
                 'supplier' => $c->supplier?->full_name ?? 'N/A',
             ])
             ->toArray();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // PAGO DIRECTO (SIN CONTRATO)
+    // ══════════════════════════════════════════════════════════
+
+    public function loadSuppliers()
+    {
+        $this->availableSuppliers = Supplier::forSchool($this->schoolId)
+            ->active()
+            ->orderBy('first_surname')
+            ->orderBy('first_name')
+            ->get()
+            ->map(fn($s) => [
+                'id'       => $s->id,
+                'name'     => $s->full_name,
+                'document' => $s->full_document,
+            ])
+            ->toArray();
+    }
+
+    public function onSupplierSelected()
+    {
+        if (!$this->selectedSupplierId) {
+            $this->supplierData = [];
+            $this->supplierBankAccounts = [];
+            $this->selectedBankAccountId = '';
+            return;
+        }
+
+        $supplier = Supplier::with(['department', 'municipality'])
+            ->forSchool($this->schoolId)
+            ->findOrFail($this->selectedSupplierId);
+
+        $this->supplierData = [
+            'name'            => $supplier->full_name,
+            'document'        => $supplier->full_document,
+            'address'         => $supplier->address ?? 'No registrada',
+            'municipality'    => $supplier->municipality?->name ?? 'No registrado',
+            'phone'           => $supplier->phone ?? $supplier->mobile ?? 'No registrado',
+            'tax_regime'      => $supplier->tax_regime ?? '',
+            'tax_regime_name' => $supplier->tax_regime ? (Supplier::TAX_REGIMES[$supplier->tax_regime] ?? $supplier->tax_regime) : 'No registrado',
+            'person_type'     => $supplier->person_type ?? '',
+        ];
+
+        // Cargar cuentas bancarias del proveedor
+        $this->supplierBankAccounts = $supplier->bankAccounts()
+            ->active()
+            ->orderBy('bank_name')
+            ->get()
+            ->toArray();
+
+        if (count($this->supplierBankAccounts) === 1) {
+            $this->selectedBankAccountId = $this->supplierBankAccounts[0]['id'];
+        }
+
+        // Cargar CDPs disponibles (activos y usados) del colegio
+        $this->loadAvailableCdps();
+
+        $this->calculateRetentions();
+    }
+
+    public function loadAvailableCdps()
+    {
+        $this->availableCdps = Cdp::with(['budgetItem', 'fundingSources.fundingSource'])
+            ->forSchool($this->schoolId)
+            ->forYear((int) $this->filterYear)
+            ->whereIn('status', ['active', 'used'])
+            ->orderBy('cdp_number')
+            ->get()
+            ->map(fn($cdp) => [
+                'id'          => $cdp->id,
+                'number'      => $cdp->formatted_number,
+                'budget_item' => $cdp->budgetItem?->name ?? 'N/A',
+                'budget_item_code' => $cdp->budgetItem?->code ?? '',
+                'total'       => (float) $cdp->total_amount,
+                'status'      => $cdp->status_name,
+                'sources'     => $cdp->fundingSources->map(fn($fs) => [
+                    'name'   => $fs->fundingSource?->name ?? 'N/A',
+                    'amount' => (float) $fs->amount,
+                ])->toArray(),
+            ])
+            ->toArray();
+    }
+
+    public function onCdpSelected()
+    {
+        $this->cdpData = [];
+        $this->availableRps = [];
+        $this->selectedRpId = '';
+        $this->rpData = [];
+        $this->fundingSourcesData = [];
+        $this->directBudgetItemName = '';
+
+        if (!$this->selectedCdpId) return;
+
+        $cdp = Cdp::with([
+                'budgetItem',
+                'fundingSources.fundingSource',
+                'contractRp.fundingSources.fundingSource',
+                'contractRp.contract.supplier',
+                'convocatoria',
+            ])
+            ->forSchool($this->schoolId)
+            ->findOrFail($this->selectedCdpId);
+
+        $this->cdpData = [
+            'id'               => $cdp->id,
+            'number'           => $cdp->formatted_number,
+            'budget_item'      => $cdp->budgetItem?->name ?? 'N/A',
+            'budget_item_code' => $cdp->budgetItem?->code ?? '',
+            'budget_item_id'   => $cdp->budget_item_id,
+            'total'            => (float) $cdp->total_amount,
+            'status'           => $cdp->status_name,
+            'convocatoria'     => $cdp->convocatoria ? ('Conv. N° ' . $cdp->convocatoria->formatted_number . ' - ' . Str::limit($cdp->convocatoria->object, 50)) : null,
+        ];
+
+        $this->directBudgetItemName = ($cdp->budgetItem?->code ?? '') . ' - ' . ($cdp->budgetItem?->name ?? '');
+
+        // Fuentes de financiación del CDP
+        $sources = [];
+        foreach ($cdp->fundingSources as $fs) {
+            $sources[] = [
+                'name'   => $fs->fundingSource->name ?? 'N/A',
+                'amount' => (float) $fs->amount,
+            ];
+        }
+        $this->fundingSourcesData = $sources;
+
+        // Cargar RPs asociados a este CDP
+        if ($cdp->contractRp && $cdp->contractRp->status !== 'cancelled') {
+            $rp = $cdp->contractRp;
+            $contract = $rp->contract;
+            $rpSources = $rp->fundingSources->map(fn($fs) => $fs->fundingSource?->name ?? 'N/A')->implode(', ');
+
+            $this->availableRps = [[
+                'id'              => $rp->id,
+                'number'          => $rp->formatted_number,
+                'total'           => (float) $rp->total_amount,
+                'status'          => $rp->status_name,
+                'contract_number' => $contract?->formatted_number,
+                'contract_object' => $contract?->object,
+                'supplier_name'   => $contract?->supplier?->full_name,
+                'funding_sources' => $rpSources,
+            ]];
+            // Auto-seleccionar si solo hay uno
+            $this->selectedRpId = $rp->id;
+            $this->onRpSelected();
+        }
+    }
+
+    public function onRpSelected()
+    {
+        $this->rpData = [];
+        if (!$this->selectedRpId) return;
+
+        $rp = ContractRp::with(['fundingSources.fundingSource'])->find($this->selectedRpId);
+        if (!$rp) return;
+
+        $this->rpData = [
+            'id'     => $rp->id,
+            'number' => $rp->formatted_number,
+            'total'  => (float) $rp->total_amount,
+            'status' => $rp->status_name,
+        ];
+
+        // Actualizar fuentes de financiación con las del RP
+        $sources = [];
+        foreach ($rp->fundingSources as $fs) {
+            $sources[] = [
+                'name'   => $fs->fundingSource->name ?? 'N/A',
+                'amount' => (float) $fs->amount,
+            ];
+        }
+        if (!empty($sources)) {
+            $this->fundingSourcesData = $sources;
+        }
+    }
+
+    private function resetCreateFormData()
+    {
+        $this->selectedContractId = '';
+        $this->contractData = [];
+        $this->supplierData = [];
+        $this->fundingSourcesData = [];
+        $this->selectedSupplierId = '';
+        $this->directDescription = '';
+        $this->selectedCdpId = '';
+        $this->cdpData = [];
+        $this->availableRps = [];
+        $this->selectedRpId = '';
+        $this->rpData = [];
+        $this->directBudgetItemName = '';
+        $this->availableCdps = [];
+        $this->isFullPayment = true;
+        $this->paySubtotal = '';
+        $this->payIva = '';
+        $this->payTotal = '';
+        $this->retentionConcept = '';
+        $this->supplierDeclaresRent = false;
+        $this->retentionPercentage = 0;
+        $this->retefuente = 0;
+        $this->reteiva = 0;
+        $this->totalRetentionsDian = 0;
+        $this->estampillaProdultoMayor = 0;
+        $this->estampillaProcultura = 0;
+        $this->retencionIca = 0;
+        $this->otherTaxesTotal = 0;
+        $this->totalRetentions = 0;
+        $this->netPayment = 0;
+        $this->observations = '';
+        $this->supplierBankAccounts = [];
+        $this->selectedBankAccountId = '';
+        $this->showNewBankAccountForm = false;
+        $this->newBankName = '';
+        $this->newAccountType = 'ahorros';
+        $this->newAccountNumber = '';
+        $this->expenseDistributions = [];
+        $this->paymentMode = 'single';
+        $this->selectedExpenseDistributionId = '';
+        $this->expenseLines = [];
     }
 
     public function onContractSelected()
@@ -775,22 +1040,29 @@ class PostcontractualManagement extends Component
             'newAccountNumber.required' => 'El número de cuenta es obligatorio.',
         ]);
 
-        // Obtener el proveedor del contrato
-        $contract = Contract::with('supplier')->find($this->selectedContractId);
-        if (!$contract || !$contract->supplier) {
+        // Obtener el proveedor según el tipo de pago
+        $supplier = null;
+        if ($this->paymentType === 'direct' && $this->selectedSupplierId) {
+            $supplier = Supplier::find($this->selectedSupplierId);
+        } elseif ($this->selectedContractId) {
+            $contract = Contract::with('supplier')->find($this->selectedContractId);
+            $supplier = $contract?->supplier;
+        }
+
+        if (!$supplier) {
             $this->dispatch('toast', message: 'No se encontró el proveedor.', type: 'error');
             return;
         }
 
         $bankAccount = SupplierBankAccount::create([
-            'supplier_id'    => $contract->supplier->id,
+            'supplier_id'    => $supplier->id,
             'bank_name'      => $this->newBankName,
             'account_type'   => $this->newAccountType,
             'account_number' => $this->newAccountNumber,
         ]);
 
         // Recargar cuentas y seleccionar la nueva
-        $this->supplierBankAccounts = $contract->supplier->bankAccounts()
+        $this->supplierBankAccounts = $supplier->bankAccounts()
             ->active()
             ->orderBy('bank_name')
             ->get()
@@ -814,95 +1086,109 @@ class PostcontractualManagement extends Component
             return;
         }
 
-        $this->validate([
-            'selectedContractId' => 'required|exists:contracts,id',
-            'paymentDate'        => 'required|date',
-            'invoiceDate'        => 'required|date',
-            'invoiceNumber'      => 'required|string|max:100',
-            'paySubtotal'        => 'required|numeric|min:0.01',
-            'payIva'             => 'nullable|numeric|min:0',
-            'payTotal'           => 'required|numeric|min:0.01',
-        ], [
-            'selectedContractId.required' => 'Debe seleccionar un contrato.',
-            'paymentDate.required'        => 'La fecha de pago es obligatoria.',
-            'invoiceDate.required'        => 'La fecha de la factura es obligatoria.',
-            'invoiceNumber.required'      => 'El número de factura es obligatorio.',
-            'paySubtotal.required'        => 'El subtotal es obligatorio.',
-            'paySubtotal.min'             => 'El subtotal debe ser mayor a 0.',
-            'payTotal.required'           => 'El total es obligatorio.',
-        ]);
+        // Validación base
+        $rules = [
+            'paymentDate'  => 'required|date',
+            'invoiceDate'  => 'required|date',
+            'invoiceNumber'=> 'required|string|max:100',
+            'paySubtotal'  => 'required|numeric|min:0.01',
+            'payIva'       => 'nullable|numeric|min:0',
+            'payTotal'     => 'required|numeric|min:0.01',
+        ];
+        $messages = [
+            'paymentDate.required'  => 'La fecha de pago es obligatoria.',
+            'invoiceDate.required'  => 'La fecha de la factura es obligatoria.',
+            'invoiceNumber.required'=> 'El número de factura es obligatorio.',
+            'paySubtotal.required'  => 'El subtotal es obligatorio.',
+            'paySubtotal.min'       => 'El subtotal debe ser mayor a 0.',
+            'payTotal.required'     => 'El total es obligatorio.',
+        ];
 
-        // Validar distribución de gasto
-        if (!empty($this->expenseDistributions)) {
-            if ($this->paymentMode === 'single' && !$this->selectedExpenseDistributionId) {
-                $this->dispatch('toast', message: 'Debe seleccionar un código de gasto.', type: 'error');
-                return;
-            }
-
-            if ($this->paymentMode === 'single' && $this->selectedExpenseDistributionId) {
-                $selectedDist = collect($this->expenseDistributions)->firstWhere('id', $this->selectedExpenseDistributionId);
-                if ($selectedDist) {
-                    $maxAmount = (float) $selectedDist['convocatoria_amount'];
-                    if ((float) $this->payTotal > $maxAmount) {
-                        $this->dispatch('toast', message: "El total del pago (\$" . number_format($this->payTotal, 2, ',', '.') . ") excede lo asignado al código de gasto (\$" . number_format($maxAmount, 2, ',', '.') . ").", type: 'error');
-                        return;
-                    }
-                }
-            }
-
-            if ($this->paymentMode === 'split') {
-                $hasAmount = false;
-                foreach ($this->expenseLines as $line) {
-                    if ((float) ($line['subtotal'] ?? 0) > 0) {
-                        $hasAmount = true;
-                    }
-                    // Validate each line doesn't exceed its max
-                    $lineTotal = (float) ($line['subtotal'] ?? 0) + (float) ($line['iva'] ?? 0);
-                    $maxAmount = (float) ($line['max_amount'] ?? 0);
-                    if ($lineTotal > $maxAmount && $maxAmount > 0) {
-                        $this->dispatch('toast', message: "El monto de '{$line['expense_code_name']}' (\$" . number_format($lineTotal, 2, ',', '.') . ") excede lo asignado en la convocatoria (\$" . number_format($maxAmount, 2, ',', '.') . ").", type: 'error');
-                        return;
-                    }
-                }
-                if (!$hasAmount) {
-                    $this->dispatch('toast', message: 'Debe asignar montos a al menos un código de gasto.', type: 'error');
-                    return;
-                }
-
-                // Validate sum of lines matches total
-                $linesTotal = 0;
-                foreach ($this->expenseLines as $line) {
-                    $linesTotal += (float) ($line['subtotal'] ?? 0) + (float) ($line['iva'] ?? 0);
-                }
-                if (abs($linesTotal - (float) $this->payTotal) > 1) {
-                    $this->dispatch('toast', message: 'La suma de las líneas de gasto no coincide con el total del pago.', type: 'error');
-                    return;
-                }
-            }
+        if ($this->paymentType === 'contract') {
+            $rules['selectedContractId'] = 'required|exists:contracts,id';
+            $messages['selectedContractId.required'] = 'Debe seleccionar un contrato.';
+        } else {
+            $rules['selectedSupplierId'] = 'required|exists:suppliers,id';
+            $rules['directDescription'] = 'required|string|min:5|max:1000';
+            $messages['selectedSupplierId.required'] = 'Debe seleccionar un proveedor.';
+            $messages['directDescription.required'] = 'La descripción del pago es obligatoria.';
+            $messages['directDescription.min'] = 'La descripción debe tener al menos 5 caracteres.';
         }
 
-        // Validar que no exceda el saldo pendiente
-        $remaining = $this->contractData['remaining'] ?? 0;
-        if ((float) $this->payTotal > $remaining) {
-            $formattedTotal = number_format($this->payTotal, 2, ',', '.');
-            $formattedRemaining = number_format($remaining, 2, ',', '.');
-            $this->dispatch('toast', message: "El monto (\${$formattedTotal}) excede el saldo pendiente (\${$formattedRemaining}).", type: 'error');
-            return;
+        $this->validate($rules, $messages);
+
+        // Validaciones específicas para pagos con contrato
+        if ($this->paymentType === 'contract') {
+            // Validar distribución de gasto
+            if (!empty($this->expenseDistributions)) {
+                if ($this->paymentMode === 'single' && !$this->selectedExpenseDistributionId) {
+                    $this->dispatch('toast', message: 'Debe seleccionar un código de gasto.', type: 'error');
+                    return;
+                }
+
+                if ($this->paymentMode === 'single' && $this->selectedExpenseDistributionId) {
+                    $selectedDist = collect($this->expenseDistributions)->firstWhere('id', $this->selectedExpenseDistributionId);
+                    if ($selectedDist) {
+                        $maxAmount = (float) $selectedDist['convocatoria_amount'];
+                        if ((float) $this->payTotal > $maxAmount) {
+                            $this->dispatch('toast', message: "El total del pago (\$" . number_format($this->payTotal, 2, ',', '.') . ") excede lo asignado al código de gasto (\$" . number_format($maxAmount, 2, ',', '.') . ").", type: 'error');
+                            return;
+                        }
+                    }
+                }
+
+                if ($this->paymentMode === 'split') {
+                    $hasAmount = false;
+                    foreach ($this->expenseLines as $line) {
+                        if ((float) ($line['subtotal'] ?? 0) > 0) {
+                            $hasAmount = true;
+                        }
+                        $lineTotal = (float) ($line['subtotal'] ?? 0) + (float) ($line['iva'] ?? 0);
+                        $maxAmount = (float) ($line['max_amount'] ?? 0);
+                        if ($lineTotal > $maxAmount && $maxAmount > 0) {
+                            $this->dispatch('toast', message: "El monto de '{$line['expense_code_name']}' (\$" . number_format($lineTotal, 2, ',', '.') . ") excede lo asignado en la convocatoria (\$" . number_format($maxAmount, 2, ',', '.') . ").", type: 'error');
+                            return;
+                        }
+                    }
+                    if (!$hasAmount) {
+                        $this->dispatch('toast', message: 'Debe asignar montos a al menos un código de gasto.', type: 'error');
+                        return;
+                    }
+
+                    $linesTotal = 0;
+                    foreach ($this->expenseLines as $line) {
+                        $linesTotal += (float) ($line['subtotal'] ?? 0) + (float) ($line['iva'] ?? 0);
+                    }
+                    if (abs($linesTotal - (float) $this->payTotal) > 1) {
+                        $this->dispatch('toast', message: 'La suma de las líneas de gasto no coincide con el total del pago.', type: 'error');
+                        return;
+                    }
+                }
+            }
+
+            // Validar que no exceda el saldo pendiente
+            $remaining = $this->contractData['remaining'] ?? 0;
+            if ((float) $this->payTotal > $remaining) {
+                $formattedTotal = number_format($this->payTotal, 2, ',', '.');
+                $formattedRemaining = number_format($remaining, 2, ',', '.');
+                $this->dispatch('toast', message: "El monto (\${$formattedTotal}) excede el saldo pendiente (\${$formattedRemaining}).", type: 'error');
+                return;
+            }
         }
 
         DB::beginTransaction();
         try {
             $year = (int) $this->filterYear;
 
-            $paymentOrder = PaymentOrder::create([
+            $paymentData = [
                 'school_id'                  => $this->schoolId,
-                'contract_id'                => $this->selectedContractId,
+                'payment_type'               => $this->paymentType,
                 'payment_number'             => PaymentOrder::getNextPaymentNumber($this->schoolId, $year),
                 'fiscal_year'                => $year,
                 'invoice_number'             => $this->invoiceNumber,
                 'invoice_date'               => $this->invoiceDate,
                 'payment_date'               => $this->paymentDate,
-                'is_full_payment'            => $this->isFullPayment,
+                'is_full_payment'            => $this->paymentType === 'direct' ? true : $this->isFullPayment,
                 'subtotal'                   => (float) $this->paySubtotal,
                 'iva'                        => (float) ($this->payIva ?? 0),
                 'total'                      => (float) $this->payTotal,
@@ -923,7 +1209,19 @@ class PostcontractualManagement extends Component
                 'supplier_account_number'    => null,
                 'status'                     => 'draft',
                 'created_by'                 => auth()->id(),
-            ]);
+            ];
+
+            if ($this->paymentType === 'contract') {
+                $paymentData['contract_id'] = $this->selectedContractId;
+            } else {
+                $paymentData['supplier_id'] = $this->selectedSupplierId;
+                $paymentData['description'] = $this->directDescription;
+                $paymentData['cdp_id'] = $this->selectedCdpId ?: null;
+                $paymentData['contract_rp_id'] = $this->selectedRpId ?: null;
+                $paymentData['budget_item_id'] = !empty($this->cdpData['budget_item_id']) ? $this->cdpData['budget_item_id'] : null;
+            }
+
+            $paymentOrder = PaymentOrder::create($paymentData);
 
             // Guardar snapshot de cuenta bancaria seleccionada
             if ($this->selectedBankAccountId) {
@@ -937,10 +1235,9 @@ class PostcontractualManagement extends Component
                 }
             }
 
-            // Guardar líneas de distribución por código de gasto
-            if (!empty($this->expenseDistributions)) {
+            // Guardar líneas de distribución por código de gasto (solo para pagos con contrato)
+            if ($this->paymentType === 'contract' && !empty($this->expenseDistributions)) {
                 if ($this->paymentMode === 'single' && $this->selectedExpenseDistributionId) {
-                    // Single mode: one line with the full payment
                     $dist = collect($this->expenseDistributions)->firstWhere('id', $this->selectedExpenseDistributionId);
                     if ($dist) {
                         PaymentOrderExpenseLine::create([
@@ -963,7 +1260,6 @@ class PostcontractualManagement extends Component
                         ]);
                     }
                 } elseif ($this->paymentMode === 'split') {
-                    // Split mode: one line per expense code with amounts
                     foreach ($this->expenseLines as $line) {
                         $lineSubtotal = (float) ($line['subtotal'] ?? 0);
                         if ($lineSubtotal <= 0 && (float) ($line['iva'] ?? 0) <= 0) continue;
@@ -1075,6 +1371,7 @@ class PostcontractualManagement extends Component
 
     public function resetCreateForm()
     {
+        $this->paymentType = 'contract';
         $this->selectedContractId = '';
         $this->contractData = [];
         $this->supplierData = [];
@@ -1110,6 +1407,70 @@ class PostcontractualManagement extends Component
         $this->paymentMode = 'single';
         $this->selectedExpenseDistributionId = '';
         $this->expenseLines = [];
+        // Direct payment
+        $this->selectedSupplierId = '';
+        $this->directDescription = '';
+        $this->availableSuppliers = [];
+        $this->availableCdps = [];
+        $this->selectedCdpId = '';
+        $this->cdpData = [];
+        $this->availableRps = [];
+        $this->selectedRpId = '';
+        $this->rpData = [];
+        $this->directBudgetItemName = '';
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // IMPRIMIR DOCUMENTOS
+    // ══════════════════════════════════════════════════════════
+
+    public function openPrintModal()
+    {
+        $this->printDocuments = [
+            'comprobante_egreso' => false,
+            'orden_pago' => false,
+            'constancia_recibido' => false,
+            'certificado_retenciones' => false,
+            'documento_soporte' => false,
+        ];
+        $this->showPrintModal = true;
+    }
+
+    public function closePrintModal()
+    {
+        $this->showPrintModal = false;
+    }
+
+    public function printSelectedDocuments()
+    {
+        $selected = array_filter($this->printDocuments);
+
+        if (empty($selected)) {
+            $this->dispatch('toast', message: 'Seleccione al menos un documento para imprimir.', type: 'error');
+            return;
+        }
+
+        if (!empty($selected['comprobante_egreso'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.comprobante-egreso.pdf', $this->paymentOrderId));
+        }
+
+        if (!empty($selected['orden_pago'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.orden-pago.pdf', $this->paymentOrderId));
+        }
+
+        if (!empty($selected['constancia_recibido'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.constancia-recibido.pdf', $this->paymentOrderId));
+        }
+
+        if (!empty($selected['certificado_retenciones'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.certificado-retenciones.pdf', $this->paymentOrderId));
+        }
+
+        if (!empty($selected['documento_soporte'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.documento-soporte.pdf', $this->paymentOrderId));
+        }
+
+        $this->closePrintModal();
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1125,6 +1486,12 @@ class PostcontractualManagement extends Component
                 'contract.supplier.department',
                 'contract.supplier.municipality',
                 'contract.rps.fundingSources.fundingSource',
+                'supplier.department',
+                'supplier.municipality',
+                'cdp.budgetItem',
+                'cdp.fundingSources.fundingSource',
+                'contractRp.fundingSources.fundingSource',
+                'budgetItem',
                 'expenseLines.expenseCode',
                 'creator',
             ])->forSchool($this->schoolId)->find($this->paymentOrderId);

@@ -183,13 +183,13 @@ class Dashboard extends Component
         // ── Pagos recientes ──
         $this->recentPayments = PaymentOrder::where('school_id', $schoolId)
             ->where('fiscal_year', $year)
-            ->with('contract.supplier')
+            ->with(['contract.supplier', 'supplier'])
             ->orderByDesc('created_at')
             ->limit(5)
             ->get()
             ->map(fn($p) => [
                 'number' => $p->payment_number,
-                'supplier' => $p->contract?->supplier?->full_name ?? 'N/A',
+                'supplier' => $p->resolved_supplier?->full_name ?? 'N/A',
                 'net_payment' => $p->net_payment,
                 'status' => $p->status,
                 'date' => $p->payment_date?->format('d/m/Y') ?? '',

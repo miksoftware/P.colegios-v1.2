@@ -678,6 +678,12 @@
 
                             {{-- Botones de acción según estado --}}
                             <div class="mt-4 flex flex-wrap gap-2 justify-end">
+                                {{-- Botón Imprimir --}}
+                                <button wire:click="openPrintModal" class="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors inline-flex items-center gap-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                    Imprimir
+                                </button>
+
                                 @can('contractual.edit')
                                     @if($contract->status === 'draft')
                                         <button wire:click="openStatusModal('active')" class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
@@ -1282,4 +1288,146 @@
         </div>
     </div>
     @endif
+
+    {{-- Modal Imprimir Documentos --}}
+    @if($showPrintModal)
+    <div class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="closePrintModal"></div>
+            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-md">
+                <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-700 to-gray-800">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                        Imprimir Documentos
+                    </h3>
+                    <p class="text-sm text-gray-300 mt-1">Seleccione los documentos que desea generar en PDF</p>
+                </div>
+                <div class="p-6">
+                    <div class="space-y-3">
+                        {{-- Certificado de Registro Presupuestal (solo si hay RPs) --}}
+                        @if($contract && $contract->rps->where('status', 'active')->count() > 0)
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.certificado_registro_presupuestal" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Certificado de Registro Presupuestal</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Certificado formal del RP con CDP, rubro, fuentes de financiación, beneficiario y objeto.</p>
+                            </div>
+                        </label>
+                        @else
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-50">
+                            <input type="checkbox" disabled class="mt-0.5 rounded border-gray-300">
+                            <div>
+                                <span class="font-medium text-gray-400">Certificado de Registro Presupuestal</span>
+                                <p class="text-xs text-gray-400 mt-0.5">Disponible cuando se asignen RPs al contrato.</p>
+                            </div>
+                        </label>
+                        @endif
+
+                        {{-- Comprobante de Contabilidad (siempre disponible) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.comprobante_contabilidad" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Comprobante de Contabilidad</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Comprobante con imputación contable (débitos/créditos), imputación presupuestal y firmas.</p>
+                            </div>
+                        </label>
+
+                        {{-- Certificado de Disponibilidad de Tesorería (solo si hay RPs) --}}
+                        @if($contract && $contract->rps->where('status', 'active')->count() > 0)
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.certificado_tesoreria" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Certificado de Disponibilidad de Tesorería</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Certificado con cuenta bancaria, fuente de financiación, rubro y valor a comprometer.</p>
+                            </div>
+                        </label>
+                        @else
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-50">
+                            <input type="checkbox" disabled class="mt-0.5 rounded border-gray-300">
+                            <div>
+                                <span class="font-medium text-gray-400">Certificado de Disponibilidad de Tesorería</span>
+                                <p class="text-xs text-gray-400 mt-0.5">Disponible cuando se asignen RPs al contrato.</p>
+                            </div>
+                        </label>
+                        @endif
+
+                        {{-- Acta de Inicio del Contrato (siempre disponible) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.acta_inicio" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Acta de Inicio del Contrato</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Acta con datos del contrato, supervisor, concepto, registros presupuestales y firmas.</p>
+                            </div>
+                        </label>
+
+                        {{-- Acta de Finalización y Liquidación (siempre disponible) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.acta_finalizacion" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Acta de Finalización y Liquidación</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Acta con desarrollo financiero, valores pagados, texto legal de liquidación y firmas.</p>
+                            </div>
+                        </label>
+
+                        {{-- Informe de Supervisión (siempre disponible) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.informe_supervision" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Informe de Supervisión</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Informe de actividades con datos del contrato, certificación del supervisor y firmas.</p>
+                            </div>
+                        </label>
+
+                        {{-- Certificado de Inhabilidades (siempre disponible) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.certificado_inhabilidades" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Certificado de Inhabilidades e Incompatibilidades</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Declaración jurada del contratista conforme a la Ley 80 de 1993 y Ley 142 de 1994.</p>
+                            </div>
+                        </label>
+
+                        {{-- Informe de Actividades (siempre disponible) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.informe_actividades" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Informe de Actividades</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Informe del contratista con avance de ejecución, costo, observaciones y certificación del supervisor.</p>
+                            </div>
+                        </label>
+
+                        {{-- Resolución Designación de Supervisión (siempre disponible) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.resolucion_supervision" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Resolución Designación de Supervisión</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Resolución con designación del supervisor, funciones y aceptación.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                    <button type="button" wire:click="closePrintModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="button" wire:click="printSelectedDocuments" class="px-4 py-2 bg-gray-700 text-white rounded-xl hover:bg-gray-800 transition-colors inline-flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                        Generar PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
+
+@push('scripts')
+<script>
+    document.addEventListener('livewire:init', () => {
+        Livewire.on('openPdfWindow', (data) => {
+            const url = Array.isArray(data) ? data[0].url : data.url;
+            window.open(url, '_blank');
+        });
+    });
+</script>
+@endpush

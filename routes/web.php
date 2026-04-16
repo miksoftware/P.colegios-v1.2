@@ -120,9 +120,65 @@ Route::get('contractual/{convocatoria_id?}', App\Livewire\ContractualManagement:
     ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contractual.index');
 
+Route::get('contractual/{contractId}/certificado-rp/pdf', [App\Http\Controllers\ContractualPdfController::class, 'certificadoRp'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.certificado-rp.pdf');
+
+Route::get('contractual/{contractId}/comprobante-contabilidad/pdf', [App\Http\Controllers\ContractualPdfController::class, 'comprobanteContabilidad'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.comprobante-contabilidad.pdf');
+
+Route::get('contractual/{contractId}/certificado-tesoreria/pdf', [App\Http\Controllers\ContractualPdfController::class, 'certificadoTesoreria'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.certificado-tesoreria.pdf');
+
+Route::get('contractual/{contractId}/acta-inicio/pdf', [App\Http\Controllers\ContractualPdfController::class, 'actaInicio'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.acta-inicio.pdf');
+
+Route::get('contractual/{contractId}/acta-finalizacion/pdf', [App\Http\Controllers\ContractualPdfController::class, 'actaFinalizacion'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.acta-finalizacion.pdf');
+
+Route::get('contractual/{contractId}/informe-supervision/pdf', [App\Http\Controllers\ContractualPdfController::class, 'informeSupervision'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.informe-supervision.pdf');
+
+Route::get('contractual/{contractId}/certificado-inhabilidades/pdf', [App\Http\Controllers\ContractualPdfController::class, 'certificadoInhabilidades'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.certificado-inhabilidades.pdf');
+
+Route::get('contractual/{contractId}/informe-actividades/pdf', [App\Http\Controllers\ContractualPdfController::class, 'informeActividades'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.informe-actividades.pdf');
+
+Route::get('contractual/{contractId}/resolucion-supervision/pdf', [App\Http\Controllers\ContractualPdfController::class, 'resolucionSupervision'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.resolucion-supervision.pdf');
+
 Route::get('postcontractual/{contract_id?}', App\Livewire\PostcontractualManagement::class)
     ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('postcontractual.index');
+
+Route::get('postcontractual/{paymentOrderId}/comprobante-egreso/pdf', [App\Http\Controllers\PostcontractualPdfController::class, 'comprobanteEgreso'])
+    ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('postcontractual.comprobante-egreso.pdf');
+
+Route::get('postcontractual/{paymentOrderId}/orden-pago/pdf', [App\Http\Controllers\PostcontractualPdfController::class, 'ordenPago'])
+    ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('postcontractual.orden-pago.pdf');
+
+Route::get('postcontractual/{paymentOrderId}/constancia-recibido/pdf', [App\Http\Controllers\PostcontractualPdfController::class, 'constanciaRecibido'])
+    ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('postcontractual.constancia-recibido.pdf');
+
+Route::get('postcontractual/{paymentOrderId}/certificado-retenciones/pdf', [App\Http\Controllers\PostcontractualPdfController::class, 'certificadoRetenciones'])
+    ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('postcontractual.certificado-retenciones.pdf');
+
+Route::get('postcontractual/{paymentOrderId}/documento-soporte/pdf', [App\Http\Controllers\PostcontractualPdfController::class, 'documentoSoporte'])
+    ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('postcontractual.documento-soporte.pdf');
 
 Route::get('reports/payment-report', App\Livewire\PaymentReportManagement::class)
     ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])

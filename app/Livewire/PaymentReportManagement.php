@@ -69,6 +69,10 @@ class PaymentReportManagement extends Component
                 'contract.convocatoria.cdps.fundingSources.fundingSource',
                 'contract.convocatoria.cdps.contractRp',
                 'contract.rps.cdp',
+                'supplier',
+                'cdp.fundingSources.fundingSource',
+                'contractRp.cdp',
+                'budgetItem',
                 'expenseLines.expenseDistribution.budget.budgetItem',
                 'expenseLines.expenseCode',
             ]);
@@ -78,10 +82,16 @@ class PaymentReportManagement extends Component
         }
 
         if ($this->filterSupplier) {
-            $query->whereHas('contract.supplier', function ($q) {
-                $q->where('first_surname', 'like', "%{$this->filterSupplier}%")
-                  ->orWhere('first_name', 'like', "%{$this->filterSupplier}%")
-                  ->orWhere('document_number', 'like', "%{$this->filterSupplier}%");
+            $query->where(function ($q) {
+                $q->whereHas('contract.supplier', function ($sq) {
+                    $sq->where('first_surname', 'like', "%{$this->filterSupplier}%")
+                      ->orWhere('first_name', 'like', "%{$this->filterSupplier}%")
+                      ->orWhere('document_number', 'like', "%{$this->filterSupplier}%");
+                })->orWhereHas('supplier', function ($sq) {
+                    $sq->where('first_surname', 'like', "%{$this->filterSupplier}%")
+                      ->orWhere('first_name', 'like', "%{$this->filterSupplier}%")
+                      ->orWhere('document_number', 'like', "%{$this->filterSupplier}%");
+                });
             });
         }
 
@@ -89,12 +99,12 @@ class PaymentReportManagement extends Component
 
         $this->payments = $paymentOrders->map(function ($po) {
             $contract = $po->contract;
-            $supplier = $contract?->supplier;
+            $supplier = $po->resolved_supplier;
             $convocatoria = $contract?->convocatoria;
 
-            // Obtener CDP y RP del contrato
-            $rp = $contract?->rps->first();
-            $cdp = $rp?->cdp ?? $convocatoria?->cdps->first();
+            // Obtener CDP y RP del contrato o del pago directo
+            $rp = $contract?->rps->first() ?? ($po->contractRp ?? null);
+            $cdp = $rp?->cdp ?? $po->cdp ?? $convocatoria?->cdps->first();
 
             // Fuente de financiación (del CDP funding sources)
             $fundingSourceName = '';
@@ -125,9 +135,9 @@ class PaymentReportManagement extends Component
                 'funding_source' => $fundingSourceName,
                 'rubro_code' => $expenseCode?->code ?? $rubroCode,
                 'rubro_name' => $expenseCode?->name ?? $rubroName,
-                'detail' => $contract?->object ?? '',
+                'detail' => $contract?->object ?? $po->description ?? '',
                 'sede' => 'RECTORÍA',
-                'contract_number' => $contract ? "CONTRATO No. {$contract->formatted_number}" : '',
+                'contract_number' => $contract ? "CONTRATO No. {$contract->formatted_number}" : ($po->payment_type === 'direct' ? 'PAGO DIRECTO' : ''),
                 'contract_date' => $contract?->start_date?->format('Y/m/d'),
                 'cdp_number' => $cdp?->cdp_number ?? '',
                 'rp_number' => $rp?->rp_number ?? '',

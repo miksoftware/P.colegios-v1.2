@@ -52,6 +52,9 @@ class RetentionLiquidationReport extends Component
                 'contract.supplier',
                 'contract.convocatoria.cdps.fundingSources.fundingSource',
                 'contract.rps.fundingSources.fundingSource',
+                'supplier',
+                'cdp.fundingSources.fundingSource',
+                'contractRp.fundingSources.fundingSource',
             ]);
 
         if ($this->filterMonth) {
@@ -65,7 +68,7 @@ class RetentionLiquidationReport extends Component
 
         foreach ($paymentOrders as $po) {
             $contract = $po->contract;
-            $supplier = $contract?->supplier;
+            $supplier = $po->resolved_supplier;
             $personType = $supplier?->person_type ?? 'natural'; // natural or juridica
 
             // Determine funding source name

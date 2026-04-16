@@ -93,6 +93,20 @@ class ContractualManagement extends Component
     public $additionAvailableFundingSources = [];
     public $additionBudgetItems = [];
 
+    // Modal Imprimir Documentos
+    public $showPrintModal = false;
+    public $printDocuments = [
+        'certificado_registro_presupuestal' => false,
+        'comprobante_contabilidad' => false,
+        'certificado_tesoreria' => false,
+        'acta_inicio' => false,
+        'acta_finalizacion' => false,
+        'informe_supervision' => false,
+        'certificado_inhabilidades' => false,
+        'informe_actividades' => false,
+        'resolucion_supervision' => false,
+    ];
+
     protected $queryString = [
         'filterYear'   => ['except' => ''],
         'filterStatus' => ['except' => ''],
@@ -1093,6 +1107,79 @@ class ContractualManagement extends Component
         $this->awardedConvocatorias = [];
         $this->supervisors = [];
         $this->convocatoriaEndDate = '';
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // IMPRIMIR DOCUMENTOS
+    // ══════════════════════════════════════════════════════════
+
+    public function openPrintModal()
+    {
+        $this->printDocuments = [
+            'certificado_registro_presupuestal' => false,
+            'comprobante_contabilidad' => false,
+            'certificado_tesoreria' => false,
+            'acta_inicio' => false,
+            'acta_finalizacion' => false,
+            'informe_supervision' => false,
+            'certificado_inhabilidades' => false,
+            'informe_actividades' => false,
+            'resolucion_supervision' => false,
+        ];
+        $this->showPrintModal = true;
+    }
+
+    public function closePrintModal()
+    {
+        $this->showPrintModal = false;
+    }
+
+    public function printSelectedDocuments()
+    {
+        $selected = array_filter($this->printDocuments);
+
+        if (empty($selected)) {
+            $this->dispatch('toast', message: 'Seleccione al menos un documento para imprimir.', type: 'error');
+            return;
+        }
+
+        if (!empty($selected['certificado_registro_presupuestal'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.certificado-rp.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['comprobante_contabilidad'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.comprobante-contabilidad.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['certificado_tesoreria'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.certificado-tesoreria.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['acta_inicio'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.acta-inicio.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['acta_finalizacion'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.acta-finalizacion.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['informe_supervision'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.informe-supervision.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['certificado_inhabilidades'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.certificado-inhabilidades.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['informe_actividades'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.informe-actividades.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['resolucion_supervision'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.resolucion-supervision.pdf', $this->contractId));
+        }
+
+        $this->closePrintModal();
     }
 
     // ══════════════════════════════════════════════════════════

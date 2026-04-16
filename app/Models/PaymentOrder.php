@@ -13,7 +13,13 @@ class PaymentOrder extends Model
 
     protected $fillable = [
         'school_id',
+        'payment_type',
         'contract_id',
+        'supplier_id',
+        'cdp_id',
+        'contract_rp_id',
+        'description',
+        'budget_item_id',
         'payment_number',
         'fiscal_year',
         'invoice_number',
@@ -75,6 +81,11 @@ class PaymentOrder extends Model
         'approved'  => 'bg-blue-100 text-blue-700',
         'paid'      => 'bg-green-100 text-green-700',
         'cancelled' => 'bg-red-100 text-red-700',
+    ];
+
+    const PAYMENT_TYPES = [
+        'contract' => 'Con Contrato',
+        'direct'   => 'Pago Directo',
     ];
 
     const RETENTION_CONCEPTS = [
@@ -148,6 +159,26 @@ class PaymentOrder extends Model
         return $this->belongsTo(Contract::class);
     }
 
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function cdp(): BelongsTo
+    {
+        return $this->belongsTo(Cdp::class);
+    }
+
+    public function contractRp(): BelongsTo
+    {
+        return $this->belongsTo(ContractRp::class);
+    }
+
+    public function budgetItem(): BelongsTo
+    {
+        return $this->belongsTo(BudgetItem::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -180,6 +211,27 @@ class PaymentOrder extends Model
         return self::RETENTION_CONCEPTS[$this->retention_concept] ?? $this->retention_concept ?? 'Sin retención';
     }
 
+    public function getPaymentTypeNameAttribute(): string
+    {
+        return self::PAYMENT_TYPES[$this->payment_type] ?? $this->payment_type;
+    }
+
+    public function getIsDirectPaymentAttribute(): bool
+    {
+        return $this->payment_type === 'direct';
+    }
+
+    /**
+     * Obtiene el proveedor, ya sea del contrato o directo.
+     */
+    public function getResolvedSupplierAttribute(): ?Supplier
+    {
+        if ($this->payment_type === 'direct') {
+            return $this->supplier;
+        }
+        return $this->contract?->supplier;
+    }
+
     // ── Scopes ────────────────────────────────────────────────
 
     public function scopeForSchool($query, int $schoolId)
@@ -202,9 +254,15 @@ class PaymentOrder extends Model
         return $query->where(function ($q) use ($search) {
             $q->where('payment_number', 'like', "%{$search}%")
               ->orWhere('invoice_number', 'like', "%{$search}%")
+              ->orWhere('description', 'like', "%{$search}%")
               ->orWhereHas('contract', function ($sq) use ($search) {
                   $sq->where('contract_number', 'like', "%{$search}%")
                      ->orWhere('object', 'like', "%{$search}%");
+              })
+              ->orWhereHas('supplier', function ($sq) use ($search) {
+                  $sq->where('first_name', 'like', "%{$search}%")
+                     ->orWhere('first_surname', 'like', "%{$search}%")
+                     ->orWhere('document_number', 'like', "%{$search}%");
               });
         });
     }

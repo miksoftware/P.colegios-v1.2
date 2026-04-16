@@ -77,6 +77,8 @@ class ExogenaReport extends Component
             ->with([
                 'contract.supplier.department',
                 'contract.supplier.municipality',
+                'supplier.department',
+                'supplier.municipality',
             ])
             ->get();
 
@@ -84,7 +86,7 @@ class ExogenaReport extends Component
         $grouped = [];
 
         foreach ($paymentOrders as $po) {
-            $supplier = $po->contract?->supplier;
+            $supplier = $po->resolved_supplier;
             if (!$supplier) continue;
 
             $concept = $po->retention_concept ?? 'servicios';

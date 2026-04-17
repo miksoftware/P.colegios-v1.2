@@ -105,6 +105,7 @@ class ContractualManagement extends Component
         'certificado_inhabilidades' => false,
         'informe_actividades' => false,
         'resolucion_supervision' => false,
+        'contrato' => false,
     ];
 
     protected $queryString = [
@@ -1125,6 +1126,7 @@ class ContractualManagement extends Component
             'certificado_inhabilidades' => false,
             'informe_actividades' => false,
             'resolucion_supervision' => false,
+            'contrato' => false,
         ];
         $this->showPrintModal = true;
     }
@@ -1177,6 +1179,10 @@ class ContractualManagement extends Component
 
         if (!empty($selected['resolucion_supervision'])) {
             $this->dispatch('openPdfWindow', url: route('contractual.resolucion-supervision.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['contrato'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.contrato.pdf', $this->contractId));
         }
 
         $this->closePrintModal();

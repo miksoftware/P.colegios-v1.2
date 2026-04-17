@@ -439,6 +439,78 @@ class ContractualPdfController extends Controller
     }
 
     /**
+     * Generar PDF del Contrato
+     */
+    public function contratoPdf(Request $request, int $contractId)
+    {
+        $schoolId = (int) session('selected_school_id');
+        abort_if(!$schoolId, 403);
+        abort_if(!auth()->user()->can('contractual.view'), 403);
+
+        $contract = Contract::forSchool($schoolId)
+            ->with([
+                'school',
+                'supplier.department',
+                'supplier.municipality',
+                'supervisor',
+                'convocatoria.cdps.budgetItem',
+                'convocatoria.cdps.fundingSources.fundingSource',
+                'convocatoria.distributionDetails.expenseDistribution.expenseCode',
+                'rps.cdp.budgetItem',
+                'rps.fundingSources.fundingSource',
+                'creator',
+            ])
+            ->findOrFail($contractId);
+
+        $school = School::findOrFail($schoolId);
+        $supplier = $contract->supplier;
+
+        $amount = (float) $contract->total;
+        $amountInWords = self::amountToWords($amount);
+
+        // CDPs
+        $cdpRows = [];
+        $activeCdps = $contract->convocatoria?->cdps?->where('status', '!=', 'cancelled') ?? collect();
+        foreach ($activeCdps as $cdp) {
+            foreach ($cdp->fundingSources as $cdpFs) {
+                $cdpRows[] = [
+                    'cdp_number' => $cdp->formatted_number,
+                    'budget_item_code' => $cdp->budgetItem?->code ?? '',
+                    'budget_item_name' => $cdp->budgetItem?->name ?? '',
+                    'funding_source' => $cdpFs->fundingSource?->name ?? '',
+                    'amount' => (float) $cdpFs->amount,
+                ];
+            }
+        }
+
+        // Códigos de gasto
+        $expenseCodeRows = [];
+        if ($contract->convocatoria) {
+            foreach ($contract->convocatoria->distributionDetails as $dd) {
+                $ec = $dd->expenseDistribution?->expenseCode;
+                if ($ec) {
+                    $expenseCodeRows[] = $ec->code . ' - ' . $ec->name;
+                }
+            }
+        }
+
+        $pdf = Pdf::loadView('pdf.contrato', [
+            'contract' => $contract,
+            'school' => $school,
+            'supplier' => $supplier,
+            'amount' => $amount,
+            'amountInWords' => $amountInWords,
+            'cdpRows' => $cdpRows,
+            'expenseCodeRows' => $expenseCodeRows,
+            'user' => auth()->user(),
+        ]);
+
+        $pdf->setPaper('letter');
+
+        return $pdf->stream("contrato-{$contract->formatted_number}.pdf");
+    }
+
+    /**
      * Construir la jerarquía de una cuenta contable (desde la raíz hasta la cuenta).
      */
     private function buildAccountHierarchy(?\App\Models\AccountingAccount $account): array

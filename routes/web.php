@@ -156,6 +156,10 @@ Route::get('contractual/{contractId}/resolucion-supervision/pdf', [App\Http\Cont
     ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contractual.resolucion-supervision.pdf');
 
+Route::get('contractual/{contractId}/contrato/pdf', [App\Http\Controllers\ContractualPdfController::class, 'contratoPdf'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.contrato.pdf');
+
 Route::get('postcontractual/{contract_id?}', App\Livewire\PostcontractualManagement::class)
     ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('postcontractual.index');

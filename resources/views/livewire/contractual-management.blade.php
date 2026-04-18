@@ -1313,6 +1313,15 @@
                             </div>
                         </label>
 
+                        {{-- Hoja de Ruta (siempre disponible) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.hoja_ruta" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Hoja de Ruta</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Checklist de 40 documentos del proceso contractual con verificación, folios y observaciones.</p>
+                            </div>
+                        </label>
+
                         {{-- Certificado de Registro Presupuestal (solo si hay RPs) --}}
                         @if($contract && $contract->rps->where('status', 'active')->count() > 0)
                         <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">

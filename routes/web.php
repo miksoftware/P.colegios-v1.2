@@ -160,6 +160,10 @@ Route::get('contractual/{contractId}/contrato/pdf', [App\Http\Controllers\Contra
     ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contractual.contrato.pdf');
 
+Route::get('contractual/{contractId}/hoja-ruta/pdf', [App\Http\Controllers\ContractualPdfController::class, 'hojaRuta'])
+    ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contractual.hoja-ruta.pdf');
+
 Route::get('postcontractual/{contract_id?}', App\Livewire\PostcontractualManagement::class)
     ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('postcontractual.index');
@@ -219,6 +223,10 @@ Route::get('reports/contracting', App\Livewire\ContractingReport::class)
 Route::get('reports/retention-liquidation', App\Livewire\RetentionLiquidationReport::class)
     ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('reports.retention-liquidation');
+
+Route::get('reports/bank-book', App\Livewire\BankBookReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('reports.bank-book');
 
 Route::get('dashboard', App\Livewire\Dashboard::class)
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])

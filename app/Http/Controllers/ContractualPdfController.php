@@ -511,6 +511,53 @@ class ContractualPdfController extends Controller
     }
 
     /**
+     * Generar PDF de Hoja de Ruta
+     */
+    public function hojaRuta(Request $request, int $contractId)
+    {
+        $schoolId = (int) session('selected_school_id');
+        abort_if(!$schoolId, 403);
+        abort_if(!auth()->user()->can('contractual.view'), 403);
+
+        $contract = Contract::forSchool($schoolId)
+            ->with([
+                'school',
+                'supplier',
+                'convocatoria.cdps.fundingSources.fundingSource',
+                'rps.fundingSources.fundingSource',
+            ])
+            ->findOrFail($contractId);
+
+        $school = School::findOrFail($schoolId);
+
+        // Fuentes de financiación
+        $fundingSources = [];
+        if ($contract->convocatoria) {
+            foreach ($contract->convocatoria->cdps->where('status', '!=', 'cancelled') as $cdp) {
+                foreach ($cdp->fundingSources as $cdpFs) {
+                    $fs = $cdpFs->fundingSource;
+                    if ($fs) {
+                        $fundingSources[] = $fs->name . ' ($' . number_format($cdpFs->amount, 2, ',', '.') . ')';
+                    }
+                }
+            }
+        }
+        $fundingSourceText = implode(', ', array_unique($fundingSources)) ?: 'N/A';
+
+        $pdf = Pdf::loadView('pdf.hoja-ruta', [
+            'contract' => $contract,
+            'school' => $school,
+            'supplier' => $contract->supplier,
+            'fundingSourceText' => $fundingSourceText,
+            'user' => auth()->user(),
+        ]);
+
+        $pdf->setPaper('letter');
+
+        return $pdf->stream("hoja-ruta-contrato-{$contract->formatted_number}.pdf");
+    }
+
+    /**
      * Construir la jerarquía de una cuenta contable (desde la raíz hasta la cuenta).
      */
     private function buildAccountHierarchy(?\App\Models\AccountingAccount $account): array

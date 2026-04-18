@@ -106,6 +106,7 @@ class ContractualManagement extends Component
         'informe_actividades' => false,
         'resolucion_supervision' => false,
         'contrato' => false,
+        'hoja_ruta' => false,
     ];
 
     protected $queryString = [
@@ -1127,6 +1128,7 @@ class ContractualManagement extends Component
             'informe_actividades' => false,
             'resolucion_supervision' => false,
             'contrato' => false,
+            'hoja_ruta' => false,
         ];
         $this->showPrintModal = true;
     }
@@ -1183,6 +1185,10 @@ class ContractualManagement extends Component
 
         if (!empty($selected['contrato'])) {
             $this->dispatch('openPdfWindow', url: route('contractual.contrato.pdf', $this->contractId));
+        }
+
+        if (!empty($selected['hoja_ruta'])) {
+            $this->dispatch('openPdfWindow', url: route('contractual.hoja-ruta.pdf', $this->contractId));
         }
 
         $this->closePrintModal();

@@ -4,7 +4,6 @@ namespace App\Livewire;
 
 use App\Models\Bank;
 use App\Models\BankAccount;
-use App\Models\Income;
 use App\Models\IncomeBankAccount;
 use App\Models\PaymentOrder;
 use App\Models\RpFundingSource;
@@ -134,7 +133,7 @@ class BankBookReport extends Component
             ->whereHas('contractRp', function ($q) {
                 $q->where('status', '!=', 'cancelled');
             })
-            ->with(['contractRp.contract.supplier', 'contractRp.paymentOrders'])
+            ->with(['contractRp.contract.supplier'])
             ->get();
 
         // Agrupar por payment order para evitar duplicados
@@ -177,47 +176,6 @@ class BankBookReport extends Component
                     'type' => 'expense',
                 ];
             }
-        }
-
-        // También buscar pagos directos que no tienen RP pero podrían estar asociados a esta cuenta
-        $directPayments = PaymentOrder::where('school_id', $this->schoolId)
-            ->where('fiscal_year', $year)
-            ->where('payment_type', 'direct')
-            ->whereNull('contract_rp_id')
-            ->whereIn('status', ['approved', 'paid'])
-            ->with('supplier')
-            ->get();
-
-        // Para pagos directos, verificar si el CDP tiene fuentes con esta cuenta bancaria
-        foreach ($directPayments as $po) {
-            if (in_array($po->id, $processedPaymentOrders)) continue;
-
-            // Verificar si este pago directo está vinculado a esta cuenta via CDP
-            if ($po->cdp_id) {
-                $hasBankAccount = \App\Models\CdpFundingSource::where('cdp_id', $po->cdp_id)
-                    ->whereHas('fundingSource', function ($q) use ($bankAccountId) {
-                        $q->whereHas('rpFundingSources', fn($rq) => $rq->where('bank_account_id', $bankAccountId));
-                    })
-                    ->exists();
-
-                if (!$hasBankAccount) continue;
-            } else {
-                continue; // Sin CDP ni RP, no podemos vincular a cuenta bancaria
-            }
-
-            $processedPaymentOrders[] = $po->id;
-            $supplier = $po->resolved_supplier;
-
-            $movements[] = [
-                'date' => $po->payment_date ? $po->payment_date->format('Y-m-d') : '',
-                'date_sort' => $po->payment_date ? $po->payment_date->format('Y-m-d') : '9999-12-31',
-                'detail' => ($po->description ?? 'Pago Directo') . ($supplier ? ' - ' . $supplier->full_name : ''),
-                'income_ref' => null,
-                'income_amount' => 0,
-                'expense_ref' => $po->formatted_number,
-                'expense_amount' => (float) $po->net_payment,
-                'type' => 'expense',
-            ];
         }
 
         // Ordenar por fecha

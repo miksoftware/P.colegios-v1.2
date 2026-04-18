@@ -290,119 +290,101 @@
                     </div>
                 </div>
 
-                {{-- CDP y RP (opcionales) --}}
+                {{-- Soporte Presupuestal (CDP + RP se crean automáticamente) --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                        CDP y Registro Presupuestal
-                        <span class="text-xs font-normal text-gray-400">(opcional)</span>
+                        Soporte Presupuestal
                     </h2>
 
-                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
-                        <p class="text-xs text-blue-700">Si el pago tiene un CDP y/o RP asociado, selecciónelos aquí. Para pagos como servicios públicos o retenciones DIAN, estos campos son opcionales.</p>
+                    <div class="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-4">
+                        <p class="text-xs text-purple-700">Al guardar se creará automáticamente un CDP y un RP con los datos presupuestales que ingrese aquí.</p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">CDP (Certificado de Disponibilidad)</label>
-                            <select wire:model.live="selectedCdpId" wire:change="onCdpSelected" class="w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500">
-                                <option value="">-- Sin CDP --</option>
-                                @foreach($availableCdps as $cdp)
-                                    <option value="{{ $cdp['id'] }}">
-                                        CDP N° {{ $cdp['number'] }} — {{ Str::limit($cdp['budget_item'], 35) }} — ${{ number_format($cdp['total'], 0, ',', '.') }} ({{ $cdp['status'] }})
-                                    </option>
+                    {{-- Rubro Presupuestal --}}
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rubro Presupuestal *</label>
+                        <select wire:model.live="directBudgetItemId" class="w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500">
+                            <option value="">-- Seleccione un rubro --</option>
+                            @foreach($directBudgetItems as $bi)
+                                <option value="{{ $bi['id'] }}">{{ $bi['name'] }}</option>
+                            @endforeach
+                        </select>
+                        @if(empty($directBudgetItems))
+                            <p class="text-xs text-amber-600 mt-1">No hay rubros con presupuesto de gasto activo para este año.</p>
+                        @endif
+                        @error('directBudgetItemId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
+                    {{-- Fuentes de Financiación --}}
+                    @if($directBudgetItemId && count($directFundingSources) > 0)
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Fuentes de Financiación</label>
+
+                        {{-- Botón para agregar fuente --}}
+                        @if(count($directFundingSources) > count($directSelectedSources))
+                        <div class="flex items-center gap-3 mb-3">
+                            <select id="addSourceSelect" class="flex-1 rounded-xl border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500">
+                                <option value="">-- Agregar fuente --</option>
+                                @foreach($directFundingSources as $fs)
+                                    @php $alreadyAdded = collect($directSelectedSources)->contains('id', $fs['id']); @endphp
+                                    @if(!$alreadyAdded)
+                                        <option value="{{ $fs['id'] }}">{{ $fs['name'] }} (Disponible: ${{ number_format($fs['available'], 0, ',', '.') }})</option>
+                                    @endif
                                 @endforeach
                             </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">RP (Registro Presupuestal)</label>
-                            <select wire:model.live="selectedRpId" wire:change="onRpSelected" class="w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500" {{ empty($availableRps) ? 'disabled' : '' }}>
-                                <option value="">-- Sin RP --</option>
-                                @foreach($availableRps as $rp)
-                                    <option value="{{ $rp['id'] }}">
-                                        RP N° {{ $rp['number'] }}
-                                        @if(!empty($rp['contract_number'])) — Contrato N° {{ $rp['contract_number'] }} @endif
-                                        — ${{ number_format($rp['total'], 0, ',', '.') }}
-                                        @if(!empty($rp['funding_sources'])) — {{ Str::limit($rp['funding_sources'], 30) }} @endif
-                                    </option>
-                                @endforeach
-                            </select>
-                            @if(empty($availableRps) && $selectedCdpId)
-                                <p class="text-xs text-gray-400 mt-1">Este CDP no tiene RP asociado.</p>
-                            @endif
-                        </div>
-                    </div>
-
-                    @if(!empty($cdpData))
-                    <div class="mt-4 bg-gray-50 rounded-xl p-4">
-                        <p class="text-xs font-medium text-gray-500 uppercase mb-2">Información del CDP</p>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div>
-                                <p class="text-xs text-gray-500">Rubro Presupuestal</p>
-                                <p class="text-sm font-semibold text-gray-900">{{ $directBudgetItemName }}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Monto CDP</p>
-                                <p class="text-sm font-bold text-blue-700">${{ number_format($cdpData['total'], 2, ',', '.') }}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Estado</p>
-                                <p class="text-sm font-semibold text-gray-900">{{ $cdpData['status'] }}</p>
-                            </div>
-                        </div>
-                        @if(!empty($cdpData['convocatoria']))
-                        <div class="mt-2">
-                            <p class="text-xs text-gray-500">Convocatoria</p>
-                            <p class="text-sm text-gray-700">{{ $cdpData['convocatoria'] }}</p>
+                            <button type="button"
+                                onclick="let sel = document.getElementById('addSourceSelect'); if(sel.value) { @this.call('addDirectFundingSource', parseInt(sel.value)); sel.value=''; }"
+                                class="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 text-sm transition-colors">
+                                Agregar
+                            </button>
                         </div>
                         @endif
-                    </div>
-                    @endif
 
-                    {{-- Detalle del RP seleccionado --}}
-                    @if($selectedRpId && !empty($availableRps))
-                    @php $selRp = collect($availableRps)->firstWhere('id', (int)$selectedRpId); @endphp
-                    @if($selRp)
-                    <div class="mt-4 bg-purple-50 rounded-xl p-4">
-                        <p class="text-xs font-medium text-purple-700 uppercase mb-2">Información del RP N° {{ $selRp['number'] }}</p>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            @if(!empty($selRp['contract_number']))
-                            <div>
-                                <p class="text-xs text-gray-500">Contrato Asociado</p>
-                                <p class="text-sm font-semibold text-gray-900">N° {{ $selRp['contract_number'] }}</p>
-                            </div>
-                            @endif
-                            <div>
-                                <p class="text-xs text-gray-500">Monto RP</p>
-                                <p class="text-sm font-bold text-purple-700">${{ number_format($selRp['total'], 2, ',', '.') }}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Estado</p>
-                                <p class="text-sm font-semibold text-gray-900">{{ $selRp['status'] }}</p>
-                            </div>
-                        </div>
-                        @if(!empty($selRp['funding_sources']))
-                        <div class="mt-2">
-                            <p class="text-xs text-gray-500">Fuentes de Financiación</p>
-                            <p class="text-sm text-gray-700">{{ $selRp['funding_sources'] }}</p>
-                        </div>
-                        @endif
-                    </div>
-                    @endif
-                    @endif
-
-                    @if(count($fundingSourcesData) > 0)
-                    <div class="mt-4 bg-blue-50 rounded-xl p-4">
-                        <p class="text-xs font-medium text-blue-700 uppercase mb-2">Fuentes de Financiación</p>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            @foreach($fundingSourcesData as $fs)
-                                <div class="bg-white rounded-lg p-3 border border-blue-100">
-                                    <p class="text-xs text-gray-500">{{ $fs['name'] }}</p>
-                                    <p class="text-sm font-bold text-blue-700">${{ number_format($fs['amount'], 2, ',', '.') }}</p>
+                        {{-- Fuentes seleccionadas --}}
+                        @if(count($directSelectedSources) > 0)
+                        <div class="space-y-3">
+                            @foreach($directSelectedSources as $index => $src)
+                            <div class="border border-purple-200 rounded-xl p-4 bg-purple-50" wire:key="direct-src-{{ $index }}">
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-sm font-semibold text-gray-800">{{ $src['name'] }}</p>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xs text-gray-500">Disponible: ${{ number_format($src['available'], 0, ',', '.') }}</span>
+                                        @if(count($directSelectedSources) > 1)
+                                        <button type="button" wire:click="removeDirectFundingSource({{ $index }})" class="text-red-500 hover:text-red-700" title="Quitar">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                        @endif
+                                    </div>
                                 </div>
+                                <div class="max-w-xs">
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Monto a comprometer *</label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-xs">$</span>
+                                        <input type="number" wire:model.live.debounce.300ms="directSelectedSources.{{ $index }}.amount"
+                                            step="0.01" max="{{ $src['available'] }}"
+                                            class="w-full rounded-xl border-gray-300 pl-7 text-sm focus:border-purple-500 focus:ring-purple-500" placeholder="0">
+                                    </div>
+                                    @if((float)($src['amount'] ?? 0) > (float)$src['available'])
+                                        <p class="mt-1 text-xs text-red-600">Excede el saldo disponible.</p>
+                                    @endif
+                                </div>
+                            </div>
                             @endforeach
                         </div>
+
+                        {{-- Total comprometido --}}
+                        @php $totalCommitted = collect($directSelectedSources)->sum(fn($s) => (float)($s['amount'] ?? 0)); @endphp
+                        <div class="mt-3 bg-purple-100 rounded-xl p-3 text-center">
+                            <p class="text-xs text-purple-600 font-medium">Total a comprometer en CDP/RP</p>
+                            <p class="text-lg font-bold text-purple-800">${{ number_format($totalCommitted, 2, ',', '.') }}</p>
+                        </div>
+                        @endif
                     </div>
+                    @elseif($directBudgetItemId && count($directFundingSources) === 0)
+                        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                            <p class="text-xs text-amber-700">No hay fuentes de financiación con saldo disponible para este rubro.</p>
+                        </div>
                     @endif
                 </div>
 

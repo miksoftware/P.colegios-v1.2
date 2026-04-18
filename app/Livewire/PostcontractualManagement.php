@@ -5,8 +5,13 @@ namespace App\Livewire;
 use App\Models\Contract;
 use App\Models\ContractRp;
 use App\Models\Cdp;
+use App\Models\CdpFundingSource;
+use App\Models\BudgetItem;
+use App\Models\FundingSource;
+use App\Models\Budget;
 use App\Models\PaymentOrder;
 use App\Models\PaymentOrderExpenseLine;
+use App\Models\RpFundingSource;
 use App\Models\School;
 use App\Models\Supplier;
 use App\Models\SupplierBankAccount;
@@ -105,13 +110,11 @@ class PostcontractualManagement extends Component
     public $selectedSupplierId = '';
     public $directDescription = '';
     public $availableSuppliers = [];
-    public $availableCdps = [];
-    public $selectedCdpId = '';
-    public $cdpData = [];
-    public $availableRps = [];
-    public $selectedRpId = '';
-    public $rpData = [];
-    public $directBudgetItemName = '';
+    // CDP inline para pago directo
+    public $directBudgetItems = [];
+    public $directBudgetItemId = '';
+    public $directFundingSources = []; // fuentes disponibles para el rubro seleccionado
+    public $directSelectedSources = []; // fuentes seleccionadas con montos [{id, name, amount, available, budget_id}]
 
     protected $queryString = [
         'filterYear'   => ['except' => ''],
@@ -324,127 +327,101 @@ class PostcontractualManagement extends Component
             $this->selectedBankAccountId = $this->supplierBankAccounts[0]['id'];
         }
 
-        // Cargar CDPs disponibles (activos y usados) del colegio
-        $this->loadAvailableCdps();
+        // Cargar CDPs disponibles y rubros presupuestales de gasto
+        $this->loadDirectBudgetItems();
 
         $this->calculateRetentions();
     }
 
-    public function loadAvailableCdps()
+    public function loadDirectBudgetItems()
     {
-        $this->availableCdps = Cdp::with(['budgetItem', 'fundingSources.fundingSource'])
-            ->forSchool($this->schoolId)
-            ->forYear((int) $this->filterYear)
-            ->whereIn('status', ['active', 'used'])
-            ->orderBy('cdp_number')
+        // Cargar rubros presupuestales que tienen presupuesto de gasto activo para este colegio/año
+        $this->directBudgetItems = BudgetItem::active()
+            ->whereHas('budgets', function ($q) {
+                $q->where('school_id', $this->schoolId)
+                  ->where('fiscal_year', (int) $this->filterYear)
+                  ->where('type', 'expense')
+                  ->where('is_active', true);
+            })
+            ->orderBy('code')
             ->get()
-            ->map(fn($cdp) => [
-                'id'          => $cdp->id,
-                'number'      => $cdp->formatted_number,
-                'budget_item' => $cdp->budgetItem?->name ?? 'N/A',
-                'budget_item_code' => $cdp->budgetItem?->code ?? '',
-                'total'       => (float) $cdp->total_amount,
-                'status'      => $cdp->status_name,
-                'sources'     => $cdp->fundingSources->map(fn($fs) => [
-                    'name'   => $fs->fundingSource?->name ?? 'N/A',
-                    'amount' => (float) $fs->amount,
-                ])->toArray(),
-            ])
+            ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
             ->toArray();
     }
 
-    public function onCdpSelected()
+    public function updatedDirectBudgetItemId($value)
     {
-        $this->cdpData = [];
-        $this->availableRps = [];
-        $this->selectedRpId = '';
-        $this->rpData = [];
+        $this->directFundingSources = [];
+        $this->directSelectedSources = [];
         $this->fundingSourcesData = [];
-        $this->directBudgetItemName = '';
 
-        if (!$this->selectedCdpId) return;
+        if (empty($value)) return;
 
-        $cdp = Cdp::with([
-                'budgetItem',
-                'fundingSources.fundingSource',
-                'contractRp.fundingSources.fundingSource',
-                'contractRp.contract.supplier',
-                'convocatoria',
-            ])
-            ->forSchool($this->schoolId)
-            ->findOrFail($this->selectedCdpId);
+        // Obtener fuentes de financiación con presupuesto de gasto para este rubro/colegio/año
+        $budgets = Budget::where('school_id', $this->schoolId)
+            ->where('budget_item_id', $value)
+            ->where('fiscal_year', (int) $this->filterYear)
+            ->where('type', 'expense')
+            ->where('is_active', true)
+            ->with('fundingSource')
+            ->get();
 
-        $this->cdpData = [
-            'id'               => $cdp->id,
-            'number'           => $cdp->formatted_number,
-            'budget_item'      => $cdp->budgetItem?->name ?? 'N/A',
-            'budget_item_code' => $cdp->budgetItem?->code ?? '',
-            'budget_item_id'   => $cdp->budget_item_id,
-            'total'            => (float) $cdp->total_amount,
-            'status'           => $cdp->status_name,
-            'convocatoria'     => $cdp->convocatoria ? ('Conv. N° ' . $cdp->convocatoria->formatted_number . ' - ' . Str::limit($cdp->convocatoria->object, 50)) : null,
-        ];
+        $this->directFundingSources = $budgets->map(function ($budget) {
+            $source = $budget->fundingSource;
+            if (!$source || !$source->is_active) return null;
 
-        $this->directBudgetItemName = ($cdp->budgetItem?->code ?? '') . ' - ' . ($cdp->budgetItem?->name ?? '');
+            // Saldo disponible = presupuesto actual - reservado por CDPs
+            $reserved = Cdp::getTotalReservedForFundingSource($source->id, (int) $this->filterYear, $this->schoolId);
+            $available = max(0, (float) $budget->current_amount - $reserved);
 
-        // Fuentes de financiación del CDP
-        $sources = [];
-        foreach ($cdp->fundingSources as $fs) {
-            $sources[] = [
-                'name'   => $fs->fundingSource->name ?? 'N/A',
-                'amount' => (float) $fs->amount,
+            return [
+                'id'        => $source->id,
+                'name'      => $source->code . ' - ' . $source->name,
+                'type'      => $source->type_name,
+                'available' => round($available, 2),
+                'budget_id' => $budget->id,
             ];
-        }
-        $this->fundingSourcesData = $sources;
+        })->filter()->values()->toArray();
 
-        // Cargar RPs asociados a este CDP
-        if ($cdp->contractRp && $cdp->contractRp->status !== 'cancelled') {
-            $rp = $cdp->contractRp;
-            $contract = $rp->contract;
-            $rpSources = $rp->fundingSources->map(fn($fs) => $fs->fundingSource?->name ?? 'N/A')->implode(', ');
-
-            $this->availableRps = [[
-                'id'              => $rp->id,
-                'number'          => $rp->formatted_number,
-                'total'           => (float) $rp->total_amount,
-                'status'          => $rp->status_name,
-                'contract_number' => $contract?->formatted_number,
-                'contract_object' => $contract?->object,
-                'supplier_name'   => $contract?->supplier?->full_name,
-                'funding_sources' => $rpSources,
+        // Auto-agregar la primera fuente si solo hay una
+        if (count($this->directFundingSources) === 1) {
+            $fs = $this->directFundingSources[0];
+            $this->directSelectedSources = [[
+                'id'        => $fs['id'],
+                'name'      => $fs['name'],
+                'amount'    => '',
+                'available' => $fs['available'],
+                'budget_id' => $fs['budget_id'],
             ]];
-            // Auto-seleccionar si solo hay uno
-            $this->selectedRpId = $rp->id;
-            $this->onRpSelected();
         }
     }
 
-    public function onRpSelected()
+    public function addDirectFundingSource($fundingSourceId)
     {
-        $this->rpData = [];
-        if (!$this->selectedRpId) return;
+        // Verificar que no esté ya agregada
+        foreach ($this->directSelectedSources as $s) {
+            if ($s['id'] == $fundingSourceId) {
+                $this->dispatch('toast', message: 'Esta fuente ya fue agregada.', type: 'warning');
+                return;
+            }
+        }
 
-        $rp = ContractRp::with(['fundingSources.fundingSource'])->find($this->selectedRpId);
-        if (!$rp) return;
+        $fs = collect($this->directFundingSources)->firstWhere('id', (int) $fundingSourceId);
+        if (!$fs) return;
 
-        $this->rpData = [
-            'id'     => $rp->id,
-            'number' => $rp->formatted_number,
-            'total'  => (float) $rp->total_amount,
-            'status' => $rp->status_name,
+        $this->directSelectedSources[] = [
+            'id'        => $fs['id'],
+            'name'      => $fs['name'],
+            'amount'    => '',
+            'available' => $fs['available'],
+            'budget_id' => $fs['budget_id'],
         ];
+    }
 
-        // Actualizar fuentes de financiación con las del RP
-        $sources = [];
-        foreach ($rp->fundingSources as $fs) {
-            $sources[] = [
-                'name'   => $fs->fundingSource->name ?? 'N/A',
-                'amount' => (float) $fs->amount,
-            ];
-        }
-        if (!empty($sources)) {
-            $this->fundingSourcesData = $sources;
-        }
+    public function removeDirectFundingSource($index)
+    {
+        unset($this->directSelectedSources[$index]);
+        $this->directSelectedSources = array_values($this->directSelectedSources);
     }
 
     private function resetCreateFormData()
@@ -1110,9 +1087,11 @@ class PostcontractualManagement extends Component
         } else {
             $rules['selectedSupplierId'] = 'required|exists:suppliers,id';
             $rules['directDescription'] = 'required|string|min:5|max:1000';
+            $rules['directBudgetItemId'] = 'required|exists:budget_items,id';
             $messages['selectedSupplierId.required'] = 'Debe seleccionar un proveedor.';
             $messages['directDescription.required'] = 'La descripción del pago es obligatoria.';
             $messages['directDescription.min'] = 'La descripción debe tener al menos 5 caracteres.';
+            $messages['directBudgetItemId.required'] = 'Debe seleccionar un rubro presupuestal.';
         }
 
         $this->validate($rules, $messages);
@@ -1214,11 +1193,74 @@ class PostcontractualManagement extends Component
             if ($this->paymentType === 'contract') {
                 $paymentData['contract_id'] = $this->selectedContractId;
             } else {
+                // Validar fuentes de financiación
+                if (empty($this->directSelectedSources)) {
+                    throw new \Exception('Debe agregar al menos una fuente de financiación.');
+                }
+                $totalSources = 0;
+                foreach ($this->directSelectedSources as $src) {
+                    $amt = (float) ($src['amount'] ?? 0);
+                    if ($amt <= 0) {
+                        throw new \Exception('Todas las fuentes deben tener un monto mayor a 0.');
+                    }
+                    if ($amt > (float) ($src['available'] ?? 0)) {
+                        throw new \Exception("El monto de la fuente \"{$src['name']}\" excede el saldo disponible.");
+                    }
+                    $totalSources += $amt;
+                }
+
+                // Crear CDP
+                $cdp = Cdp::create([
+                    'school_id'      => $this->schoolId,
+                    'convocatoria_id'=> null,
+                    'cdp_number'     => Cdp::getNextCdpNumber($this->schoolId, $year),
+                    'fiscal_year'    => $year,
+                    'budget_item_id' => $this->directBudgetItemId,
+                    'total_amount'   => $totalSources,
+                    'status'         => 'used',
+                    'created_by'     => auth()->id(),
+                ]);
+
+                // Crear detalle de fuentes del CDP
+                foreach ($this->directSelectedSources as $src) {
+                    $source = FundingSource::find($src['id']);
+                    $balance = $source ? $source->getAvailableBalanceForYear($year, $this->schoolId) : 0;
+
+                    CdpFundingSource::create([
+                        'cdp_id'                      => $cdp->id,
+                        'funding_source_id'           => $src['id'],
+                        'budget_id'                   => $src['budget_id'],
+                        'amount'                      => (float) $src['amount'],
+                        'available_balance_at_creation'=> $balance,
+                    ]);
+                }
+
+                // Crear RP
+                $rp = ContractRp::create([
+                    'contract_id'  => null,
+                    'cdp_id'       => $cdp->id,
+                    'rp_number'    => ContractRp::getNextRpNumber($this->schoolId, $year),
+                    'fiscal_year'  => $year,
+                    'total_amount' => $totalSources,
+                    'status'       => 'active',
+                    'created_by'   => auth()->id(),
+                ]);
+
+                // Crear detalle de fuentes del RP
+                foreach ($this->directSelectedSources as $src) {
+                    RpFundingSource::create([
+                        'contract_rp_id'    => $rp->id,
+                        'funding_source_id' => $src['id'],
+                        'budget_id'         => $src['budget_id'],
+                        'amount'            => (float) $src['amount'],
+                    ]);
+                }
+
                 $paymentData['supplier_id'] = $this->selectedSupplierId;
                 $paymentData['description'] = $this->directDescription;
-                $paymentData['cdp_id'] = $this->selectedCdpId ?: null;
-                $paymentData['contract_rp_id'] = $this->selectedRpId ?: null;
-                $paymentData['budget_item_id'] = !empty($this->cdpData['budget_item_id']) ? $this->cdpData['budget_item_id'] : null;
+                $paymentData['cdp_id'] = $cdp->id;
+                $paymentData['contract_rp_id'] = $rp->id;
+                $paymentData['budget_item_id'] = $this->directBudgetItemId;
             }
 
             $paymentOrder = PaymentOrder::create($paymentData);
@@ -1411,13 +1453,10 @@ class PostcontractualManagement extends Component
         $this->selectedSupplierId = '';
         $this->directDescription = '';
         $this->availableSuppliers = [];
-        $this->availableCdps = [];
-        $this->selectedCdpId = '';
-        $this->cdpData = [];
-        $this->availableRps = [];
-        $this->selectedRpId = '';
-        $this->rpData = [];
-        $this->directBudgetItemName = '';
+        $this->directBudgetItems = [];
+        $this->directBudgetItemId = '';
+        $this->directFundingSources = [];
+        $this->directSelectedSources = [];
     }
 
     // ══════════════════════════════════════════════════════════

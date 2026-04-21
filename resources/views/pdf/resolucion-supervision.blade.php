@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -77,7 +77,7 @@
             </tr>
             <tr>
                 <td class="info-label">Apreciado(a):</td>
-                <td class="bold">{{ $contract->supervisor?->name ?? $school->rector_name ?? '' }}</td>
+                <td class="bold">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</td>
             </tr>
             <tr>
                 <td class="info-label">Cargo:</td>
@@ -130,14 +130,14 @@
                 <tr>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
-                            <div class="sig-role">RECTOR(A)</div>
+                            <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
+                            <div class="sig-role">ORDENADOR DEL GASTO</div>
                         </div>
                     </td>
                     <td>
                         <div style="font-size: 9px; font-weight: bold; color: #1e3a5f; margin-bottom: 25px;">ACEPTADO:</div>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $contract->supervisor?->name ?? $school->rector_name ?? '' }}</div>
+                            <div class="sig-name">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</div>
                         </div>
                     </td>
                 </tr>

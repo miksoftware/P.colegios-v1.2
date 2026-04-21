@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -78,7 +78,7 @@
             </tr>
             <tr>
                 <td class="info-label">Supervisor:</td>
-                <td>{{ $contract->supervisor?->name ?? $school->rector_name ?? '' }}</td>
+                <td>{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</td>
             </tr>
             <tr>
                 <td class="info-label">Entidad Aseguradora:</td>
@@ -96,7 +96,7 @@
                 <td class="info-label">Concepto:</td>
                 <td>
                     Se reunieron, a los {{ $contract->start_date?->format('d/m/Y') ?? '' }}, Los señores
-                    <span class="bold">{{ $school->rector_name ?? '' }}</span> Como contratante Y
+                    <span class="bold">{{ $school->ordenador_gasto_display_name }}</span> Como contratante Y
                     <span class="bold">{{ $supplier->full_name ?? '' }}</span> contratista, con el objeto de dar inicio a la ejecución a la presente orden,
                     @if($rpNumbers)
                         que cuenta con registro presupuestal # {{ $rpNumbers }}.
@@ -121,10 +121,10 @@
             {{-- Supervisor --}}
             <div style="text-align: center; margin-top: 25px;">
                 <div class="sig-line" style="margin: 0 auto;">
-                    <div class="sig-name">{{ $contract->supervisor?->name ?? $school->rector_name ?? '' }}</div>
+                    <div class="sig-name">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</div>
                     <div class="sig-role">SUPERVISOR</div>
-                    @if($school->rector_document)
-                        <div class="sig-detail">{{ $school->rector_document }}</div>
+                    @if($school->rector_display_document)
+                        <div class="sig-detail">{{ $school->rector_display_document }}</div>
                     @endif
                 </div>
             </div>
@@ -134,11 +134,11 @@
                 <tr>
                     <td style="width: 50%;">
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
-                            <div class="sig-role">RECTOR</div>
+                            <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
+                            <div class="sig-role">ORDENADOR DEL GASTO</div>
                             <div class="sig-role">CONTRATANTE</div>
-                            @if($school->rector_document)
-                                <div class="sig-detail">{{ $school->rector_document }}</div>
+                            @if($school->ordenador_gasto_display_document)
+                                <div class="sig-detail">{{ $school->ordenador_gasto_display_document }}</div>
                             @endif
                         </div>
                     </td>

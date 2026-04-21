@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -70,7 +70,7 @@
         <div class="text-block" style="border-bottom: 1px solid #ddd;">
             A la fecha de {{ $contract->end_date?->format('d/m/Y') ?? $contract->start_date?->format('d/m/Y') ?? '' }},
             se reunieron las siguientes personas:
-            <span class="bold">{{ $contract->supervisor?->name ?? $school->rector_name ?? '' }}</span>
+            <span class="bold">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</span>
             en su condición de supervisor del contrato, y
             <span class="bold">{{ $supplier->full_name ?? '' }}</span>
             en su condición de contratista con el fin de revisar las actividades desarrolladas en el periodo comprendido
@@ -108,7 +108,7 @@
             </tr>
             <tr>
                 <td class="info-label">Supervisor:</td>
-                <td>{{ $contract->supervisor?->name ?? $school->rector_name ?? '' }}</td>
+                <td>{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</td>
             </tr>
         </table>
 
@@ -130,9 +130,9 @@
                     </td>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $contract->supervisor?->name ?? $school->rector_name ?? '' }}</div>
-                            @if($school->rector_document)
-                                <div class="sig-detail">{{ $school->rector_document }}</div>
+                            <div class="sig-name">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</div>
+                            @if($school->rector_display_document)
+                                <div class="sig-detail">{{ $school->rector_display_document }}</div>
                             @endif
                             <div class="sig-role">Supervisor</div>
                         </div>

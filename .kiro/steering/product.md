@@ -881,6 +881,34 @@ Informe de ejecución presupuestal de gastos por código de gasto y fuente.
 
 **Permisos**: `reports.view`, `reports.export`
 
+#### 17.3 Libro de Bancos (`/reports/bank-book`)
+Informe de movimientos por cuenta bancaria con saldo acumulado.
+
+**Datos mostrados**:
+- Header: Título "LIBRO DE BANCOS VIGENCIA {año}", nombre colegio, NIT, municipio
+- Info cuenta: Entidad (banco), N. Cuenta, Tipo Cuenta, Nombre Cta (holder_name)
+- Tarjetas: Saldo anterior, Total ingresos, Total egresos, Saldo final
+- Tabla: FECHA, DETALLE, INGRESOS (No Consig / Valor), EGRESOS (No Cheque / Valor), NUEVO SALDO
+- Fila inicial: saldo a 31/12/{año-1} (calculado de movimientos de años anteriores)
+- Cada movimiento muestra saldo acumulado
+
+**Filtros**: Vigencia, Cuenta Bancaria (select con todas las cuentas activas del colegio)
+
+**Fuente de datos**:
+- Ingresos: `IncomeBankAccount` → `Income` (consignaciones a la cuenta seleccionada)
+- Egresos: `RpFundingSource` (bank_account_id) → `ContractRp` → `PaymentOrder` (approved/paid)
+- Saldo anterior: suma de ingresos - egresos de años anteriores para la misma cuenta
+- Prorrateo: si un RP tiene múltiples fuentes con diferentes cuentas, el monto del pago se prorratea proporcionalmente
+
+**Export Excel**: SheetJS/XLSX con header del colegio, info de cuenta, tabla de movimientos, totales
+
+**Notas técnicas**:
+- Componente: `App\Livewire\BankBookReport`
+- Vista: `resources/views/livewire/bank-book-report.blade.php`
+- No tiene relación directa PaymentOrder → BankAccount; se vincula via RpFundingSource.bank_account_id
+- ContractRp NO tiene relación `paymentOrders` — se consulta PaymentOrder directamente por contract_rp_id
+- FundingSource NO tiene relación `rpFundingSources` — no usar eager loading con esa relación
+
 ---
 
 ### 18. Documentos PDF Precontractuales (desde detalle de convocatoria)

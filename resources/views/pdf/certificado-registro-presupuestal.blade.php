@@ -175,14 +175,13 @@
                 <tr>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->pagador_name ?? 'Auxiliar Administrativo' }}</div>
+                            <div class="sig-name">{{ $school->auxiliar_display_name }}</div>
                             <div class="sig-role">Auxiliar Administrativo</div>
                         </div>
                     </td>
                     <td>
-                        <div style="margin-bottom: 4px; font-size: 9px; color: #666;">Vo. Bo.</div>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
+                            <div class="sig-name"><span style="font-size: 8px; font-weight: normal; color: #666;">Vo. Bo.</span> {{ $school->rector_display_name }}</div>
                             <div class="sig-role">Rector</div>
                         </div>
                     </td>

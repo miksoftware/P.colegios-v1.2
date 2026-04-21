@@ -98,25 +98,22 @@
         {{-- ===== CIUDAD Y FECHA ===== --}}
         <div class="date-row">
             <div class="date-cell date-label">Ciudad y Fecha:</div>
-            <div class="date-cell">{{ $school->municipality ?? 'N/A' }}, {{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? 'N/A' }}</div>
+            <div class="date-cell">{{ $school->municipality ?? 'N/A' }}, {{ $convocatoria->start_date?->translatedFormat('d/m/Y') ?? 'N/A' }}</div>
         </div>
 
         {{-- ===== 1. DESCRIPCIÓN DE LA NECESIDAD ===== --}}
         <div class="section">
             <div class="section-header">1. Descripción de la necesidad que se pretende satisfacer con el proceso contractual</div>
             <div class="section-body">
-                {{ $convocatoria->object }}
+                {{ $convocatoria->justification ?? $convocatoria->object }}
             </div>
         </div>
 
         {{-- ===== 2. OBJETO A CONTRATAR ===== --}}
         <div class="section">
-            <div class="section-header">2. Objeto a contratar, especificaciones e identificación del contrato a celebrar</div>
+            <div class="section-header">2. Objeto a contratar, especificaciones, autorizaciones, permisos y licencias</div>
             <div class="section-body">
                 {{ $convocatoria->object }}
-                @if($convocatoria->justification)
-                    <br><br><span class="bold">Justificación:</span> {{ $convocatoria->justification }}
-                @endif
             </div>
         </div>
 
@@ -124,7 +121,7 @@
         <div class="section">
             <div class="section-header">3. Definición técnica de la forma en que se pretende satisfacer la necesidad</div>
             <div class="section-body">
-                Contratar que le permita cumplir con el(los) requisito(s), el proceso se atenderá de conformidad con la ley 80 de 1993, sus decretos reglamentarios y el reglamento de contratación para la Institución Educativa aprobado por el Consejo Directivo, y el manual interno de contratación de la Institución Educativa.
+                La Institución Educativa pretende satisfacer la anterior necesidad a través de la persona idónea en el desarrollo del objeto contractual que le permita cumplir con el servicio requerido, el proceso se atenderá de conformidad con la ley 80 de 1993, sus decretos reglamentarios y el reglamento de contratación para esta Institución Educativa aprobado por el Consejo Directivo, y al mismo incorporarán los presupuestos legales, técnicos y administrativos a que haya lugar.
             </div>
         </div>
 
@@ -132,7 +129,9 @@
         <div class="section">
             <div class="section-header">4. Modalidad de selección del contratista</div>
             <div class="section-body">
-                El contratista que se vincula para este proceso contractual se hará bajo la modalidad de contratación establecida en el Artículo 13 de la ley 715 de 2001, el decreto 1075 de 2015, y el manual interno de contratación de la Institución Educativa. Según el manual de contratación de la entidad el presente proceso se realizará bajo la modalidad de selección directa.
+                El contrato que se realizará durante este proceso contractual se hará bajo la modalidad de contratación establecida en el Artículo 13 de la ley 715 de 2001, el decreto 1075 de 2015 y el manual interno de contratación de la Institución Educativa. Según el manual de contratación de la entidad el presente proceso se realizará bajo la modalidad de:
+                <br><br>
+                <span class="bold uppercase">{{ $contract?->modality_name ?? 'RÉGIMEN ESPECIAL' }}</span>
             </div>
         </div>
 
@@ -140,9 +139,9 @@
         <div class="section">
             <div class="section-header">5. Condiciones del contrato a celebrar - Vigencia del contrato</div>
             <div class="section-body">
-                El término para la celebración del presente contrato es de
-                <span class="bold">{{ $durationDays ?? 'N/A' }} días</span>,
-                contados a partir de la fecha de suscripción del contrato.
+                El término para la celebración del presente contrato será de:
+                <span class="bold">{{ $durationDays ?? 'N/A' }} DIAS</span>
+                contados a partir de la fecha de suscripción del acta de inicio de la orden y/o contrato.
                 @if($contract && $contract->start_date && $contract->end_date)
                     <br>Desde: {{ $contract->start_date->format('d/m/Y') }} hasta {{ $contract->end_date->format('d/m/Y') }}.
                 @endif
@@ -151,20 +150,22 @@
 
         {{-- ===== 6. SOPORTE TÉCNICO Y ECONÓMICO ===== --}}
         <div class="section">
-            <div class="section-header">6. Soporte técnico y económico, valor estimado del contrato</div>
+            <div class="section-header">6. Soporte técnico y económico del valor estimado del contrato</div>
             <div class="section-body">
-                <div class="amount-highlight" style="margin-bottom: 6px;">
-                    ${{ number_format($amount, 2, ',', '.') }}
-                </div>
+                <p style="margin-bottom: 6px;">
+                    El presente objeto de la orden y/o contrato se estipula en la suma de:
+                </p>
                 <div style="margin-bottom: 6px;">
                     <span class="bold uppercase">{{ $amountInWords }}</span>
                 </div>
+                <div class="amount-highlight" style="margin-bottom: 6px;">
+                    ${{ number_format($amount, 2, ',', '.') }}
+                </div>
                 <p style="margin-top: 6px;">
-                    En el cual se encuentran incluidos impuestos a que haya lugar.
+                    de los cuales se descontará los impuestos a que haya lugar.
                 </p>
                 <p style="margin-top: 6px;">
-                    Para el pago, el presupuesto interno y general de la Institución Educativa, dispondrá que pueda
-                    efectuarse el pago correspondiente, según certificado de disponibilidad presupuestal y registro presupuestal así:
+                    Dentro del presupuesto de rentas y gastos de la Institución Educativa, existe disponibilidad presupuestal que permite acreditar los pagos correspondientes, según certificado de disponibilidad presupuestal y registro presupuestal así:
                 </p>
 
                 @if(count($cdpRows) > 0 || count($expenseCodeRows) > 0)
@@ -197,90 +198,107 @@
                 @else
                     <p style="color: #888; font-style: italic; margin-top: 6px;">No hay CDPs registrados para esta convocatoria.</p>
                 @endif
+
+                {{-- Forma de pago --}}
+                <p style="margin-top: 10px;">
+                    <span class="bold">{{ $contract?->payment_method_name ?? 'UN (1) PAGO' }}</span>
+                </p>
             </div>
         </div>
 
-        {{-- ===== 7. OBLIGACIONES DEL CONTRATISTA ===== --}}
+        {{-- ===== 7. (sin número visible) - FORMA DE PAGO ya incluida arriba ===== --}}
+
+        {{-- ===== 8. OBLIGACIONES DEL CONTRATISTA ===== --}}
         <div class="section">
-            <div class="section-header">7. Obligaciones del contratista</div>
+            <div class="section-header">8. Obligaciones del contratista</div>
             <div class="section-body">
-                <ol class="doc-list" style="list-style-type: lower-alpha;">
-                    <li>El contratista deberá cumplir el contrato de conformidad con los requerimientos técnicos necesarios para la ejecución del mismo.</li>
-                    <li>Garantizar la calidad de los bienes y servicios prestados de acuerdo con la oferta presentada a la entidad.</li>
-                    <li>Acatar las instrucciones que durante el desarrollo del contrato sean impartidas por el contratante.</li>
-                    <li>Cumplir con lo dispuesto en la ley 100 de 1993 referente al sistema de seguridad social en pensión y salud y en especial con lo establecido en el artículo 23 del decreto No. 1703 de 2002 y la ley 797 de 2003, reglamentada por el decreto 510 de 2003.</li>
-                </ol>
+                El contratista deberá cumplir el contrato de conformidad con los requerimientos técnicos necesarios para la ejecución del contrato.
+                <br>
+                Garantizar la calidad de los bienes y servicios prestados de acuerdo con la oferta presentada a la entidad.
+                <br>
+                Acatar las instrucciones que durante el desarrollo del contrato sean impartidas por el contratante.
+                <br>
+                Cumplir con lo dispuesto en la ley 100 de 1993 (afiliación al sistema de seguridad social en pensión y salud) y en especial con lo establecido en el artículo 23 del decreto No. 1703 de 2002 y la ley 797 de 2003, reglamentada por el decreto 510 de 2003.
             </div>
         </div>
 
-        {{-- ===== 8. CRITERIOS PARA SELECCIONAR LA OFERTA ===== --}}
+        {{-- ===== 9. CRITERIOS PARA SELECCIONAR LA OFERTA ===== --}}
         <div class="section">
-            <div class="section-header">8. Criterios para seleccionar la oferta más favorable</div>
+            <div class="section-header">9. Criterios para seleccionar la oferta más favorable</div>
             <div class="section-body">
                 MENOR PRECIO
             </div>
         </div>
 
-        {{-- ===== 9. LUGAR DE EJECUCIÓN ===== --}}
+        {{-- ===== 10. LUGAR DE EJECUCIÓN ===== --}}
         <div class="section">
-            <div class="section-header">9. Lugar de ejecución del contrato</div>
+            <div class="section-header">10. Lugar de ejecución del contrato</div>
             <div class="section-body">
+                El contrato se ejecutará en:
+                <br><br>
+                <span class="bold">
                 @if($contract && $contract->execution_place)
                     {{ $contract->execution_place }}
                 @else
-                    {{ $school->address ?? '' }}, {{ $school->municipality ?? '' }}
+                    {{ $school->municipality ?? '' }}
                 @endif
+                </span>
             </div>
         </div>
 
-        {{-- ===== 10. DOCUMENTOS PARA ACREDITAR CAPACIDAD ===== --}}
+        {{-- ===== 11. DOCUMENTOS PARA ACREDITAR CAPACIDAD ===== --}}
         <div class="section">
-            <div class="section-header">10. Documentos para acreditar capacidad de contratación</div>
+            <div class="section-header">11. Documentos para acreditar capacidad de contratación</div>
             <div class="section-body">
-                <p class="bold" style="margin-bottom: 4px;">Documentos Generales:</p>
-                <ol class="doc-list">
+                <ol class="doc-list" style="list-style-type: lower-alpha;">
                     <li>Fotocopia de la cédula de ciudadanía</li>
                     <li>Fotocopia del RUT actualizado</li>
-                    <li>Certificado de antecedentes disciplinarios, con fecha de expedición no mayor a 3 meses</li>
-                    <li>Certificado de antecedentes fiscales, con fecha de expedición no mayor a 3 meses</li>
-                    <li>Certificado de antecedentes judiciales, con fecha de expedición no mayor a 3 meses</li>
+                    <li>Certificados de antecedentes disciplinarios, con fecha de expedición no mayor a 3 meses</li>
+                    <li>Certificados de antecedentes fiscales, con fecha de expedición no mayor a 3 meses</li>
+                    <li>Certificados de antecedentes judiciales, con fecha de expedición no mayor a 3 meses</li>
                     <li>Certificado de medidas correctivas, con fecha de expedición no mayor a 3 meses</li>
-                    <li>Copia del certificado de afiliación y pago de seguridad social y Administradora de Riesgos Laborales, como independiente o empleado que deberá corresponder con la ejecución del contrato, siempre y cuando aplique de acuerdo a la normatividad vigente</li>
+                    <li>Copia del certificado de afiliación y pago de seguridad social (salud y Administradora de Riesgos Laborales, como independiente o empleador) que deberá corresponder con la ejecución del contrato, siempre y cuando aplique de acuerdo a la normatividad vigente en la materia</li>
                     <li>Declaración de ausencia de inhabilidades e incompatibilidades</li>
-                    <li>Certificado de libreta militar (hombres menores de 50 años de edad)</li>
-                    <li>Certificado de matrícula mercantil/cámara de comercio actualizado (Si aplica según la norma del código de comercio vigente)</li>
+                    <li>Fotocopia de la libreta militar para hombres menores de 50 años de edad</li>
+                    <li>Certificado de matrícula mercantil donde conste la representación legal original, actualizada. (Si le aplica según las normas del código de comercio vigente)</li>
+                    <li>Certificado REDAM vigente</li>
                     <li>Certificado de Delitos Sexuales vigente</li>
-                    <li>Documento adicional para contratar servicios para Persona Natural (En caso de que aplique): Hoja de vida en el formato Función Pública</li>
+                </ol>
+
+                <p class="bold" style="margin-top: 8px; margin-bottom: 4px;">Documentos Adicionales para contratar servicios profesionales (En caso de que aplique):</p>
+                <ol class="doc-list" style="list-style-type: lower-alpha;">
+                    <li>Hoja de vida en el formato Función Pública</li>
+                    <li>Copia de la tarjeta profesional que acredite el ejercicio de la respectiva profesión</li>
                 </ol>
 
                 <p class="bold" style="margin-top: 8px; margin-bottom: 4px;">Documentos Adicionales para contratar con personas jurídicas (En caso de que aplique):</p>
-                <ol class="doc-list">
+                <ol class="doc-list" style="list-style-type: lower-alpha;">
                     <li>Fotocopia de la cédula de ciudadanía del representante legal</li>
                     <li>Fotocopia del RUT actualizado de la persona jurídica</li>
-                    <li>Certificado de antecedentes disciplinarios de la persona jurídica, con fecha de expedición no mayor a 3 meses</li>
-                    <li>Certificado de antecedentes fiscales de la persona jurídica, con fecha de expedición no mayor a 3 meses</li>
-                    <li>Certificado de antecedentes judiciales de la persona jurídica, con fecha de expedición no mayor a 3 meses</li>
-                    <li>Certificado de matrícula mercantil/cámara de comercio actualizado</li>
-                    <li>Copia de pago de afiliación a la seguridad social de la empresa o certificado firmado por el revisor fiscal de estar al día</li>
+                    <li>Certificados de antecedentes disciplinarios de la persona jurídica, con fecha de expedición no mayor a 3 meses</li>
+                    <li>Certificados de antecedentes fiscales de la persona jurídica, con fecha de expedición no mayor a 3 meses</li>
+                    <li>Certificados de antecedentes judiciales de la persona jurídica, con fecha de expedición no mayor a 3 meses</li>
+                    <li>Certificado de matrícula mercantil donde conste la representación legal original, actualizada</li>
+                    <li>Copia de pago de afiliación a la seguridad social de la empresa o certificado firmado por el revisor fiscal de estar cumpliendo con la obligación</li>
                 </ol>
             </div>
         </div>
 
-        {{-- ===== 11. SUPERVISIÓN Y CONTROL ===== --}}
+        {{-- ===== 12. SUPERVISIÓN Y CONTROL ===== --}}
         <div class="section">
-            <div class="section-header">11. Supervisión y control a la ejecución del contrato</div>
+            <div class="section-header">12. Supervisión y control a la ejecución del contrato</div>
             <div class="section-body">
-                La supervisión y control a la ejecución del contrato, la realizará una persona natural, la cual será designada por el Ordenador del Gasto.
+                La supervisión y control a la ejecución del contrato, la realizará una persona idónea, la cual será designada por el Ordenador del gasto de la Institución Educativa.
             </div>
         </div>
 
-        {{-- ===== 12. ANÁLISIS DE RIESGOS ===== --}}
+        {{-- ===== 13. ANÁLISIS DE RIESGOS ===== --}}
         <div class="section">
-            <div class="section-header">12. Análisis de riesgos de la contratación y garantías</div>
+            <div class="section-header">13. Análisis de riesgos de la contratación y garantías</div>
             <div class="section-body">
-                Se exigen al contratista garantías que amparen los siguientes riesgos:
+                Se exigirá al contratista garantías que amparen los siguientes riesgos:
                 <br><br>
-                <span class="bold">NO GENERA RIESGOS</span>
+                <span class="bold">NO GENERA</span>
             </div>
         </div>
 
@@ -290,13 +308,13 @@
                 CONCLUSIÓN
             </div>
             <p>
-                Teniendo en cuenta los anteriores aspectos, es viable contratar el objeto previsto en este estudio previo con la persona natural o jurídica que cumpla con las condiciones establecidas.
+                Teniendo en cuenta los anteriores aspectos es viable contratar el objeto previsto en este informe con la persona natural o jurídica que cumpla con las condiciones antes señaladas.
             </p>
         </div>
 
         {{-- ===== LUGAR Y FECHA ===== --}}
         <div class="place-date">
-            {{ $school->municipality ?? 'N/A' }}, {{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? now()->translatedFormat('d \\d\\e F \\d\\e Y') }}
+            {{ $school->municipality ?? 'N/A' }}, {{ $convocatoria->start_date?->translatedFormat('d/m/Y') ?? now()->format('d/m/Y') }}
         </div>
 
         {{-- ===== FIRMAS ===== --}}
@@ -305,7 +323,7 @@
                 <tr>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
+                            <div class="sig-name">{{ $school->rector_display_name }}</div>
                             <div class="sig-role">RECTOR(A)</div>
                         </div>
                     </td>

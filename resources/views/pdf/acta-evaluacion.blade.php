@@ -45,9 +45,7 @@
         {{-- HEADER --}}
         <div class="header">
             <div class="school-name">{{ $school->name }}</div>
-            @if($school->dane_code)
-                <div class="school-dane">{{ $school->dane_code }}</div>
-            @endif
+            <div style="font-size: 8px; color: #444;">{{ $school->nit ?? '' }}</div>
             <div class="school-muni">{{ $school->municipality ?? '' }}</div>
             <div class="school-date">{{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}</div>
             <div class="doc-title">Acta de Evaluación</div>
@@ -59,13 +57,14 @@
             <span class="bold">FECHA:</span> {{ $convocatoria->start_date?->format('d/m/Y') ?? '' }}
         </div>
         <div class="info-line separator" style="padding-bottom: 6px;">
-            <span class="bold">OBJETO:</span> {{ $convocatoria->object }}
+            <span class="bold">OBJETO:</span> CONVOCATORIA ABIERTA PARA LA RECEPCIÓN DE COTIZACIONES CON EL FIN DE CONTRATAR
+            <br>
+            {{ $convocatoria->object }}
         </div>
 
         {{-- TEXTO INTRODUCTORIO --}}
         <div class="text-block separator">
-            El señor rector de la Institución Educativa <span class="bold">{{ $school->rector_name ?? '' }}</span>,
-            procedió a revisar los propuestas recibidas dentro del término establecido para participar en el proceso.
+            El señor rector de la Institución Educativa <span class="bold">{{ $school->rector_display_name }}</span>, procedió a revisar las propuestas recibidas dentro de esta convocatoria y se constató que se recibieron dentro del término establecido para participar en el proceso.
         </div>
 
         {{-- NÚMERO DE PROPUESTAS RECIBIDAS --}}
@@ -99,7 +98,7 @@
 
         {{-- TEXTO VERIFICACIÓN --}}
         <div class="text-block separator">
-            Se procedió a verificar el cumplimiento de los criterios habilitantes con el fin de constatar el cumplimiento de los mismos y de conformidad con las cláusulas establecidas en la Invitación pública, se presenta el informe final de la evaluación de los proponentes, después de analizado el proceso de limpieza de documentación se constató y se determinó:
+            Se procedió a verificar el cumplimiento de los criterios habilitantes con el fin de constatar el cumplimiento de los mismos y de conformidad con los términos establecidos en la Invitación pública, se presenta el Informe final de la evaluación de las propuestas, después de realizado el proceso de chequeo de documentación se constató y se determinó:
         </div>
 
         {{-- TABLA DE REQUISITOS POR PROPONENTE --}}
@@ -110,19 +109,17 @@
                     'Fotocopia de la cédula de ciudadanía',
                     'Copia del registro único tributario (RUT)',
                     'Certificado de existencia (Cámara de Comercio)',
-                    'Certificado de ausencia de antecedentes disciplinarios',
-                    'Antecedentes (Procuraduría)',
-                    'Certificado de ausencia de antecedentes fiscales',
-                    'Contraloría',
+                    'Certificado de ausencia de antecedentes disciplinarios (Procuraduría)',
+                    'Certificado de ausencia de antecedentes fiscales (Contraloría)',
                     'Certificado de ausencia de antecedentes judiciales',
                     'Certificado de medidas correctivas',
                     'Copia de la libreta militar para hombres menores de 50 años',
-                    'Certificado REEDAM',
-                    'Hoja de vida Función Pública',
+                    'Certificado REDAM',
+                    'Certificado de Delitos Sexuales',
                     'Certificación Bancaria para la transferencia',
-                    'PARA PERSONAS JURÍDICAS: Copia de pago de planilla de seguridad social al día',
+                    'PARA PERSONAS JURÍDICAS: Copia de pago de la planilla de seguridad social al día.',
                     'PARA PERSONAS NATURALES: Certificación de afiliación a SALUD, PENSIÓN Y ARL o planilla de pago',
-                    'El 40% del valor total del contrato si es mayor a 1 SMLV',
+                    'OBSERVACIÓN: La liquidación y pago por este concepto se hará sobre el 40% del valor total del contrato (Esto aplica para valores mayores a 1 SMLV)',
                 ];
             @endphp
             <table class="data-table">
@@ -152,7 +149,7 @@
 
         {{-- TABLA DE EVALUACIÓN ECONÓMICA --}}
         <div class="text-block separator">
-            Se procedió a realizar la evaluación por el precio en la siguiente tabla:
+            Se procede a adjudicar valoración por el precio en la siguiente tabla:
         </div>
         <div style="padding: 4px 12px;">
             <table class="data-table">
@@ -178,47 +175,34 @@
         {{-- ADJUDICACIÓN --}}
         @if($selectedProposal)
         <div class="text-block separator" style="padding-top: 8px;">
-            Por lo anteriormente expuesto la propuesta ganadora la presentada por
-            <span class="bold">{{ $selectedProposal->supplier?->full_name ?? 'N/A' }}</span>,
-            por la suma de <span class="bold">${{ number_format($selectedProposal->total, 2, ',', '.') }}</span>.
+            Por lo anteriormente expuesto la propuesta ganadora es la presentada por:
+            <span class="bold">{{ $selectedProposal->supplier?->full_name ?? 'N/A' }}</span>
             <br><br>
-            Identificación del proveedor: {{ $selectedProposal->supplier?->full_document ?? 'N/A' }}
+            Domicilio del Contratista: <span class="bold">{{ $selectedProposal->supplier?->address ?? '' }}</span>
+            <br>
+            Identificación del proveedor C.C. O NIT. <span class="bold">{{ $selectedProposal->supplier?->document_number ?? '' }}</span>
+            @if($selectedProposal->supplier?->dv)
+                DV <span class="bold">{{ $selectedProposal->supplier->dv }}</span>
+            @endif
+            <br><br>
+            por valor de: <span class="bold">${{ number_format($selectedProposal->total, 2, ',', '.') }}</span>
         </div>
 
         {{-- CDP Y RUBROS --}}
+        <div class="text-block">
+            A quien se le adjudicará la orden y/o contrato con cargo al rubro de
+            @if(count($expenseCodeRows) > 0)
+                @foreach($expenseCodeRows as $ec)
+                    <span class="bold">{{ $ec['name'] }}</span>{{ !$loop->last ? ', ' : '' }}
+                @endforeach
+            @endif
+        </div>
+
         @if(count($cdpRows) > 0)
         <div class="text-block">
-            Aparece en lo adjudicado lo antes y/o contratado con cargo al rubro de:
-        </div>
-        <div style="padding: 4px 12px;">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>CDP N°</th>
-                        <th>Código</th>
-                        <th>Rubro</th>
-                        <th>Valor</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($cdpRows as $row)
-                        <tr>
-                            <td class="center">{{ $row['cdp_number'] }}</td>
-                            <td class="center">{{ $row['funding_source_code'] }}</td>
-                            <td>{{ $row['funding_source_name'] }}</td>
-                            <td class="right">${{ number_format($row['amount'], 2, ',', '.') }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-        @endif
-
-        @if(count($expenseCodeRows) > 0)
-        <div class="text-block">
             Con cargo a los recursos de:
-            @foreach($expenseCodeRows as $ec)
-                <br>{{ $ec['code'] }} - {{ $ec['name'] }}
+            @foreach($cdpRows as $row)
+                <span class="bold">{{ $row['funding_source_name'] }}</span>{{ !$loop->last ? ', ' : '' }}
             @endforeach
         </div>
         @endif
@@ -226,16 +210,16 @@
 
         {{-- CONSTANCIA --}}
         <div class="text-block separator" style="padding-top: 8px;">
-            En constancia se firma a los <span class="bold">{{ $convocatoria->start_date?->format('d') ?? '' }}</span> días,
-            el día <span class="bold">{{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}</span>.
+            En constancia se firma en <span class="bold">{{ $school->municipality ?? '' }}</span>
+            el día <span class="bold">{{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}</span>
         </div>
 
         {{-- FIRMA --}}
         <div style="padding: 12px;">
             <div class="sig-line">
-                <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
-                @if($school->rector_document)
-                    <div style="font-size: 7.5px; color: #444;">Cédula de ciudadanía número {{ $school->rector_document }}</div>
+                <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
+                @if($school->ordenador_gasto_display_document)
+                    <div style="font-size: 7.5px; color: #444;">Cédula de ciudadanía número {{ $school->ordenador_gasto_display_document }}</div>
                 @endif
                 <div class="sig-role">Rector - Ordenador del Gasto</div>
                 <div style="font-size: 7.5px; color: #444;">{{ $school->name }}</div>

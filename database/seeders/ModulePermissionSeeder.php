@@ -272,6 +272,45 @@ class ModulePermissionSeeder extends Seeder
             'incomes.edit',
         ]);
 
+        // Create Ordenador del Gasto Role (same permissions as Rector)
+        $ordenadorRole = Role::firstOrCreate(['name' => 'Ordenador del Gasto', 'guard_name' => 'web']);
+        $ordenadorRole->syncPermissions([
+            'dashboard.view',
+            'school_info.view',
+            'school_info.edit',
+            'users.view',
+            'users.create',
+            'users.edit',
+            'accounting_accounts.view',
+            'accounting_accounts.create',
+            'accounting_accounts.edit',
+            'suppliers.view',
+            'suppliers.create',
+            'suppliers.edit',
+            // Bancos
+            'banks.view',
+            'banks.create',
+            'banks.edit',
+            // Presupuesto
+            'budget_items.view',
+            'budget_items.create',
+            'budget_items.edit',
+            'funding_sources.view',
+            'funding_sources.create',
+            'funding_sources.edit',
+            'budgets.view',
+            'budgets.create',
+            'budgets.edit',
+            'budgets.modify',
+            'budget_transfers.view',
+            'budget_transfers.create',
+            'budget_modifications.view',
+            'budget_modifications.create',
+            'incomes.view',
+            'incomes.create',
+            'incomes.edit',
+        ]);
+
         // Create Auxiliar Role
         $auxRole = Role::firstOrCreate(['name' => 'Auxiliar', 'guard_name' => 'web']);
         $auxRole->syncPermissions([

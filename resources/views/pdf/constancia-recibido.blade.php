@@ -103,9 +103,9 @@
 
         {{-- FIRMA --}}
         <div class="firma-section">
-            <div class="firma-label">Firma RECTOR (ordenador del gasto)</div>
+            <div class="firma-label">Firma ORDENADOR DEL GASTO</div>
             <div class="sig-line">
-                <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
+                <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
             </div>
         </div>
     </div>

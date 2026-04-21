@@ -117,7 +117,7 @@
         <div class="firma-section">
             <div style="font-size: 9px; font-style: italic; color: #555; margin-bottom: 30px;">Firma del ordenador del pago</div>
             <div class="sig-line">
-                <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
+                <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
             </div>
         </div>
     </div>

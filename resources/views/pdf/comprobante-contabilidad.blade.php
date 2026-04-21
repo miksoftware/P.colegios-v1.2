@@ -204,7 +204,7 @@
                     <td>
                         <div style="font-size: 8px; font-weight: bold; color: #1e3a5f; margin-bottom: 25px;">Auxiliar Administrativo</div>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->pagador_name ?? 'Auxiliar Administrativo' }}</div>
+                            <div class="sig-name">{{ $school->auxiliar_display_name }}</div>
                         </div>
                     </td>
                     <td>
@@ -218,9 +218,9 @@
             <table class="firma-table" style="margin-top: 20px;">
                 <tr>
                     <td>
-                        <div style="font-size: 8px; font-weight: bold; color: #1e3a5f; margin-bottom: 25px;">Ordenador del Gasto - Rector(a)</div>
+                        <div style="font-size: 8px; font-weight: bold; color: #1e3a5f; margin-bottom: 25px;">Ordenador del Gasto</div>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
+                            <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
                         </div>
                     </td>
                     <td>

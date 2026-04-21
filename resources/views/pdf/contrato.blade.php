@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -77,7 +77,7 @@
                 <td class="info-label">Modalidad del Gasto de la Orden:</td>
                 <td>{{ $contract->modality_name }}</td>
                 <td class="info-label">Supervisor:</td>
-                <td>{{ $contract->supervisor?->name ?? $school->rector_name ?? '' }}</td>
+                <td>{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</td>
             </tr>
         </table>
 
@@ -149,7 +149,7 @@
             <br><br>
             <span class="bold">CLÁUSULA QUINTA - OBLIGACIONES DEL CONTRATISTA:</span> El contratista se obliga a: a) Cumplir con el objeto del contrato. b) Entregar los bienes y/o servicios de acuerdo con las especificaciones. c) Presentar los informes requeridos. d) Cumplir con las obligaciones de seguridad social.
             <br><br>
-            <span class="bold">CLÁUSULA SEXTA - SUPERVISIÓN:</span> La supervisión del contrato estará a cargo de {{ $contract->supervisor?->name ?? $school->rector_name ?? '' }}.
+            <span class="bold">CLÁUSULA SEXTA - SUPERVISIÓN:</span> La supervisión del contrato estará a cargo de {{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}.
             <br><br>
             <span class="bold">CLÁUSULA SÉPTIMA - GARANTÍAS:</span> NO GENERA RIESGOS. De conformidad con el manual de contratación de la Institución Educativa.
             <br><br>
@@ -177,11 +177,11 @@
                 <tr>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
-                            @if($school->rector_document)
-                                <div class="sig-detail">{{ $school->rector_document }}</div>
+                            <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
+                            @if($school->ordenador_gasto_display_document)
+                                <div class="sig-detail">{{ $school->ordenador_gasto_display_document }}</div>
                             @endif
-                            <div class="sig-role">RECTOR(A)</div>
+                            <div class="sig-role">ORDENADOR DEL GASTO</div>
                             <div class="sig-detail">{{ $school->name }}</div>
                         </div>
                     </td>

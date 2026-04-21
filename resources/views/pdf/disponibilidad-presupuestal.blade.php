@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Solicitud de Disponibilidad Presupuestal - Convocatoria {{ $convocatoria->formatted_number }}</title>
+    <title>Solicitud de Certificado de Disponibilidad Presupuestal - Convocatoria {{ $convocatoria->formatted_number }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 10px; color: #222; line-height: 1.5; }
@@ -31,16 +31,9 @@
         .section-body { padding: 12px 15px; font-size: 10px; text-align: justify; }
 
         /* Tabla de rubros */
-        .rubro-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-        .rubro-table th { background: #e8edf3; font-size: 8px; text-transform: uppercase; padding: 5px 8px; border: 1px solid #aaa; text-align: center; font-weight: bold; color: #1e3a5f; }
-        .rubro-table td { padding: 5px 8px; border: 1px solid #ccc; font-size: 9px; }
-        .rubro-table .text-right { text-align: right; }
-        .rubro-table .text-center { text-align: center; }
-        .rubro-table tfoot td { font-weight: bold; background: #e8edf3; border: 1px solid #aaa; }
-
-        /* Monto */
-        .amount-big { font-size: 12px; font-weight: bold; color: #1e3a5f; }
-        .amount-words { font-size: 9px; font-weight: bold; text-transform: uppercase; color: #333; margin-top: 2px; }
+        .rubro-row { display: table; width: 100%; margin-top: 4px; }
+        .rubro-valor { display: table-cell; width: 25%; font-weight: bold; padding: 4px 0; }
+        .rubro-nombre { display: table-cell; width: 75%; padding: 4px 0; }
 
         /* Firmas */
         .signatures { width: 100%; margin-top: 60px; padding: 0 15px 20px; }
@@ -73,16 +66,20 @@
                 <td class="header-center">
                     <div class="school-name">{{ $school->name }}</div>
                     <div class="school-sub">NIT: {{ $school->nit ?? 'N/A' }} &bull; {{ $school->municipality ?? '' }}</div>
-                    <div class="doc-title">Solicitud de Disponibilidad Presupuestal</div>
+                    <div class="doc-title">Solicitud de Certificado de<br>Disponibilidad Presupuestal</div>
                 </td>
             </tr>
         </table>
 
-        {{-- ===== PARA / FECHA ===== --}}
+        {{-- ===== PARA / DE / FECHA ===== --}}
         <table class="info-table">
             <tr>
                 <td class="info-label">PARA:</td>
-                <td>{{ $school->rector_name ?? 'Rector(a)' }} - RECTOR(A), ORDENADOR(A) DEL GASTO</td>
+                <td>ÁREA DE TESORERÍA Y/O PAGADURÍA</td>
+            </tr>
+            <tr>
+                <td class="info-label">DE:</td>
+                <td>RECTORÍA (ORDENADOR DEL GASTO)</td>
             </tr>
             <tr>
                 <td class="info-label">FECHA:</td>
@@ -92,65 +89,37 @@
 
         {{-- ===== TEXTO INTRODUCTORIO ===== --}}
         <div style="padding: 12px 15px; font-size: 10px; text-align: justify; border-top: 1px solid #ccc;">
-            En atención al plan de compras previsto para la vigencia {{ $convocatoria->fiscal_year }}, me permito solicitar se expida un Certificado de Disponibilidad Presupuestal, de acuerdo con la siguiente información:
+            En atención al plan de compras previsto para la vigencia {{ $convocatoria->fiscal_year }}, me permito solicitarle expedir un Certificado de Disponibilidad Presupuestal, de acuerdo con la siguiente información.
         </div>
 
         {{-- ===== 1. OBJETO ===== --}}
         <div class="section">
-            <div class="section-header">1. Objeto</div>
-            <div class="section-body">
+            <div class="section-header">1.- Objeto:</div>
+            <div class="section-body" style="text-align: center; padding: 20px 15px;">
                 {{ $convocatoria->object }}
             </div>
         </div>
 
         {{-- ===== 2. VALOR Y RUBRO PRESUPUESTAL ===== --}}
         <div class="section">
-            <div class="section-header">2. Valor y Rubro Presupuestal</div>
+            <div class="section-header">2.- Valor y Rubro Presupuestal:</div>
             <div class="section-body">
                 @if(count($rubroRows) > 0)
-                    <table class="rubro-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 20%;">Valor</th>
-                                <th style="width: 25%;">Código Rubro</th>
-                                <th style="width: 55%;">Rubro</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($rubroRows as $row)
-                                <tr>
-                                    <td class="text-right">${{ number_format($row['amount'], 2, ',', '.') }}</td>
-                                    <td class="text-center">{{ $row['code'] }}</td>
-                                    <td>{{ $row['name'] }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                        @if(count($rubroRows) > 1)
-                        <tfoot>
-                            <tr>
-                                <td class="text-right">${{ number_format($totalAmount, 2, ',', '.') }}</td>
-                                <td colspan="2" style="text-align: left; padding-left: 15px;">TOTAL</td>
-                            </tr>
-                        </tfoot>
-                        @endif
-                    </table>
+                    @foreach($rubroRows as $row)
+                        <div class="rubro-row">
+                            <div class="rubro-valor">${{ number_format($row['amount'], 2, ',', '.') }}</div>
+                            <div class="rubro-nombre">{{ $row['name'] }}</div>
+                        </div>
+                    @endforeach
                 @endif
-
-                <div style="margin-top: 8px;">
-                    <span class="amount-big">${{ number_format($totalAmount, 2, ',', '.') }}</span>
-                </div>
-                <div class="amount-words">{{ $amountInWords }}</div>
             </div>
         </div>
 
         {{-- ===== 3. NECESIDAD ===== --}}
         <div class="section">
-            <div class="section-header">3. Necesidad</div>
-            <div class="section-body">
-                {{ $convocatoria->object }}
-                @if($convocatoria->justification)
-                    , {{ $convocatoria->justification }}
-                @endif
+            <div class="section-header">3.- Necesidad:</div>
+            <div class="section-body" style="text-align: center; padding: 20px 15px;">
+                {{ $convocatoria->justification ?? $convocatoria->object }}
             </div>
         </div>
 
@@ -158,10 +127,10 @@
         <div class="signatures">
             <table class="sig-table">
                 <tr>
-                    <td>
-                        <div class="sig-line">
-                            <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
-                            <div class="sig-role">ORDENADOR(A) DEL GASTO</div>
+                    <td style="text-align: left;">
+                        <div class="sig-line" style="margin: 0;">
+                            <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
+                            <div class="sig-role">ORDENADOR DEL GASTO</div>
                         </div>
                     </td>
                 </tr>

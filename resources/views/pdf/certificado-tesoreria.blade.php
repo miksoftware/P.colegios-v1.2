@@ -84,7 +84,7 @@
             </tr>
             <tr>
                 <td class="info-label">Solicitante:</td>
-                <td>{{ $school->rector_name ?? 'Rector(a)' }}</td>
+                <td>{{ $school->ordenador_gasto_display_name }}</td>
             </tr>
             <tr>
                 <td class="info-label">Código:</td>
@@ -117,7 +117,7 @@
         {{-- FIRMA --}}
         <div class="firma-section">
             <div class="sig-line">
-                <div class="sig-name">{{ $school->pagador_name ?? 'Auxiliar Administrativo' }}</div>
+                <div class="sig-name">{{ $school->auxiliar_display_name }}</div>
                 <div class="sig-role">Auxiliar Administrativo</div>
             </div>
         </div>

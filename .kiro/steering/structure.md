@@ -605,6 +605,24 @@ old_values => array, new_values => array
 // Permisos: reports.view, reports.export
 ```
 
+#### BankBookReport
+```php
+// Funcionalidad: Libro de Bancos - movimientos por cuenta bancaria con saldo acumulado
+// Ruta: /reports/bank-book
+// Filtros: filterYear, filterBankAccount (select con cuentas activas del colegio)
+// Datos:
+//   Ingresos: IncomeBankAccount → Income (consignaciones por cuenta)
+//   Egresos: RpFundingSource (bank_account_id) → ContractRp → PaymentOrder (approved/paid)
+//   Saldo anterior: calculado de movimientos de años anteriores
+// Columnas: Fecha, Detalle, Ingresos (No Consig/Valor), Egresos (No Cheque/Valor), Nuevo Saldo
+// Features: tarjetas resumen (saldo anterior, ingresos, egresos, saldo final),
+//   tabla con saldo acumulado por movimiento, exportar Excel via SheetJS
+// JS: datos pasados via data-* attributes, scripts en @push('scripts')
+// IMPORTANTE: ContractRp NO tiene relación paymentOrders (consultar PaymentOrder directamente)
+// IMPORTANTE: FundingSource NO tiene relación rpFundingSources (no usar en eager loading)
+// Permisos: reports.view, reports.export
+```
+
 ---
 
 ## Middleware (`app/Http/Middleware/`)
@@ -758,6 +776,14 @@ GET /postcontractual/{id?} → PostcontractualManagement [auth, can, EnsureSchoo
 // Reportes
 GET /reports/payment-report    → PaymentReportManagement   [auth, can:reports.view, EnsureSchool]
 GET /reports/expense-execution → ExpenseExecutionReport     [auth, can:reports.view, EnsureSchool]
+GET /reports/income-execution  → IncomeExecutionReport      [auth, can:reports.view, EnsureSchool]
+GET /reports/pac-expense       → PacExpenseReport           [auth, can:reports.view, EnsureSchool]
+GET /reports/pac-income        → PacIncomeReport            [auth, can:reports.view, EnsureSchool]
+GET /reports/sifse             → SifseReport                [auth, can:reports.view, EnsureSchool]
+GET /reports/exogena           → ExogenaReport              [auth, can:reports.view, EnsureSchool]
+GET /reports/contracting       → ContractingReport          [auth, can:reports.view, EnsureSchool]
+GET /reports/retention-liquidation → RetentionLiquidationReport [auth, can:reports.view, EnsureSchool]
+GET /reports/bank-book         → BankBookReport             [auth, can:reports.view, EnsureSchool]
 ```
 
 ### Middleware Stack
@@ -796,7 +822,15 @@ GET /reports/expense-execution → ExpenseExecutionReport     [auth, can:reports
 │   ├── Documentos
 │   ├── Reportes (expandible)
 │   │   ├── Relación de Pagos
-│   │   └── Ejecución de Gastos
+│   │   ├── Ejecución de Gastos
+│   │   ├── Ejecución de Ingresos
+│   │   ├── PAC de Gastos
+│   │   ├── PAC de Ingresos
+│   │   ├── Reporte SIFSE
+│   │   ├── Exógena DIAN
+│   │   ├── Informe Contratación
+│   │   ├── Liquidación Retenciones
+│   │   └── Libro de Bancos
 │   └── Perfil de usuario
 └── Contenido principal (slot)
 ```

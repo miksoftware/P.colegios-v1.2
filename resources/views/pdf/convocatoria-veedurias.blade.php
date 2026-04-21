@@ -16,7 +16,7 @@
         .header-logo { width: 70px; text-align: center; border-right: 1px solid #1e3a5f; }
         .header-center { text-align: center; }
         .school-name { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #1e3a5f; }
-        .school-dane { font-size: 8px; color: #555; margin-top: 1px; }
+        .school-nit { font-size: 9px; color: #444; margin-top: 1px; }
         .school-muni { font-size: 9px; color: #444; margin-top: 1px; }
 
         /* Título convocatoria */
@@ -66,9 +66,7 @@
                 </td>
                 <td class="header-center">
                     <div class="school-name">{{ $school->name }}</div>
-                    @if($school->dane_code)
-                        <div class="school-dane">{{ $school->dane_code }}</div>
-                    @endif
+                    <div class="school-nit">{{ $school->nit ?? '' }}</div>
                     <div class="school-muni">{{ $school->municipality ?? '' }}</div>
                 </td>
             </tr>
@@ -85,15 +83,16 @@
                 </div>
                 <div class="title-info">
                     <div class="title-info-cell title-info-label">FECHA DE PUBLICACIÓN:</div>
-                    <div class="title-info-cell">{{ $convocatoria->start_date?->format('d/m/Y') ?? now()->format('d/m/Y') }}</div>
+                    <div class="title-info-cell bold">{{ $convocatoria->start_date?->format('d/m/Y') ?? now()->format('d/m/Y') }}</div>
                 </div>
             </div>
         </div>
 
         {{-- ===== TEXTO INTRODUCTORIO ===== --}}
         <div class="text-block">
-            La <span class="bold">{{ $school->name }}</span>,
-            en cumplimiento al artículo 66 de la ley 80 de 1993 y la ley 850 de 2003, convoca a todos los comités u organizaciones de veedurías ciudadanas que se encuentren legalmente establecidas en este municipio, con el fin de que participen del control social a los procesos adelantados por esta institución.
+            La <span class="bold">{{ $school->name }}</span>
+            <br><br>
+            En cumplimiento al artículo 66 de la ley 80 de 1993 y la ley 850 de 2003, convoca a todos los comités u organizaciones de veedurías ciudadanas que se encuentran legalmente establecidas en este municipio, con el fin de que participen del control social a los procesos adelantados por esta institución.
         </div>
 
         {{-- ===== MODALIDAD ===== --}}
@@ -104,7 +103,7 @@
         {{-- ===== OBJETO ===== --}}
         <div class="info-row" style="border-top: 1px solid #ddd; padding-top: 8px; padding-bottom: 8px;">
             <span class="info-label">OBJETO:</span>
-            <div style="margin-top: 4px; margin-left: 15px; text-align: justify;">
+            <div style="margin-top: 4px; margin-left: 15px; text-align: center;">
                 {{ $convocatoria->object }}
             </div>
         </div>
@@ -116,9 +115,7 @@
                     <td class="presupuesto-label" style="vertical-align: top;">PRESUPUESTO OFICIAL:</td>
                     <td>
                         {{ $amountInWords }}
-                        <div style="margin-top: 4px;">
-                            <span class="amount-value">$ {{ number_format($amount, 2, ',', '.') }}</span>
-                        </div>
+                        <span class="amount-value" style="margin-left: 10px;">$ {{ number_format($amount, 2, ',', '.') }}</span>
                     </td>
                 </tr>
             </table>
@@ -133,7 +130,9 @@
                         La documentación relacionada con el presente <span class="bold">SEGÚN LEY 715 DEC 1075 DE 2015</span>
                         puede ser consultada en la secretaría de la Institución Educativa ubicada en la
                         <br>
-                        {{ $school->address ?? '' }}, a partir del {{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}.
+                        <span class="bold">{{ $school->address ?? '' }}</span>
+                        &nbsp;&nbsp;a partir del&nbsp;&nbsp;
+                        <span class="bold">{{ $convocatoria->start_date?->format('d/m/Y') ?? now()->format('d/m/Y') }}</span>
                     </td>
                 </tr>
             </table>
@@ -142,9 +141,9 @@
         {{-- ===== OBSERVACIONES ===== --}}
         @if($school->email)
         <div class="text-block" style="border-top: 1px solid #ddd;">
-            Así mismo las observaciones y sugerencias pueden dirigirse al correo
+            Así mismo las observaciones y sugerencias pueden dirigirse al correo electrónico:
             <br>
-            <span class="bold">{{ $school->email }}</span>
+            <span class="bold" style="margin-left: 40px;">{{ $school->email }}</span>
         </div>
         @endif
 
@@ -152,13 +151,13 @@
         <div style="padding: 10px 15px; border-top: 1px solid #ddd;">
             <span class="bold">{{ $school->municipality ?? 'N/A' }}</span>
             &nbsp;&nbsp;&nbsp;&nbsp;
-            <span class="bold">{{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? now()->translatedFormat('d \\d\\e F \\d\\e Y') }}</span>
+            <span class="bold">{{ $convocatoria->start_date?->format('d/m/Y') ?? now()->format('d/m/Y') }}</span>
         </div>
 
         {{-- ===== FIRMA ===== --}}
         <div class="firma-section">
             <div class="sig-line">
-                <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
+                <div class="sig-name">{{ $school->rector_display_name }}</div>
                 <div class="sig-role">RECTOR(A)</div>
             </div>
         </div>

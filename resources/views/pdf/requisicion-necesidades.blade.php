@@ -34,14 +34,12 @@
         /* Necesidad */
         .necesidad { border-top: 2px solid #1e3a5f; }
         .necesidad-header { background: #1e3a5f; color: #fff; padding: 5px 15px; font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
-        .necesidad-body { padding: 12px 15px; font-size: 10px; text-align: justify; }
+        .necesidad-body { padding: 12px 15px; font-size: 10px; text-align: center; }
 
         /* Firmas */
         .firma-section { padding: 15px; }
-        .firma-row { display: table; width: 100%; margin-top: 30px; }
-        .firma-cell { display: table-cell; width: 50%; vertical-align: bottom; }
-        .firma-label { font-weight: bold; font-size: 9px; text-transform: uppercase; color: #1e3a5f; margin-bottom: 30px; }
-        .sig-line { border-top: 1px solid #333; width: 220px; padding-top: 4px; }
+        .firma-label { font-weight: bold; font-size: 9px; text-transform: uppercase; color: #1e3a5f; }
+        .sig-line { border-top: 1px solid #333; width: 240px; padding-top: 4px; }
         .sig-name { font-weight: bold; font-size: 10px; text-transform: uppercase; }
         .sig-role { font-size: 8px; color: #666; }
 
@@ -74,18 +72,14 @@
         <table class="info-table">
             <tr>
                 <td class="info-label">Fecha Solicitud:</td>
-                <td>{{ $convocatoria->start_date?->format('Y/m/d') ?? now()->format('Y/m/d') }}</td>
+                <td>{{ $convocatoria->start_date?->format('d/m/Y') ?? now()->format('d/m/Y') }}</td>
             </tr>
             <tr>
                 <td class="info-label">Solicitante:</td>
-                <td>{{ $school->rector_name ?? 'Rector(a)' }}</td>
+                <td>{{ $school->ordenador_gasto_display_name }}</td>
             </tr>
             <tr>
                 <td class="info-label">Dependencia:</td>
-                <td>RECTORÍA</td>
-            </tr>
-            <tr>
-                <td class="info-label">A:</td>
                 <td>RECTORÍA</td>
             </tr>
         </table>
@@ -116,33 +110,29 @@
         <div class="necesidad">
             <div class="necesidad-header">Necesidad que se pretende satisfacer con esta solicitud</div>
             <div class="necesidad-body">
-                {{ $convocatoria->object }}
-                @if($convocatoria->justification)
-                    , {{ $convocatoria->justification }}
-                @endif
+                {{ $convocatoria->justification ?? $convocatoria->object }}
             </div>
         </div>
 
         {{-- ===== FIRMAS ===== --}}
         <div class="firma-section">
-            <div class="firma-row">
-                <div class="firma-cell">
-                    <div class="firma-label">Firma Solicitante</div>
-                    <div style="margin-top: 35px;">
-                        <div class="sig-line">&nbsp;</div>
-                    </div>
-                </div>
+            {{-- Firma Solicitante --}}
+            <div style="margin-top: 30px;">
+                <div class="sig-line">&nbsp;</div>
+                <div class="firma-label">Firma Solicitante</div>
             </div>
 
-            <div class="firma-row" style="margin-top: 20px;">
-                <div class="firma-cell">
-                    <div class="firma-label">Aprobado Firma y Autorizaciones</div>
-                    <div style="margin-top: 35px;">
-                        <div class="sig-line">
-                            <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
-                            <div class="sig-role">ORDENADOR DEL GASTO</div>
-                        </div>
-                    </div>
+            {{-- Aprobado --}}
+            <div style="margin-top: 25px; border-top: 2px solid #333; padding-top: 4px;">
+                <div class="firma-label">Aprobado: Firma y</div>
+                <div class="firma-label">Autorizaciones:</div>
+            </div>
+
+            {{-- Firma Ordenador del Gasto --}}
+            <div style="margin-top: 40px;">
+                <div class="sig-line">
+                    <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
+                    <div class="sig-role">ORDENADOR DEL GASTO</div>
                 </div>
             </div>
         </div>

@@ -62,11 +62,11 @@
                 <br>
             @endif
             <div class="school-name">{{ $school->name }}</div>
-            @if($school->dane_code)
-                <div class="school-dane">{{ $school->dane_code }}</div>
-            @endif
             @if($school->nit)
                 <div class="school-nit">{{ $school->nit }}</div>
+            @endif
+            @if($school->dane_code)
+                <div class="school-dane">{{ $school->dane_code }}</div>
             @endif
         </div>
 
@@ -82,10 +82,10 @@
 
         {{-- TEXTO CERTIFICACIÓN --}}
         <div class="text-block">
-            EL SUSCRITO ORDENADOR DEL GASTO CERTIFICA:
+            EL SUSCRITO ORDENADOR DEL PAGO CERTIFICA:
         </div>
         <div class="text-block" style="padding-top: 0;">
-            Que en el presupuesto de Gastos de la vigencia {{ $convocatoria->fiscal_year }} existe apropiación disponible para atender lo de la presente solicitud así:
+            Que en el presupuesto de Gastos de la vigencia {{ $convocatoria->fiscal_year }} existe apropiación disponible para atender la presente solicitud así:
         </div>
 
         {{-- TABLA DE CDPs --}}
@@ -105,13 +105,9 @@
                             <td class="text-center">{{ $row['budget_item_code'] }}</td>
                             <td>{{ $row['budget_item_name'] }}</td>
                             <td>
-                                @foreach($row['sources'] as $source)
-                                    {{ $source['name'] }}
-                                    (${{ number_format($source['amount'], 2, ',', '.') }})
-                                    @if(!$loop->last)<br>@endif
-                                @endforeach
+                                {{ collect($row['sources'])->pluck('name')->implode(' Y ') }}
                             </td>
-                            <td class="text-right bold">${{ number_format($row['total_amount'], 2, ',', '.') }}</td>
+                            <td class="text-right bold">${{ number_format($row['total_amount'], 0, ',', '.') }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -144,14 +140,13 @@
                 <tr>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->pagador_name ?? 'Auxiliar Administrativo' }}</div>
+                            <div class="sig-name">{{ $school->auxiliar_display_name }}</div>
                             <div class="sig-role">Auxiliar Administrativo</div>
                         </div>
                     </td>
                     <td>
-                        <div style="margin-bottom: 4px; font-size: 9px; color: #666;">Vo. Bo.</div>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
+                            <div class="sig-name"><span style="font-size: 8px; font-weight: normal; color: #666;">Vo. Bo.</span> {{ $school->rector_display_name }}</div>
                             <div class="sig-role">Rector</div>
                         </div>
                     </td>

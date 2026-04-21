@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -35,39 +35,36 @@
 
         {{-- ENCABEZADO --}}
         <div class="header-info">
-            <div style="font-size: 9px;">{{ $school->municipality ?? '' }}</div>
-            <div style="font-size: 9px; margin-top: 4px;">
-                <span class="bold">{{ $school->municipality ?? '' }},</span>
-                {{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? now()->translatedFormat('d \\d\\e F \\d\\e Y') }}
+            <div style="font-size: 9px;">
+                <span class="bold">{{ $school->municipality ?? '' }}</span>
+                &nbsp;&nbsp;
+                {{ $convocatoria->start_date?->format('d/m/Y') ?? now()->format('d/m/Y') }}
             </div>
         </div>
 
         {{-- DESTINATARIO --}}
         <div style="padding: 10px 15px; border-bottom: 1px solid #ddd;">
-            <div class="bold">Señor(es):</div>
+            <div class="bold">SEÑORES:</div>
             <div class="bold" style="font-size: 10px;">{{ $supplier->full_name ?? 'N/A' }}</div>
             @if($supplier->address)
                 <div>{{ $supplier->address }}</div>
-            @endif
-            @if($supplier->municipality)
-                <div>{{ $supplier->municipality->name ?? '' }}</div>
             @endif
         </div>
 
         {{-- REFERENCIA --}}
         <div style="padding: 8px 15px; border-bottom: 1px solid #ddd;">
-            <span class="bold">REFERENCIA: COMUNICACIÓN DE ACEPTACIÓN DE PROPUESTA</span>
+            <span class="bold">REFERENCIA; COMUNICACIÓN DE ACEPTACIÓN DE PROPUESTA</span>
         </div>
 
         {{-- TEXTO LEGAL --}}
         <div class="text-block">
-            De conformidad con lo dispuesto por el Artículo 94 de la Ley 1474 de 2.011 y por lo reglamentado en el Decreto 1510 de 2013 y de acuerdo al manual de contratación de la Institución educativa, aprobado por el consejo directivo para la vigencia {{ $convocatoria->fiscal_year }}, me permito manifestarle que la cotización que Usted ha presentado ha sido aceptada.
+            De conformidad con lo dispuesto por el Artículo 94 de la Ley 1474 de 2.011 y por lo reglamentado en el Decreto 1510 de 2013 Y de acuerdo al manual de contratación de la institución educativa, aprobado por el consejo directivo para la vigencia {{ $convocatoria->fiscal_year }}, me permito manifestarle que la cotización que Usted ha presentado ha sido aceptada.
         </div>
         <div class="text-block">
-            Para todos los efectos a que haya lugar, se entiende que esta aceptación implica que con Usted ha quedado celebrado el contrato de mínima cuantía a partir de la fecha queda celebrado de la siguiente manera:
+            Para todos los efectos a que haya lugar, se entiende que esta carta de aceptación implica que con Usted ha quedado celebrado el contrato de mínima cuantía que a partir de la fecha queda codificado de la siguiente manera:
         </div>
         <div class="text-block">
-            Usted deberá cumplir con la ejecución del contrato de conformidad con las condiciones de los estudios previos y con los documentos formulados en su propuesta.
+            Usted deberá cumplir con la ejecución del contrato de conformidad con las condiciones de los estudios previos y con los ofrecimientos formulados en su propuesta.
         </div>
         <div class="text-block">
             Los términos generales de la descripción contractual son los siguientes:
@@ -122,18 +119,18 @@
                 </tr>
                 <tr>
                     <td class="label">Supervisor:</td>
-                    <td colspan="3">{{ $contract?->supervisor?->name ?? $school->rector_name ?? '' }}</td>
+                    <td colspan="3">{{ $contract?->supervisor?->name ?? $school->ordenador_gasto_display_name ?? '' }}</td>
                 </tr>
                 <tr>
                     <td class="label">Forma de Pago:</td>
-                    <td colspan="3">{{ $contract?->payment_method_name ?? 'UN PAGO' }}</td>
+                    <td colspan="3">{{ $contract?->payment_method_name ?? 'UN (1) PAGO' }}</td>
                 </tr>
             </table>
         </div>
 
         {{-- GARANTÍAS --}}
         <div class="text-block" style="border-top: 1px solid #ddd; padding-top: 8px;">
-            <span class="bold">GARANTÍAS:</span> Para la ejecución del contrato, de conformidad con lo dispuesto por el artículo 41 de la Ley de 1993, modificado por el 23 de la Ley 1150 de 2007 y Decreto 1510 de 2013 y de acuerdo con el manual de contratación aprobado por el Consejo Directivo de esta Institución educativa para la vigencia {{ $convocatoria->fiscal_year }}, se establece consultar y a favor de la Institución Educativa los siguientes amparos:
+            <span class="bold">GARANTÍAS:</span> Para la ejecución del contrato, de conformidad con lo dispuesto por el art.41 de la Ley 80 de 1993, modificado por el art.23 de la Ley 1150 de 2007 y Decreto 1510 de 2013 Y de acuerdo con el manual de contratación aprobado por el Consejo Directivo de esta institución educativa para la vigencia {{ $convocatoria->fiscal_year }}, el Contratista constituirá a favor de la Institución Educativa las siguientes garantías:
             <br><br>
             <span class="bold">NO GENERA RIESGOS</span>
         </div>
@@ -146,7 +143,7 @@
         {{-- FIRMA --}}
         <div style="padding: 12px 15px;">
             <div class="sig-line">
-                <div class="sig-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
+                <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
                 <div class="sig-role">ORDENADOR DEL GASTO</div>
             </div>
         </div>

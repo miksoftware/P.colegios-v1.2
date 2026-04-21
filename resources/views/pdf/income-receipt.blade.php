@@ -203,13 +203,13 @@
     <div class="signatures">
         <div class="signature-box">
             <div class="signature-line">
-                <div class="signature-name">{{ $school->rector_name ?? 'Rector(a)' }}</div>
-                <div class="signature-role">Rector(a) / Ordenador del Gasto</div>
+                <div class="signature-name">{{ $school->ordenador_gasto_display_name }}</div>
+                <div class="signature-role">Ordenador del Gasto</div>
             </div>
         </div>
         <div class="signature-box">
             <div class="signature-line">
-                <div class="signature-name">{{ $school->pagador_name ?? 'Pagador(a)' }}</div>
+                <div class="signature-name">{{ $school->pagador_display_name }}</div>
                 <div class="signature-role">Pagador(a) / Tesorero(a)</div>
             </div>
         </div>

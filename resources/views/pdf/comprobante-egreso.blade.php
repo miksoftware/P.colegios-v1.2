@@ -176,9 +176,9 @@
             </tr>
             <tr>
                 <td class="pres-label">Código:</td>
-                <td>{{ $rp['budget_item_code'] }}</td>
+                <td>{{ $rp['expense_code'] }}</td>
                 <td class="pres-label">Rubro:</td>
-                <td>{{ $rp['budget_item_name'] }}</td>
+                <td>{{ $rp['expense_name'] }}</td>
             </tr>
         </table>
         @endforeach

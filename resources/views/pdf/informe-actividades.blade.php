@@ -99,7 +99,7 @@
 
         {{-- TEXTO CERTIFICACIÓN --}}
         <div class="text-block" style="border-top: 1px solid #ddd; padding-top: 10px;">
-            El supervisor certificó que las actividades asignadas al contratista, fueron ejecutadas a satisfacción y de conformidad con lo estipulado en el contrato, por esta razón procedió a autorizar el pago, dando cumplimiento a la forma de pago pactada. Para constancia se firma por quienes en ella intervinieron.
+            El supervisor certificó que las actividades asignadas al contratista, fueron ejecutadas a satisfacción y de conformidad con lo estipulado en el contrato, por esta razón procedió a autorizar el pago., dando cumplimiento a la forma de pago pactada. Para constancia se firma por quienes en ella intervinieron.
         </div>
 
         {{-- FIRMAS --}}
@@ -115,10 +115,8 @@
                     </td>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</div>
-                            @if($school->rector_display_document)
-                                <div class="sig-detail">{{ $school->rector_display_document }}</div>
-                            @endif
+                            <div class="sig-name">{{ $contract->supervisor ? strtoupper(trim($contract->supervisor->name . ' ' . $contract->supervisor->surname)) : $school->rector_display_name }}</div>
+                            <div class="sig-detail">{{ $contract->supervisor?->identification_number ?? $school->rector_display_document ?? '' }}</div>
                             <div class="sig-role">Supervisor</div>
                         </div>
                     </td>

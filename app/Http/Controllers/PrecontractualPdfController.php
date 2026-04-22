@@ -447,6 +447,7 @@ class PrecontractualPdfController extends Controller
                 'cdps.budgetItem',
                 'cdps.fundingSources.fundingSource',
                 'cdps.fundingSources.budget',
+                'distributionDetails.expenseDistribution.expenseCode',
                 'creator',
             ])
             ->findOrFail($convocatoriaId);
@@ -456,9 +457,21 @@ class PrecontractualPdfController extends Controller
 
         $school = School::findOrFail($schoolId);
 
-        // Construir filas: código rubro, nombre rubro, fuentes con montos, valor total
+        // Obtener códigos de gasto desde las distribuciones de la convocatoria
+        $expenseCodeMap = [];
+        foreach ($convocatoria->distributionDetails as $dd) {
+            $ec = $dd->expenseDistribution?->expenseCode;
+            if ($ec) {
+                $expenseCodeMap[] = [
+                    'code' => $ec->code ?? '',
+                    'name' => $ec->name ?? '',
+                ];
+            }
+        }
+
+        // Construir filas: código gasto, nombre gasto, fuentes con montos, valor total
         $cdpRows = [];
-        foreach ($activeCdps as $cdp) {
+        foreach ($activeCdps as $index => $cdp) {
             $sources = [];
             foreach ($cdp->fundingSources as $cdpFs) {
                 $sources[] = [
@@ -466,10 +479,14 @@ class PrecontractualPdfController extends Controller
                     'amount' => (float) $cdpFs->amount,
                 ];
             }
+
+            // Usar código de gasto si existe, sino fallback al budget item
+            $ecData = $expenseCodeMap[$index] ?? null;
+
             $cdpRows[] = [
                 'cdp_number' => $cdp->formatted_number,
-                'budget_item_code' => $cdp->budgetItem?->code ?? '',
-                'budget_item_name' => $cdp->budgetItem?->name ?? '',
+                'budget_item_code' => $ecData['code'] ?? $cdp->budgetItem?->code ?? '',
+                'budget_item_name' => $ecData['name'] ?? $cdp->budgetItem?->name ?? '',
                 'sources' => $sources,
                 'total_amount' => (float) $cdp->total_amount,
             ];

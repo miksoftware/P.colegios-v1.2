@@ -181,17 +181,14 @@
             </tr>
             <tr>
                 <td class="pres-label">Código:</td>
-                <td>{{ $row['budget_item_code'] }}</td>
+                <td>{{ $row['expense_code'] }}</td>
                 <td class="pres-label">Rubro:</td>
-                <td>{{ $row['budget_item_name'] }}</td>
+                <td>{{ $row['expense_name'] }}</td>
             </tr>
             <tr>
                 <td class="pres-label">Fuente de Financiación:</td>
                 <td colspan="3">
-                    @foreach($row['sources'] as $source)
-                        {{ $source['name'] }} (${{ number_format($source['amount'], 2, ',', '.') }})
-                        @if(!$loop->last), @endif
-                    @endforeach
+                    {{ collect($row['sources'])->pluck('name')->implode(' Y ') }}
                 </td>
             </tr>
         </table>

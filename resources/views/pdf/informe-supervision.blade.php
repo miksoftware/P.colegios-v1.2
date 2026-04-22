@@ -41,8 +41,8 @@
         {{-- HEADER --}}
         <div class="header">
             <div class="school-name">{{ $school->name }}</div>
-            @if($school->dane_code)
-                <div class="school-dane">{{ $school->dane_code }}</div>
+            @if($school->nit)
+                <div class="school-dane">{{ $school->nit }}</div>
             @endif
             <div class="school-muni">{{ $school->municipality ?? '' }}</div>
             <div class="doc-title">Informe de Supervisión de Contratos y de Órdenes de Compras y de Servicios</div>
@@ -68,15 +68,15 @@
 
         {{-- TEXTO NARRATIVO --}}
         <div class="text-block" style="border-bottom: 1px solid #ddd;">
-            A la fecha de {{ $contract->end_date?->format('d/m/Y') ?? $contract->start_date?->format('d/m/Y') ?? '' }},
+            A la fecha de {{ $contract->end_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? $contract->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }},
             se reunieron las siguientes personas:
-            <span class="bold">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</span>
-            en su condición de supervisor del contrato, y
+            <span class="bold">{{ $contract->supervisor ? strtoupper(trim($contract->supervisor->name . ' ' . $contract->supervisor->surname)) : $school->rector_display_name }}</span>
+            en su calidad de supervisor del contrato, y,
             <span class="bold">{{ $supplier->full_name ?? '' }}</span>
-            en su condición de contratista con el fin de revisar las actividades desarrolladas en el periodo comprendido
-            {{ $contract->start_date?->format('d/m/Y') ?? '' }} hasta el {{ $contract->end_date?->format('d/m/Y') ?? '' }},
-            en cumplimiento de lo establecido en el
-            <span class="bold">CONTRATO No. {{ $contract->formatted_number }}</span>,
+            en su condición de contratista con el fin de revisar las actividades desarrolladas en el período comprendido del
+            {{ $contract->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }} hasta el {{ $contract->end_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}
+            en cumplimiento de lo establecido en el,
+            <span class="bold">CONTRATO No. {{ $contract->formatted_number }}</span>
             cuyas condiciones generales se enuncian a continuación:
         </div>
 
@@ -88,11 +88,11 @@
             </tr>
             <tr>
                 <td class="info-label">Forma de Pago:</td>
-                <td>{{ $contract->payment_method_name ?? 'UN PAGO' }}</td>
+                <td>{{ $contract->payment_method_name ?? 'UN (1) PAGO' }}</td>
             </tr>
             <tr>
                 <td class="info-label">Valor Contratado:</td>
-                <td class="bold">${{ number_format($contract->total, 2, ',', '.') }}</td>
+                <td class="bold">${{ number_format($contract->total, 0, ',', '.') }}</td>
             </tr>
             <tr>
                 <td class="info-label">Plazo de Ejecución:</td>
@@ -108,7 +108,7 @@
             </tr>
             <tr>
                 <td class="info-label">Supervisor:</td>
-                <td>{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</td>
+                <td>{{ $contract->supervisor ? strtoupper(trim($contract->supervisor->name . ' ' . $contract->supervisor->surname)) : $school->rector_display_name }}</td>
             </tr>
         </table>
 
@@ -130,10 +130,8 @@
                     </td>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</div>
-                            @if($school->rector_display_document)
-                                <div class="sig-detail">{{ $school->rector_display_document }}</div>
-                            @endif
+                            <div class="sig-name">{{ $contract->supervisor ? strtoupper(trim($contract->supervisor->name . ' ' . $contract->supervisor->surname)) : $school->rector_display_name }}</div>
+                            <div class="sig-detail">{{ $contract->supervisor?->identification_number ?? $school->rector_display_document ?? '' }}</div>
                             <div class="sig-role">Supervisor</div>
                         </div>
                     </td>

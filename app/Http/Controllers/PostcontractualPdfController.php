@@ -22,6 +22,7 @@ class PostcontractualPdfController extends Controller
         $po = PaymentOrder::forSchool($schoolId)
             ->with([
                 'contract.supplier',
+                'contract.convocatoria.distributionDetails.expenseDistribution.expenseCode',
                 'contract.rps.cdp.budgetItem.accountingAccount.parent.parent.parent.parent',
                 'contract.rps.fundingSources.fundingSource',
                 'contract.rps.fundingSources.bank',
@@ -105,7 +106,22 @@ class PostcontractualPdfController extends Controller
         $accountNumber = '';
         $fundingSourceName = '';
 
+        // Obtener códigos de gasto desde la convocatoria del contrato
+        $expenseCodeMap = [];
+        if ($po->payment_type === 'contract' && $po->contract?->convocatoria) {
+            foreach ($po->contract->convocatoria->distributionDetails as $dd) {
+                $ec = $dd->expenseDistribution?->expenseCode;
+                if ($ec) {
+                    $expenseCodeMap[] = [
+                        'code' => $ec->code ?? '',
+                        'name' => $ec->name ?? '',
+                    ];
+                }
+            }
+        }
+
         if ($po->payment_type === 'contract' && $po->contract) {
+            $rpIndex = 0;
             foreach ($po->contract->rps->where('status', 'active') as $rp) {
                 $sources = [];
                 foreach ($rp->fundingSources as $rpFs) {
@@ -115,13 +131,17 @@ class PostcontractualPdfController extends Controller
                         $accountNumber = $rpFs->bankAccount?->account_number ?? '';
                     }
                 }
-                $fundingSourceName = implode(', ', array_filter($sources));
+                $fundingSourceName = implode(' Y ', array_filter($sources));
+
+                $ecData = $expenseCodeMap[$rpIndex] ?? null;
+
                 $rpData[] = [
                     'rp_number' => $rp->formatted_number,
-                    'budget_item_code' => $rp->cdp?->budgetItem?->code ?? '',
-                    'budget_item_name' => $rp->cdp?->budgetItem?->name ?? '',
+                    'expense_code' => $ecData['code'] ?? $rp->cdp?->budgetItem?->code ?? '',
+                    'expense_name' => $ecData['name'] ?? $rp->cdp?->budgetItem?->name ?? '',
                     'total_amount' => (float) $rp->total_amount,
                 ];
+                $rpIndex++;
                 break;
             }
         } elseif ($po->contractRp) {
@@ -135,8 +155,8 @@ class PostcontractualPdfController extends Controller
             }
             $rpData[] = [
                 'rp_number' => $rp->formatted_number,
-                'budget_item_code' => $po->cdp?->budgetItem?->code ?? '',
-                'budget_item_name' => $po->cdp?->budgetItem?->name ?? '',
+                'expense_code' => $po->cdp?->budgetItem?->code ?? '',
+                'expense_name' => $po->cdp?->budgetItem?->name ?? '',
                 'total_amount' => (float) $po->total,
             ];
         }

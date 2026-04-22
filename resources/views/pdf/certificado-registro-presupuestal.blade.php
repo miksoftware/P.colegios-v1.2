@@ -67,11 +67,11 @@
                 <br>
             @endif
             <div class="school-name">{{ $school->name }}</div>
-            @if($school->dane_code)
-                <div class="school-dane">{{ $school->dane_code }}</div>
-            @endif
             @if($school->nit)
                 <div class="school-nit">{{ $school->nit }}</div>
+            @endif
+            @if($school->dane_code)
+                <div class="school-dane">{{ $school->dane_code }}</div>
             @endif
         </div>
 
@@ -109,14 +109,10 @@
                     @foreach($rpRows as $row)
                         <tr>
                             <td class="text-center">{{ $row['cdp_number'] }}</td>
-                            <td class="text-center">{{ $row['budget_item_code'] }}</td>
-                            <td>{{ $row['budget_item_name'] }}</td>
+                            <td class="text-center">{{ $row['expense_code'] }}</td>
+                            <td>{{ $row['expense_name'] }}</td>
                             <td>
-                                @foreach($row['sources'] as $source)
-                                    {{ $source['name'] }}
-                                    (${{ number_format($source['amount'], 2, ',', '.') }})
-                                    @if(!$loop->last)<br>@endif
-                                @endforeach
+                                {{ collect($row['sources'])->pluck('name')->implode(' Y ') }}
                             </td>
                             <td class="text-right bold">${{ number_format($row['total_amount'], 2, ',', '.') }}</td>
                         </tr>
@@ -139,7 +135,7 @@
                 <tr>
                     <td class="info-label">Beneficiario:</td>
                     <td>{{ $supplier->full_name ?? 'N/A' }}</td>
-                    <td class="info-label" style="width: 80px;">NIT / CC:</td>
+                    <td class="info-label" style="width: 80px;">NIT. / CC:</td>
                     <td>{{ $supplier->document_number ?? '' }}</td>
                     <td class="info-label" style="width: 30px;">DV:</td>
                     <td style="width: 30px;">{{ $supplier->dv ?? '' }}</td>

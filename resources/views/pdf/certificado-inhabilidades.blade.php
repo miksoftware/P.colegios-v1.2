@@ -54,7 +54,7 @@
 
     {{-- CUERPO --}}
     <div class="body-text">
-        Manifiesto bajo la gravedad de juramento que no me encuentro incurso en ninguna de las causales de inhabilidad e incompatibilidad legal conforme a lo establecido en los artículos 8 de la Ley 80 de 1993, 44 y 86 de la ley 142 de 1994 y demás normas sobre la materia y que tampoco me hallo o nos hallamos incursos en ninguno de los eventos de prohibiciones especiales para contratar.
+        Manifiesto bajo la gravedad de juramento que no me encuentro incurso en ninguna de las causales de inhabilidad e incompatibilidad legal conforme a lo establecido en los artículos 8 de la Ley 80 de 1993, 44 y 66 de la ley 142 de 1994 y demás normas sobre la materia y que tampoco me hallo o nos hallamos incursos en ninguno de los eventos de prohibiciones especiales para contratar.
     </div>
 
     {{-- FIRMA --}}

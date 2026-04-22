@@ -45,8 +45,8 @@
         {{-- HEADER --}}
         <div class="header">
             <div class="school-name">{{ $school->name }}</div>
-            @if($school->dane_code)
-                <div class="school-dane">{{ $school->dane_code }}</div>
+            @if($school->nit)
+                <div class="school-dane">{{ $school->nit }}</div>
             @endif
             <div class="school-muni">{{ $school->municipality ?? '' }}</div>
         </div>
@@ -73,11 +73,11 @@
             </tr>
             <tr>
                 <td class="info-label">Ciudad y Fecha:</td>
-                <td>{{ $school->municipality ?? '' }} &nbsp;&nbsp;&nbsp; {{ $contract->start_date?->format('d/m/Y') ?? '' }}</td>
+                <td>{{ $school->municipality ?? '' }} &nbsp;&nbsp;&nbsp; {{ $contract->start_date?->format('d/m/y') ?? '' }}</td>
             </tr>
             <tr>
                 <td class="info-label">Apreciado(a):</td>
-                <td class="bold">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</td>
+                <td class="bold">{{ $contract->supervisor ? strtoupper(trim($contract->supervisor->name . ' ' . $contract->supervisor->surname)) : $school->rector_display_name }}</td>
             </tr>
             <tr>
                 <td class="info-label">Cargo:</td>
@@ -96,9 +96,11 @@
 
         {{-- TEXTO DESIGNACIÓN --}}
         <div class="text-block">
-            Me permito informar su designación como supervisor(a) de la orden o contrato de la referencia, cuyo objeto es:
-            <span class="bold">{{ $contract->object }}</span>,
-            suscrito con <span class="bold">{{ $supplier->full_name ?? '' }}</span>.
+            Me permito informar su designación como supervisor(a) de la orden o contrato de la referencia, cuyo objeto es
+            <br>
+            <span class="bold">{{ $contract->object }}</span>
+            <br>
+            suscrito con <span class="bold">{{ $supplier->full_name ?? '' }}</span>
         </div>
 
         <div class="text-block" style="padding-top: 2px;">
@@ -130,14 +132,14 @@
                 <tr>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
-                            <div class="sig-role">ORDENADOR DEL GASTO</div>
+                            <div class="sig-name">{{ $school->rector_display_name }}</div>
+                            <div class="sig-role">RECTOR(A)</div>
                         </div>
                     </td>
                     <td>
                         <div style="font-size: 9px; font-weight: bold; color: #1e3a5f; margin-bottom: 25px;">ACEPTADO:</div>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $contract->supervisor?->name ?? $school->rector_display_name ?? '' }}</div>
+                            <div class="sig-name">{{ $contract->supervisor ? strtoupper(trim($contract->supervisor->name . ' ' . $contract->supervisor->surname)) : $school->rector_display_name }}</div>
                         </div>
                     </td>
                 </tr>

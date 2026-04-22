@@ -22,7 +22,7 @@ class ContractualPdfController extends Controller
             ->with([
                 'school',
                 'supplier',
-                'convocatoria',
+                'convocatoria.distributionDetails.expenseDistribution.expenseCode',
                 'rps.cdp.budgetItem',
                 'rps.fundingSources.fundingSource',
                 'creator',
@@ -39,9 +39,23 @@ class ContractualPdfController extends Controller
         $firstRp = $activeRps->first();
         $rpNumber = $firstRp->formatted_number;
 
-        // Construir filas: CDP, código rubro, nombre rubro, fuentes financiación, valor
+        // Obtener códigos de gasto desde la convocatoria
+        $expenseCodeMap = [];
+        if ($contract->convocatoria) {
+            foreach ($contract->convocatoria->distributionDetails as $dd) {
+                $ec = $dd->expenseDistribution?->expenseCode;
+                if ($ec) {
+                    $expenseCodeMap[] = [
+                        'code' => $ec->code ?? '',
+                        'name' => $ec->name ?? '',
+                    ];
+                }
+            }
+        }
+
+        // Construir filas: CDP, código gasto, nombre gasto, fuentes financiación, valor
         $rpRows = [];
-        foreach ($activeRps as $rp) {
+        foreach ($activeRps as $index => $rp) {
             $sources = [];
             foreach ($rp->fundingSources as $rpFs) {
                 $sources[] = [
@@ -49,10 +63,14 @@ class ContractualPdfController extends Controller
                     'amount' => (float) $rpFs->amount,
                 ];
             }
+
+            // Usar código de gasto si existe, sino fallback al budget item
+            $ecData = $expenseCodeMap[$index] ?? null;
+
             $rpRows[] = [
                 'cdp_number' => $rp->cdp?->formatted_number ?? '',
-                'budget_item_code' => $rp->cdp?->budgetItem?->code ?? '',
-                'budget_item_name' => $rp->cdp?->budgetItem?->name ?? '',
+                'expense_code' => $ecData['code'] ?? $rp->cdp?->budgetItem?->code ?? '',
+                'expense_name' => $ecData['name'] ?? $rp->cdp?->budgetItem?->name ?? '',
                 'sources' => $sources,
                 'total_amount' => (float) $rp->total_amount,
             ];
@@ -88,7 +106,7 @@ class ContractualPdfController extends Controller
             ->with([
                 'school',
                 'supplier',
-                'convocatoria',
+                'convocatoria.distributionDetails.expenseDistribution.expenseCode',
                 'rps.cdp.budgetItem.accountingAccount.parent.parent.parent.parent',
                 'rps.fundingSources.fundingSource',
                 'creator',
@@ -122,9 +140,22 @@ class ContractualPdfController extends Controller
             ->first();
         $creditHierarchy = $creditAccount ? $this->buildAccountHierarchy($creditAccount) : [];
 
-        // Imputación presupuestal
+        // Imputación presupuestal - usar códigos de gasto
+        $expenseCodeMap = [];
+        if ($contract->convocatoria) {
+            foreach ($contract->convocatoria->distributionDetails as $dd) {
+                $ec = $dd->expenseDistribution?->expenseCode;
+                if ($ec) {
+                    $expenseCodeMap[] = [
+                        'code' => $ec->code ?? '',
+                        'name' => $ec->name ?? '',
+                    ];
+                }
+            }
+        }
+
         $rpRows = [];
-        foreach ($activeRps as $rp) {
+        foreach ($activeRps as $index => $rp) {
             $sources = [];
             foreach ($rp->fundingSources as $rpFs) {
                 $sources[] = [
@@ -132,10 +163,13 @@ class ContractualPdfController extends Controller
                     'amount' => (float) $rpFs->amount,
                 ];
             }
+
+            $ecData = $expenseCodeMap[$index] ?? null;
+
             $rpRows[] = [
                 'rp_number' => $rp->formatted_number,
-                'budget_item_code' => $rp->cdp?->budgetItem?->code ?? '',
-                'budget_item_name' => $rp->cdp?->budgetItem?->name ?? '',
+                'expense_code' => $ecData['code'] ?? $rp->cdp?->budgetItem?->code ?? '',
+                'expense_name' => $ecData['name'] ?? $rp->cdp?->budgetItem?->name ?? '',
                 'sources' => $sources,
                 'total_amount' => (float) $rp->total_amount,
             ];
@@ -171,6 +205,7 @@ class ContractualPdfController extends Controller
             ->with([
                 'school',
                 'supplier',
+                'convocatoria.distributionDetails.expenseDistribution.expenseCode',
                 'rps.cdp.budgetItem',
                 'rps.fundingSources.fundingSource',
                 'rps.fundingSources.bank',
@@ -204,9 +239,24 @@ class ContractualPdfController extends Controller
             }
         }
 
-        // Rubro del primer CDP
-        $budgetItemCode = $firstRp->cdp?->budgetItem?->code ?? '';
-        $budgetItemName = $firstRp->cdp?->budgetItem?->name ?? '';
+        // Código y nombre del gasto desde la convocatoria
+        $expenseCode = '';
+        $expenseName = '';
+        if ($contract->convocatoria) {
+            foreach ($contract->convocatoria->distributionDetails as $dd) {
+                $ec = $dd->expenseDistribution?->expenseCode;
+                if ($ec) {
+                    $expenseCode = $ec->code ?? '';
+                    $expenseName = $ec->name ?? '';
+                    break;
+                }
+            }
+        }
+        // Fallback al budget item si no hay expense code
+        if (!$expenseCode) {
+            $expenseCode = $firstRp->cdp?->budgetItem?->code ?? '';
+            $expenseName = $firstRp->cdp?->budgetItem?->name ?? '';
+        }
 
         $amount = (float) collect($activeRps)->sum('total_amount');
         $amountInWords = self::amountToWords($amount);
@@ -218,8 +268,8 @@ class ContractualPdfController extends Controller
             'bankName' => $bankName,
             'accountNumber' => $accountNumber,
             'sourcesInfo' => $sourcesInfo,
-            'budgetItemCode' => $budgetItemCode,
-            'budgetItemName' => $budgetItemName,
+            'budgetItemCode' => $expenseCode,
+            'budgetItemName' => $expenseName,
             'amount' => $amount,
             'amountInWords' => $amountInWords,
             'user' => auth()->user(),
@@ -468,18 +518,42 @@ class ContractualPdfController extends Controller
         $amount = (float) $contract->total;
         $amountInWords = self::amountToWords($amount);
 
-        // CDPs
+        // CDPs - usar códigos de gasto
         $cdpRows = [];
         $activeCdps = $contract->convocatoria?->cdps?->where('status', '!=', 'cancelled') ?? collect();
-        foreach ($activeCdps as $cdp) {
+
+        // Obtener códigos de gasto desde las distribuciones
+        $ecMap = [];
+        if ($contract->convocatoria) {
+            foreach ($contract->convocatoria->distributionDetails as $dd) {
+                $ec = $dd->expenseDistribution?->expenseCode;
+                if ($ec) {
+                    $ecMap[] = ['code' => $ec->code ?? '', 'name' => $ec->name ?? ''];
+                }
+            }
+        }
+
+        foreach ($activeCdps as $cdpIndex => $cdp) {
+            $ecData = $ecMap[$cdpIndex] ?? null;
             foreach ($cdp->fundingSources as $cdpFs) {
                 $cdpRows[] = [
                     'cdp_number' => $cdp->formatted_number,
-                    'budget_item_code' => $cdp->budgetItem?->code ?? '',
-                    'budget_item_name' => $cdp->budgetItem?->name ?? '',
+                    'budget_item_code' => $ecData['code'] ?? $cdp->budgetItem?->code ?? '',
+                    'budget_item_name' => $ecData['name'] ?? $cdp->budgetItem?->name ?? '',
                     'funding_source' => $cdpFs->fundingSource?->name ?? '',
                     'amount' => (float) $cdpFs->amount,
                 ];
+            }
+        }
+
+        // Fuentes de financiación concatenadas
+        $fundingSourceNames = [];
+        foreach ($activeCdps as $cdp) {
+            foreach ($cdp->fundingSources as $cdpFs) {
+                $name = $cdpFs->fundingSource?->name ?? '';
+                if ($name && !in_array($name, $fundingSourceNames)) {
+                    $fundingSourceNames[] = $name;
+                }
             }
         }
 
@@ -502,6 +576,7 @@ class ContractualPdfController extends Controller
             'amountInWords' => $amountInWords,
             'cdpRows' => $cdpRows,
             'expenseCodeRows' => $expenseCodeRows,
+            'fundingSourceText' => implode(' Y ', $fundingSourceNames) ?: 'N/A',
             'user' => auth()->user(),
         ]);
 

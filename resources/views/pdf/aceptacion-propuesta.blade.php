@@ -119,7 +119,7 @@
                 </tr>
                 <tr>
                     <td class="label">Supervisor:</td>
-                    <td colspan="3">{{ $contract?->supervisor?->name ?? $school->ordenador_gasto_display_name ?? '' }}</td>
+                    <td colspan="3">{{ $contract?->supervisor ? strtoupper(trim($contract->supervisor->name . ' ' . $contract->supervisor->surname)) : $school->ordenador_gasto_display_name }}</td>
                 </tr>
                 <tr>
                     <td class="label">Forma de Pago:</td>

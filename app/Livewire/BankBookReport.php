@@ -128,43 +128,52 @@ class BankBookReport extends Component
         }
 
         // ── EGRESOS (pagos) ──
-        // Pagos que usan esta cuenta bancaria via RpFundingSource
-        $rpFundingSources = RpFundingSource::where('bank_account_id', $bankAccountId)
-            ->whereHas('contractRp', function ($q) {
-                $q->where('status', '!=', 'cancelled');
-            })
-            ->with(['contractRp.contract.supplier'])
+        $paymentOrders = PaymentOrder::where('school_id', $this->schoolId)
+            ->where('fiscal_year', $year)
+            ->whereIn('status', ['approved', 'paid'])
+            ->with(['contract.rps.fundingSources'])
             ->get();
 
-        // Agrupar por payment order para evitar duplicados
-        $processedPaymentOrders = [];
+        foreach ($paymentOrders as $po) {
+            $supplier = $po->resolved_supplier;
+            $supplierName = $supplier ? $supplier->full_name : '';
+            $paymentAmount = 0;
+            $matchesAccount = false;
 
-        foreach ($rpFundingSources as $rpFs) {
-            $contractRp = $rpFs->contractRp;
-            if (!$contractRp) continue;
+            // 1. Verificar egress_bank_account_id directo (pagos sin CDP/RP)
+            if ($po->egress_bank_account_id && (int) $po->egress_bank_account_id === $bankAccountId) {
+                $paymentAmount = (float) $po->net_payment;
+                $matchesAccount = true;
+            }
 
-            // Obtener payment orders asociadas a este RP
-            $paymentOrders = PaymentOrder::where('school_id', $this->schoolId)
-                ->where('fiscal_year', $year)
-                ->where('contract_rp_id', $contractRp->id)
-                ->whereIn('status', ['approved', 'paid'])
-                ->with(['contract.supplier', 'supplier'])
-                ->get();
+            // 2. Verificar via contract_rp_id
+            if (!$matchesAccount && $po->contract_rp_id) {
+                $rpFs = RpFundingSource::where('contract_rp_id', $po->contract_rp_id)
+                    ->where('bank_account_id', $bankAccountId)
+                    ->first();
+                if ($rpFs) {
+                    $totalRpAmount = RpFundingSource::where('contract_rp_id', $po->contract_rp_id)->sum('amount');
+                    $ratio = $totalRpAmount > 0 ? (float) $rpFs->amount / $totalRpAmount : 1;
+                    $paymentAmount = (float) $po->net_payment * $ratio;
+                    $matchesAccount = true;
+                }
+            }
 
-            foreach ($paymentOrders as $po) {
-                if (in_array($po->id, $processedPaymentOrders)) continue;
-                $processedPaymentOrders[] = $po->id;
+            // 3. Verificar via contract_id → RPs del contrato
+            if (!$matchesAccount && $po->contract_id && $po->contract) {
+                foreach ($po->contract->rps->where('status', 'active') as $rp) {
+                    foreach ($rp->fundingSources as $rpFs) {
+                        if ((int) $rpFs->bank_account_id === $bankAccountId) {
+                            $totalRpAmount = $rp->fundingSources->sum('amount');
+                            $ratio = $totalRpAmount > 0 ? (float) $rpFs->amount / $totalRpAmount : 1;
+                            $paymentAmount += (float) $po->net_payment * $ratio;
+                            $matchesAccount = true;
+                        }
+                    }
+                }
+            }
 
-                $supplier = $po->resolved_supplier;
-                $supplierName = $supplier ? $supplier->full_name : '';
-
-                // Calcular el monto proporcional de este pago para esta cuenta bancaria
-                // Si el RP tiene múltiples fuentes con diferentes cuentas, prorratear
-                $totalRpAmount = RpFundingSource::where('contract_rp_id', $contractRp->id)->sum('amount');
-                $thisAccountAmount = (float) $rpFs->amount;
-                $ratio = $totalRpAmount > 0 ? $thisAccountAmount / $totalRpAmount : 1;
-                $paymentAmount = (float) $po->net_payment * $ratio;
-
+            if ($matchesAccount && $paymentAmount > 0) {
                 $movements[] = [
                     'date' => $po->payment_date ? $po->payment_date->format('Y-m-d') : ($po->created_at ? $po->created_at->format('Y-m-d') : ''),
                     'date_sort' => $po->payment_date ? $po->payment_date->format('Y-m-d') : ($po->created_at ? $po->created_at->format('Y-m-d') : '9999-12-31'),
@@ -172,7 +181,7 @@ class BankBookReport extends Component
                     'income_ref' => null,
                     'income_amount' => 0,
                     'expense_ref' => $po->formatted_number,
-                    'expense_amount' => $paymentAmount,
+                    'expense_amount' => round($paymentAmount, 2),
                     'type' => 'expense',
                 ];
             }
@@ -206,15 +215,35 @@ class BankBookReport extends Component
 
     private function calculatePreviousBalance(int $bankAccountId, int $year): float
     {
-        // Sumar todos los ingresos de años anteriores para esta cuenta
+        $account = BankAccount::find($bankAccountId);
+
+        // Si la cuenta tiene saldo inicial configurado para esta vigencia o anterior, usarlo como base
+        $initialBalance = 0;
+        if ($account && $account->initial_balance > 0 && $account->initial_balance_year) {
+            if ($account->initial_balance_year <= $year) {
+                $initialBalance = (float) $account->initial_balance;
+            }
+        }
+
+        // Si el saldo inicial es de la misma vigencia, es el saldo de apertura
+        if ($account && $account->initial_balance_year == $year) {
+            return $initialBalance;
+        }
+
+        // Sumar todos los ingresos desde el año del saldo inicial hasta el año anterior
+        $startYear = ($account && $account->initial_balance_year) ? $account->initial_balance_year : 0;
+
         $totalIncome = IncomeBankAccount::where('bank_account_id', $bankAccountId)
-            ->whereHas('income', function ($q) use ($year) {
+            ->whereHas('income', function ($q) use ($year, $startYear) {
                 $q->where('school_id', $this->schoolId)
                   ->whereYear('date', '<', $year);
+                if ($startYear > 0) {
+                    $q->whereYear('date', '>=', $startYear);
+                }
             })
             ->sum('amount');
 
-        // Sumar todos los egresos de años anteriores para esta cuenta
+        // Sumar todos los egresos desde el año del saldo inicial hasta el año anterior
         $totalExpense = 0;
 
         $rpFundingSources = RpFundingSource::where('bank_account_id', $bankAccountId)
@@ -232,6 +261,10 @@ class BankBookReport extends Component
                 ->whereIn('status', ['approved', 'paid'])
                 ->get();
 
+            if ($startYear > 0) {
+                $paymentOrders = $paymentOrders->where('fiscal_year', '>=', $startYear);
+            }
+
             foreach ($paymentOrders as $po) {
                 if (in_array($po->id, $processedPOs)) continue;
                 $processedPOs[] = $po->id;
@@ -242,7 +275,7 @@ class BankBookReport extends Component
             }
         }
 
-        return (float) $totalIncome - $totalExpense;
+        return $initialBalance + (float) $totalIncome - $totalExpense;
     }
 
     public function getPeriodLabelProperty(): string

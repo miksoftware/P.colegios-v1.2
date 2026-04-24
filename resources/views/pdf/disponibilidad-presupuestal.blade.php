@@ -108,7 +108,8 @@
                     @foreach($rubroRows as $row)
                         <div class="rubro-row">
                             <div class="rubro-valor">${{ number_format($row['amount'], 2, ',', '.') }}</div>
-                            <div class="rubro-nombre">{{ $row['name'] }}</div>
+                            <div style="display: table-cell; width: 50%; padding: 4px 0;">{{ $row['name'] }}</div>
+                            <div style="display: table-cell; width: 25%; padding: 4px 0; font-size: 9px; color: #555;">{{ $row['funding_source'] }}</div>
                         </div>
                     @endforeach
                 @endif

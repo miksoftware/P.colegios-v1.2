@@ -12,7 +12,7 @@ class ContractualPdfController extends Controller
     /**
      * Generar PDF de Certificado de Registro Presupuestal
      */
-    public function certificadoRp(Request $request, int $contractId)
+    public function certificadoRp(Request $request, int $contractId, int $rpId)
     {
         $schoolId = (int) session('selected_school_id');
         abort_if(!$schoolId, 403);
@@ -29,54 +29,47 @@ class ContractualPdfController extends Controller
             ])
             ->findOrFail($contractId);
 
-        $activeRps = $contract->rps->where('status', 'active');
-        abort_if($activeRps->isEmpty(), 404, 'No hay RPs asignados.');
+        // Buscar el RP específico
+        $rp = $contract->rps->where('id', $rpId)->where('status', 'active')->first();
+        abort_if(!$rp, 404, 'RP no encontrado.');
 
         $school = School::findOrFail($schoolId);
         $supplier = $contract->supplier;
 
-        // Primer RP para el número principal
-        $firstRp = $activeRps->first();
-        $rpNumber = $firstRp->formatted_number;
+        $rpNumber = $rp->formatted_number;
 
-        // Obtener códigos de gasto desde la convocatoria
-        $expenseCodeMap = [];
+        // Obtener código de gasto desde la convocatoria
+        $expenseCode = '';
+        $expenseName = '';
         if ($contract->convocatoria) {
             foreach ($contract->convocatoria->distributionDetails as $dd) {
                 $ec = $dd->expenseDistribution?->expenseCode;
                 if ($ec) {
-                    $expenseCodeMap[] = [
-                        'code' => $ec->code ?? '',
-                        'name' => $ec->name ?? '',
-                    ];
+                    $expenseCode = $ec->code ?? '';
+                    $expenseName = $ec->name ?? '';
+                    break;
                 }
             }
         }
 
-        // Construir filas: CDP, código gasto, nombre gasto, fuentes financiación, valor
-        $rpRows = [];
-        foreach ($activeRps as $index => $rp) {
-            $sources = [];
-            foreach ($rp->fundingSources as $rpFs) {
-                $sources[] = [
-                    'name' => $rpFs->fundingSource?->name ?? '',
-                    'amount' => (float) $rpFs->amount,
-                ];
-            }
-
-            // Usar código de gasto si existe, sino fallback al budget item
-            $ecData = $expenseCodeMap[$index] ?? null;
-
-            $rpRows[] = [
-                'cdp_number' => $rp->cdp?->formatted_number ?? '',
-                'expense_code' => $ecData['code'] ?? $rp->cdp?->budgetItem?->code ?? '',
-                'expense_name' => $ecData['name'] ?? $rp->cdp?->budgetItem?->name ?? '',
-                'sources' => $sources,
-                'total_amount' => (float) $rp->total_amount,
+        // Construir fila para este RP individual
+        $sources = [];
+        foreach ($rp->fundingSources as $rpFs) {
+            $sources[] = [
+                'name' => $rpFs->fundingSource?->name ?? '',
+                'amount' => (float) $rpFs->amount,
             ];
         }
 
-        $grandTotal = collect($rpRows)->sum('total_amount');
+        $rpRows = [[
+            'cdp_number' => $rp->cdp?->formatted_number ?? '',
+            'expense_code' => $expenseCode ?: ($rp->cdp?->budgetItem?->code ?? ''),
+            'expense_name' => $expenseName ?: ($rp->cdp?->budgetItem?->name ?? ''),
+            'sources' => $sources,
+            'total_amount' => (float) $rp->total_amount,
+        ]];
+
+        $grandTotal = (float) $rp->total_amount;
 
         $pdf = Pdf::loadView('pdf.certificado-registro-presupuestal', [
             'contract' => $contract,
@@ -90,13 +83,13 @@ class ContractualPdfController extends Controller
 
         $pdf->setPaper('letter');
 
-        return $pdf->stream("certificado-rp-contrato-{$contract->formatted_number}.pdf");
+        return $pdf->stream("certificado-rp-{$rpNumber}-contrato-{$contract->formatted_number}.pdf");
     }
 
     /**
      * Generar PDF de Comprobante de Contabilidad
      */
-    public function comprobanteContabilidad(Request $request, int $contractId)
+    public function comprobanteContabilidad(Request $request, int $contractId, int $rpId)
     {
         $schoolId = (int) session('selected_school_id');
         abort_if(!$schoolId, 403);
@@ -113,67 +106,62 @@ class ContractualPdfController extends Controller
             ])
             ->findOrFail($contractId);
 
+        // Buscar el RP específico
+        $rp = $contract->rps->where('id', $rpId)->where('status', 'active')->first();
+        abort_if(!$rp, 404, 'RP no encontrado.');
+
         $school = School::findOrFail($schoolId);
         $supplier = $contract->supplier;
 
-        $amount = (float) $contract->total;
+        $amount = (float) $rp->total_amount;
         $amountInWords = self::amountToWords($amount);
 
-        // Construir imputación contable (débito: cuentas de gasto del rubro)
+        // Imputación contable (débito: cuenta de gasto del rubro de este RP)
         $debitEntries = [];
-        $activeRps = $contract->rps->where('status', 'active');
-        foreach ($activeRps as $rp) {
-            $account = $rp->cdp?->budgetItem?->accountingAccount;
-            if ($account) {
-                $hierarchy = $this->buildAccountHierarchy($account);
-                $debitEntries[] = [
-                    'hierarchy' => $hierarchy,
-                    'amount' => (float) $rp->total_amount,
-                ];
-            }
+        $account = $rp->cdp?->budgetItem?->accountingAccount;
+        if ($account) {
+            $hierarchy = $this->buildAccountHierarchy($account);
+            $debitEntries[] = [
+                'hierarchy' => $hierarchy,
+                'amount' => $amount,
+            ];
         }
 
-        // Crédito: cuenta 2401 (Adquisición de bienes y servicios nacionales) / 240101 (Bienes y servicios)
-        // Buscar cuenta contable genérica de pasivos para crédito
+        // Crédito: cuenta 2401
         $creditAccount = \App\Models\AccountingAccount::where('code', 'like', '2401%')
             ->where('allows_movement', true)
             ->first();
         $creditHierarchy = $creditAccount ? $this->buildAccountHierarchy($creditAccount) : [];
 
-        // Imputación presupuestal - usar códigos de gasto
-        $expenseCodeMap = [];
+        // Código de gasto desde la convocatoria
+        $expenseCode = '';
+        $expenseName = '';
         if ($contract->convocatoria) {
             foreach ($contract->convocatoria->distributionDetails as $dd) {
                 $ec = $dd->expenseDistribution?->expenseCode;
                 if ($ec) {
-                    $expenseCodeMap[] = [
-                        'code' => $ec->code ?? '',
-                        'name' => $ec->name ?? '',
-                    ];
+                    $expenseCode = $ec->code ?? '';
+                    $expenseName = $ec->name ?? '';
+                    break;
                 }
             }
         }
 
-        $rpRows = [];
-        foreach ($activeRps as $index => $rp) {
-            $sources = [];
-            foreach ($rp->fundingSources as $rpFs) {
-                $sources[] = [
-                    'name' => $rpFs->fundingSource?->name ?? '',
-                    'amount' => (float) $rpFs->amount,
-                ];
-            }
-
-            $ecData = $expenseCodeMap[$index] ?? null;
-
-            $rpRows[] = [
-                'rp_number' => $rp->formatted_number,
-                'expense_code' => $ecData['code'] ?? $rp->cdp?->budgetItem?->code ?? '',
-                'expense_name' => $ecData['name'] ?? $rp->cdp?->budgetItem?->name ?? '',
-                'sources' => $sources,
-                'total_amount' => (float) $rp->total_amount,
+        $sources = [];
+        foreach ($rp->fundingSources as $rpFs) {
+            $sources[] = [
+                'name' => $rpFs->fundingSource?->name ?? '',
+                'amount' => (float) $rpFs->amount,
             ];
         }
+
+        $rpRows = [[
+            'rp_number' => $rp->formatted_number,
+            'expense_code' => $expenseCode ?: ($rp->cdp?->budgetItem?->code ?? ''),
+            'expense_name' => $expenseName ?: ($rp->cdp?->budgetItem?->name ?? ''),
+            'sources' => $sources,
+            'total_amount' => $amount,
+        ]];
 
         $pdf = Pdf::loadView('pdf.comprobante-contabilidad', [
             'contract' => $contract,
@@ -189,13 +177,13 @@ class ContractualPdfController extends Controller
 
         $pdf->setPaper('letter');
 
-        return $pdf->stream("comprobante-contabilidad-contrato-{$contract->formatted_number}.pdf");
+        return $pdf->stream("comprobante-contabilidad-rp-{$rp->formatted_number}.pdf");
     }
 
     /**
      * Generar PDF de Certificado de Disponibilidad de Tesorería
      */
-    public function certificadoTesoreria(Request $request, int $contractId)
+    public function certificadoTesoreria(Request $request, int $contractId, int $rpId)
     {
         $schoolId = (int) session('selected_school_id');
         abort_if(!$schoolId, 403);
@@ -213,33 +201,28 @@ class ContractualPdfController extends Controller
             ])
             ->findOrFail($contractId);
 
-        $activeRps = $contract->rps->where('status', 'active');
-        abort_if($activeRps->isEmpty(), 404, 'No hay RPs asignados.');
+        $rp = $contract->rps->where('id', $rpId)->where('status', 'active')->first();
+        abort_if(!$rp, 404, 'RP no encontrado.');
 
         $school = School::findOrFail($schoolId);
 
-        $firstRp = $activeRps->first();
-        $rpNumber = $firstRp->formatted_number;
+        $rpNumber = $rp->formatted_number;
 
-        // Datos bancarios (del primer RP funding source que tenga banco)
         $bankName = '';
         $accountNumber = '';
         $sourcesInfo = [];
 
-        foreach ($activeRps as $rp) {
-            foreach ($rp->fundingSources as $rpFs) {
-                if ($rpFs->bank && !$bankName) {
-                    $bankName = $rpFs->bank->name ?? '';
-                    $accountNumber = $rpFs->bankAccount?->account_number ?? '';
-                }
-                $sourcesInfo[] = [
-                    'name' => $rpFs->fundingSource?->name ?? '',
-                    'amount' => (float) $rpFs->amount,
-                ];
+        foreach ($rp->fundingSources as $rpFs) {
+            if ($rpFs->bank && !$bankName) {
+                $bankName = $rpFs->bank->name ?? '';
+                $accountNumber = $rpFs->bankAccount?->account_number ?? '';
             }
+            $sourcesInfo[] = [
+                'name' => $rpFs->fundingSource?->name ?? '',
+                'amount' => (float) $rpFs->amount,
+            ];
         }
 
-        // Código y nombre del gasto desde la convocatoria
         $expenseCode = '';
         $expenseName = '';
         if ($contract->convocatoria) {
@@ -252,13 +235,12 @@ class ContractualPdfController extends Controller
                 }
             }
         }
-        // Fallback al budget item si no hay expense code
         if (!$expenseCode) {
-            $expenseCode = $firstRp->cdp?->budgetItem?->code ?? '';
-            $expenseName = $firstRp->cdp?->budgetItem?->name ?? '';
+            $expenseCode = $rp->cdp?->budgetItem?->code ?? '';
+            $expenseName = $rp->cdp?->budgetItem?->name ?? '';
         }
 
-        $amount = (float) collect($activeRps)->sum('total_amount');
+        $amount = (float) $rp->total_amount;
         $amountInWords = self::amountToWords($amount);
 
         $pdf = Pdf::loadView('pdf.certificado-tesoreria', [
@@ -277,7 +259,7 @@ class ContractualPdfController extends Controller
 
         $pdf->setPaper('letter');
 
-        return $pdf->stream("certificado-tesoreria-contrato-{$contract->formatted_number}.pdf");
+        return $pdf->stream("certificado-tesoreria-rp-{$rpNumber}.pdf");
     }
 
     /**

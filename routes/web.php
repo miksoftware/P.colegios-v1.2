@@ -112,7 +112,7 @@ Route::get('precontractual/{convocatoriaId}/aceptacion-propuesta/pdf', [App\Http
     ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('precontractual.aceptacion-propuesta.pdf');
 
-Route::get('precontractual/{convocatoriaId}/certificado-disponibilidad/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'certificadoDisponibilidad'])
+Route::get('precontractual/{convocatoriaId}/certificado-disponibilidad/{cdpId}/pdf', [App\Http\Controllers\PrecontractualPdfController::class, 'certificadoDisponibilidad'])
     ->middleware(['auth', 'verified', 'can:precontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('precontractual.certificado-disponibilidad.pdf');
 
@@ -120,15 +120,15 @@ Route::get('contractual/{convocatoria_id?}', App\Livewire\ContractualManagement:
     ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contractual.index');
 
-Route::get('contractual/{contractId}/certificado-rp/pdf', [App\Http\Controllers\ContractualPdfController::class, 'certificadoRp'])
+Route::get('contractual/{contractId}/certificado-rp/{rpId}/pdf', [App\Http\Controllers\ContractualPdfController::class, 'certificadoRp'])
     ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contractual.certificado-rp.pdf');
 
-Route::get('contractual/{contractId}/comprobante-contabilidad/pdf', [App\Http\Controllers\ContractualPdfController::class, 'comprobanteContabilidad'])
+Route::get('contractual/{contractId}/comprobante-contabilidad/{rpId}/pdf', [App\Http\Controllers\ContractualPdfController::class, 'comprobanteContabilidad'])
     ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contractual.comprobante-contabilidad.pdf');
 
-Route::get('contractual/{contractId}/certificado-tesoreria/pdf', [App\Http\Controllers\ContractualPdfController::class, 'certificadoTesoreria'])
+Route::get('contractual/{contractId}/certificado-tesoreria/{rpId}/pdf', [App\Http\Controllers\ContractualPdfController::class, 'certificadoTesoreria'])
     ->middleware(['auth', 'verified', 'can:contractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contractual.certificado-tesoreria.pdf');
 

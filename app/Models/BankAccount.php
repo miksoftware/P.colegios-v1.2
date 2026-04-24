@@ -15,12 +15,16 @@ class BankAccount extends Model
         'account_number',
         'account_type',
         'holder_name',
+        'initial_balance',
+        'initial_balance_year',
         'description',
         'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'initial_balance' => 'decimal:2',
+        'initial_balance_year' => 'integer',
     ];
 
     public const ACCOUNT_TYPES = [

@@ -14,6 +14,8 @@ class Proposal extends Model
         'convocatoria_id',
         'supplier_id',
         'proposal_number',
+        'received_date',
+        'received_time',
         'subtotal',
         'iva',
         'total',
@@ -23,6 +25,7 @@ class Proposal extends Model
 
     protected $casts = [
         'proposal_number' => 'integer',
+        'received_date' => 'date',
         'subtotal' => 'decimal:2',
         'iva' => 'decimal:2',
         'total' => 'decimal:2',

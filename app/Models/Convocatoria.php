@@ -18,10 +18,16 @@ class Convocatoria extends Model
         'convocatoria_number',
         'fiscal_year',
         'start_date',
+        'start_time',
         'end_date',
+        'end_time',
         'object',
         'justification',
         'assigned_budget',
+        'estimated_duration_days',
+        'contracting_modality',
+        'requester_name',
+        'requester_position',
         'requires_multiple_cdps',
         'status',
         'evaluation_date',
@@ -35,9 +41,19 @@ class Convocatoria extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'assigned_budget' => 'decimal:2',
+        'estimated_duration_days' => 'integer',
         'requires_multiple_cdps' => 'boolean',
         'evaluation_date' => 'date',
         'proposals_count' => 'integer',
+    ];
+
+    const MODALITIES = [
+        'directa'             => 'Contratación Directa',
+        'minima_cuantia'      => 'Mínima Cuantía',
+        'seleccion_abreviada' => 'Selección Abreviada',
+        'concurso_meritos'    => 'Concurso de Méritos',
+        'licitacion'          => 'Licitación Pública',
+        'especial'            => 'Régimen Especial',
     ];
 
     const STATUSES = [
@@ -123,6 +139,11 @@ class Convocatoria extends Model
     public function getStatusColorAttribute(): string
     {
         return self::STATUS_COLORS[$this->status] ?? 'bg-gray-100 text-gray-700';
+    }
+
+    public function getModalityNameAttribute(): string
+    {
+        return self::MODALITIES[$this->contracting_modality] ?? $this->contracting_modality ?? 'Régimen Especial';
     }
 
     public function getTotalCdpAmountAttribute(): float

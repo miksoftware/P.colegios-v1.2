@@ -131,7 +131,7 @@
             <div class="section-body">
                 El contrato que se realizará durante este proceso contractual se hará bajo la modalidad de contratación establecida en el Artículo 13 de la ley 715 de 2001, el decreto 1075 de 2015 y el manual interno de contratación de la Institución Educativa. Según el manual de contratación de la entidad el presente proceso se realizará bajo la modalidad de:
                 <br><br>
-                <span class="bold uppercase">{{ $contract?->modality_name ?? 'RÉGIMEN ESPECIAL' }}</span>
+                <span class="bold uppercase">{{ $convocatoria->modality_name ?? 'RÉGIMEN ESPECIAL' }}</span>
             </div>
         </div>
 
@@ -140,7 +140,7 @@
             <div class="section-header">5. Condiciones del contrato a celebrar - Vigencia del contrato</div>
             <div class="section-body">
                 El término para la celebración del presente contrato será de:
-                <span class="bold">{{ $durationDays ?? 'N/A' }} DIAS</span>
+                <span class="bold">{{ $convocatoria->estimated_duration_days ?? $durationDays ?? 'N/A' }} DIAS</span>
                 contados a partir de la fecha de suscripción del acta de inicio de la orden y/o contrato.
                 @if($contract && $contract->start_date && $contract->end_date)
                     <br>Desde: {{ $contract->start_date->format('d/m/Y') }} hasta {{ $contract->end_date->format('d/m/Y') }}.

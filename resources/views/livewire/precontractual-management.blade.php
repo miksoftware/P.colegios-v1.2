@@ -631,6 +631,39 @@
                             @error('convAssignedBudget') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
                     </div>
+
+                    {{-- Duración, Modalidad, Solicitante --}}
+                    <div class="px-6 pb-4 space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Duración Probable del Contrato (días) <span class="text-red-500">*</span></label>
+                                <input type="number" wire:model="convEstimatedDuration" min="1" class="w-full rounded-xl border-gray-300" placeholder="Ej: 30">
+                                @error('convEstimatedDuration') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Modalidad Contractual <span class="text-red-500">*</span></label>
+                                <select wire:model="convContractingModality" class="w-full rounded-xl border-gray-300">
+                                    <option value="directa">Contratación Directa</option>
+                                    <option value="minima_cuantia">Mínima Cuantía</option>
+                                    <option value="seleccion_abreviada">Selección Abreviada</option>
+                                    <option value="concurso_meritos">Concurso de Méritos</option>
+                                    <option value="licitacion">Licitación Pública</option>
+                                    <option value="especial">Régimen Especial</option>
+                                </select>
+                                @error('convContractingModality') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Solicitante</label>
+                                <input type="text" wire:model="convRequesterName" class="w-full rounded-xl border-gray-300" placeholder="Nombre de quien solicita">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Cargo del Solicitante</label>
+                                <input type="text" wire:model="convRequesterPosition" class="w-full rounded-xl border-gray-300" placeholder="Ej: Rector, Coordinador">
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
                         <button type="button" wire:click="closeCreateModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
@@ -803,6 +836,20 @@
                                 @endforeach
                             </select>
                             @error('proposalSupplierId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        {{-- Fecha y Hora de Recepción --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Recepción <span class="text-red-500">*</span></label>
+                                <input type="date" wire:model="proposalReceivedDate" class="w-full rounded-xl border-gray-300">
+                                @error('proposalReceivedDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Hora de Recepción <span class="text-red-500">*</span></label>
+                                <input type="time" wire:model="proposalReceivedTime" class="w-full rounded-xl border-gray-300">
+                                @error('proposalReceivedTime') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

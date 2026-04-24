@@ -76,11 +76,11 @@
             </tr>
             <tr>
                 <td class="info-label">Solicitante:</td>
-                <td>{{ $school->ordenador_gasto_display_name }}</td>
+                <td>{{ $convocatoria->requester_name ?? $school->ordenador_gasto_display_name }}</td>
             </tr>
             <tr>
                 <td class="info-label">Dependencia:</td>
-                <td>RECTORÍA</td>
+                <td>{{ $convocatoria->requester_position ?? 'RECTORÍA' }}</td>
             </tr>
         </table>
 

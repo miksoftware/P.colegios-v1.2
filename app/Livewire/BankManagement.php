@@ -38,6 +38,8 @@ class BankManagement extends Component
     public $holderName = '';
     public $accountDescription = '';
     public $accountIsActive = true;
+    public $initialBalance = 0;
+    public $initialBalanceYear = '';
 
     // Vista detalle banco
     public $showDetail = false;
@@ -87,6 +89,8 @@ class BankManagement extends Component
             'holderName' => 'nullable|string|max:200',
             'accountDescription' => 'nullable|string|max:255',
             'accountIsActive' => 'boolean',
+            'initialBalance' => 'nullable|numeric|min:0',
+            'initialBalanceYear' => 'nullable|integer|min:2000|max:2100',
         ];
     }
 
@@ -291,6 +295,8 @@ class BankManagement extends Component
         $this->holderName = $account->holder_name;
         $this->accountDescription = $account->description;
         $this->accountIsActive = $account->is_active;
+        $this->initialBalance = (float) $account->initial_balance;
+        $this->initialBalanceYear = $account->initial_balance_year ?? '';
         $this->isEditingAccount = true;
         $this->showAccountModal = true;
     }
@@ -315,6 +321,8 @@ class BankManagement extends Component
             'holder_name' => $this->holderName ?: null,
             'description' => $this->accountDescription ?: null,
             'is_active' => $this->accountIsActive,
+            'initial_balance' => (float) ($this->initialBalance ?? 0),
+            'initial_balance_year' => $this->initialBalanceYear ?: null,
         ];
 
         if ($this->isEditingAccount) {
@@ -437,6 +445,8 @@ class BankManagement extends Component
         $this->holderName = '';
         $this->accountDescription = '';
         $this->accountIsActive = true;
+        $this->initialBalance = 0;
+        $this->initialBalanceYear = '';
         $this->isEditingAccount = false;
         $this->resetValidation();
     }

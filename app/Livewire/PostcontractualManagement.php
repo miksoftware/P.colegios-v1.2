@@ -6,6 +6,7 @@ use App\Models\Contract;
 use App\Models\ContractRp;
 use App\Models\Cdp;
 use App\Models\CdpFundingSource;
+use App\Models\Bank;
 use App\Models\BudgetItem;
 use App\Models\FundingSource;
 use App\Models\Budget;
@@ -115,6 +116,13 @@ class PostcontractualManagement extends Component
     public $directBudgetItemId = '';
     public $directFundingSources = []; // fuentes disponibles para el rubro seleccionado
     public $directSelectedSources = []; // fuentes seleccionadas con montos [{id, name, amount, available, budget_id}]
+    public $skipCdpRp = false; // Para pagos que no requieren CDP/RP (retenciones, gastos financieros)
+    public $directEgressBankId = ''; // Banco de egreso para pagos sin CDP/RP
+    public $directEgressBankAccountId = ''; // Cuenta bancaria de egreso para pagos sin CDP/RP
+    public $directEgressBanks = []; // Bancos disponibles del colegio
+    public $directEgressBankAccounts = []; // Cuentas del banco seleccionado
+    public $directBanks = []; // Bancos del colegio para selección en pago directo
+    public $directBankAccounts = []; // Cuentas por banco para pago directo
 
     protected $queryString = [
         'filterYear'   => ['except' => ''],
@@ -250,6 +258,38 @@ class PostcontractualManagement extends Component
             $this->loadContracts();
         } else {
             $this->loadSuppliers();
+            $this->loadDirectEgressBanks();
+        }
+    }
+
+    public function loadDirectEgressBanks()
+    {
+        $this->directEgressBanks = Bank::forSchool($this->schoolId)->active()
+            ->orderBy('name')
+            ->get()
+            ->map(fn($b) => ['id' => $b->id, 'name' => $b->name])
+            ->toArray();
+    }
+
+    public function updatedDirectEgressBankId($value)
+    {
+        $this->directEgressBankAccountId = '';
+        $this->directEgressBankAccounts = [];
+
+        if (empty($value)) return;
+
+        $this->directEgressBankAccounts = BankAccount::where('bank_id', $value)
+            ->active()
+            ->orderBy('account_number')
+            ->get()
+            ->map(fn($ba) => [
+                'id' => $ba->id,
+                'label' => $ba->account_number . ' - ' . $ba->account_type_name . ($ba->holder_name ? ' (' . $ba->holder_name . ')' : ''),
+            ])
+            ->toArray();
+
+        if (count($this->directEgressBankAccounts) === 1) {
+            $this->directEgressBankAccountId = $this->directEgressBankAccounts[0]['id'];
         }
     }
 
@@ -335,17 +375,40 @@ class PostcontractualManagement extends Component
 
     public function loadDirectBudgetItems()
     {
-        // Cargar rubros presupuestales que tienen presupuesto de gasto activo para este colegio/año
+        // Cargar rubros presupuestales que tienen presupuesto de gasto activo con saldo disponible
+        $year = (int) $this->filterYear;
+
         $this->directBudgetItems = BudgetItem::active()
-            ->whereHas('budgets', function ($q) {
+            ->whereHas('budgets', function ($q) use ($year) {
                 $q->where('school_id', $this->schoolId)
-                  ->where('fiscal_year', (int) $this->filterYear)
+                  ->where('fiscal_year', $year)
                   ->where('type', 'expense')
-                  ->where('is_active', true);
+                  ->where('is_active', true)
+                  ->where('current_amount', '>', 0);
             })
             ->orderBy('code')
             ->get()
+            ->filter(function ($item) use ($year) {
+                // Verificar que tenga saldo disponible real (presupuesto - CDPs reservados)
+                $budgets = Budget::where('school_id', $this->schoolId)
+                    ->where('budget_item_id', $item->id)
+                    ->where('fiscal_year', $year)
+                    ->where('type', 'expense')
+                    ->where('is_active', true)
+                    ->with('fundingSource')
+                    ->get();
+
+                foreach ($budgets as $budget) {
+                    $source = $budget->fundingSource;
+                    if (!$source || !$source->is_active) continue;
+                    $reserved = Cdp::getTotalReservedForFundingSource($source->id, $year, $this->schoolId);
+                    $available = (float) $budget->current_amount - $reserved;
+                    if ($available > 0) return true;
+                }
+                return false;
+            })
             ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
+            ->values()
             ->toArray();
     }
 
@@ -386,12 +449,20 @@ class PostcontractualManagement extends Component
         // Auto-agregar la primera fuente si solo hay una
         if (count($this->directFundingSources) === 1) {
             $fs = $this->directFundingSources[0];
+
+            // Cargar bancos si no están cargados
+            if (empty($this->directBanks)) {
+                $this->loadDirectBanks();
+            }
+
             $this->directSelectedSources = [[
-                'id'        => $fs['id'],
-                'name'      => $fs['name'],
-                'amount'    => '',
-                'available' => $fs['available'],
-                'budget_id' => $fs['budget_id'],
+                'id'              => $fs['id'],
+                'name'            => $fs['name'],
+                'amount'          => '',
+                'available'       => $fs['available'],
+                'budget_id'       => $fs['budget_id'],
+                'bank_id'         => '',
+                'bank_account_id' => '',
             ]];
         }
     }
@@ -409,13 +480,46 @@ class PostcontractualManagement extends Component
         $fs = collect($this->directFundingSources)->firstWhere('id', (int) $fundingSourceId);
         if (!$fs) return;
 
+        // Cargar bancos del colegio si no están cargados
+        if (empty($this->directBanks)) {
+            $this->loadDirectBanks();
+        }
+
         $this->directSelectedSources[] = [
-            'id'        => $fs['id'],
-            'name'      => $fs['name'],
-            'amount'    => '',
-            'available' => $fs['available'],
-            'budget_id' => $fs['budget_id'],
+            'id'              => $fs['id'],
+            'name'            => $fs['name'],
+            'amount'          => '',
+            'available'       => $fs['available'],
+            'budget_id'       => $fs['budget_id'],
+            'bank_id'         => '',
+            'bank_account_id' => '',
         ];
+    }
+
+    public function loadDirectBanks()
+    {
+        $this->directBanks = Bank::forSchool($this->schoolId)->active()
+            ->with(['accounts' => fn($q) => $q->active()])
+            ->orderBy('name')
+            ->get()
+            ->map(fn($bank) => [
+                'id' => $bank->id,
+                'name' => $bank->name,
+                'accounts' => $bank->accounts->map(fn($a) => [
+                    'id' => $a->id,
+                    'label' => $a->account_number . ' - ' . $a->account_type_name,
+                ])->toArray(),
+            ])
+            ->toArray();
+    }
+
+    public function updatedDirectSelectedSources($value, $key)
+    {
+        // Cuando cambia el banco, resetear la cuenta
+        if (str_contains($key, '.bank_id')) {
+            $index = (int) explode('.', $key)[0];
+            $this->directSelectedSources[$index]['bank_account_id'] = '';
+        }
     }
 
     public function removeDirectFundingSource($index)
@@ -466,6 +570,11 @@ class PostcontractualManagement extends Component
         $this->paymentMode = 'single';
         $this->selectedExpenseDistributionId = '';
         $this->expenseLines = [];
+        $this->skipCdpRp = false;
+        $this->directEgressBankId = '';
+        $this->directEgressBankAccountId = '';
+        $this->directEgressBanks = [];
+        $this->directEgressBankAccounts = [];
     }
 
     public function onContractSelected()
@@ -1087,11 +1196,14 @@ class PostcontractualManagement extends Component
         } else {
             $rules['selectedSupplierId'] = 'required|exists:suppliers,id';
             $rules['directDescription'] = 'required|string|min:5|max:1000';
-            $rules['directBudgetItemId'] = 'required|exists:budget_items,id';
             $messages['selectedSupplierId.required'] = 'Debe seleccionar un proveedor.';
             $messages['directDescription.required'] = 'La descripción del pago es obligatoria.';
             $messages['directDescription.min'] = 'La descripción debe tener al menos 5 caracteres.';
-            $messages['directBudgetItemId.required'] = 'Debe seleccionar un rubro presupuestal.';
+
+            if (!$this->skipCdpRp) {
+                $rules['directBudgetItemId'] = 'required|exists:budget_items,id';
+                $messages['directBudgetItemId.required'] = 'Debe seleccionar un rubro presupuestal.';
+            }
         }
 
         $this->validate($rules, $messages);
@@ -1192,6 +1304,13 @@ class PostcontractualManagement extends Component
 
             if ($this->paymentType === 'contract') {
                 $paymentData['contract_id'] = $this->selectedContractId;
+            } elseif ($this->skipCdpRp) {
+                // Pago directo sin CDP/RP (retenciones, gastos financieros)
+                $paymentData['supplier_id'] = $this->selectedSupplierId;
+                $paymentData['description'] = $this->directDescription;
+                if ($this->directEgressBankAccountId) {
+                    $paymentData['egress_bank_account_id'] = $this->directEgressBankAccountId;
+                }
             } else {
                 // Validar fuentes de financiación
                 if (empty($this->directSelectedSources)) {
@@ -1253,6 +1372,8 @@ class PostcontractualManagement extends Component
                         'funding_source_id' => $src['id'],
                         'budget_id'         => $src['budget_id'],
                         'amount'            => (float) $src['amount'],
+                        'bank_id'           => $src['bank_id'] ?: null,
+                        'bank_account_id'   => $src['bank_account_id'] ?: null,
                     ]);
                 }
 

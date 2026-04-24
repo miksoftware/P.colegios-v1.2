@@ -44,8 +44,14 @@ class PrecontractualManagement extends Component
     public $convObject = '';
     public $convJustification = '';
     public $convStartDate = '';
+    public $convStartTime = '';
     public $convEndDate = '';
+    public $convEndTime = '';
     public $convAssignedBudget = '';
+    public $convEstimatedDuration = '';
+    public $convContractingModality = 'especial';
+    public $convRequesterName = '';
+    public $convRequesterPosition = '';
 
     // Modal CDP
     public $showCdpModal = false;
@@ -57,6 +63,8 @@ class PrecontractualManagement extends Component
     // Modal Propuesta
     public $showProposalModal = false;
     public $proposalSupplierId = '';
+    public $proposalReceivedDate = '';
+    public $proposalReceivedTime = '';
     public $proposalSubtotal = '';
     public $proposalIva = '';
     public $proposalDescription = '';
@@ -254,7 +262,9 @@ class PrecontractualManagement extends Component
         }
 
         $this->convStartDate = now()->format('Y-m-d');
+        $this->convStartTime = '08:00';
         $this->convEndDate = now()->addDays(15)->format('Y-m-d');
+        $this->convEndTime = '16:00';
         $this->showCreateModal = true;
     }
 
@@ -337,18 +347,29 @@ class PrecontractualManagement extends Component
             'convObject' => 'required|min:10|max:500',
             'convJustification' => 'required|min:10|max:1000',
             'convStartDate' => 'required|date',
-            'convEndDate' => 'required|date|after:convStartDate',
+            'convStartTime' => 'required',
+            'convEndDate' => 'required|date|after_or_equal:convStartDate',
+            'convEndTime' => 'required',
             'convAssignedBudget' => 'required|numeric|min:1',
+            'convEstimatedDuration' => 'required|integer|min:1',
+            'convContractingModality' => 'required|string',
+            'convRequesterName' => 'nullable|string|max:255',
+            'convRequesterPosition' => 'nullable|string|max:255',
         ], [
             'convObject.required' => 'El objeto es obligatorio.',
             'convObject.min' => 'El objeto debe tener al menos 10 caracteres.',
             'convJustification.required' => 'La justificación es obligatoria.',
             'convJustification.min' => 'La justificación debe tener al menos 10 caracteres.',
             'convStartDate.required' => 'La fecha de inicio es obligatoria.',
+            'convStartTime.required' => 'La hora de inicio es obligatoria.',
             'convEndDate.required' => 'La fecha de cierre es obligatoria.',
-            'convEndDate.after' => 'La fecha de cierre debe ser posterior a la de inicio.',
+            'convEndDate.after_or_equal' => 'La fecha de cierre debe ser igual o posterior a la de inicio.',
+            'convEndTime.required' => 'La hora de cierre es obligatoria.',
             'convAssignedBudget.required' => 'El presupuesto es obligatorio.',
             'convAssignedBudget.min' => 'El presupuesto debe ser mayor a 0.',
+            'convEstimatedDuration.required' => 'La duración probable es obligatoria.',
+            'convEstimatedDuration.min' => 'La duración debe ser al menos 1 día.',
+            'convContractingModality.required' => 'La modalidad contractual es obligatoria.',
         ]);
 
         // Validar que al menos un código de gasto esté seleccionado
@@ -393,6 +414,10 @@ class PrecontractualManagement extends Component
                 'object' => $this->convObject,
                 'justification' => $this->convJustification,
                 'assigned_budget' => $this->convAssignedBudget,
+                'estimated_duration_days' => (int) $this->convEstimatedDuration,
+                'contracting_modality' => $this->convContractingModality,
+                'requester_name' => $this->convRequesterName ?: null,
+                'requester_position' => $this->convRequesterPosition ?: null,
                 'status' => 'draft',
                 'created_by' => auth()->id(),
             ]);
@@ -435,6 +460,10 @@ class PrecontractualManagement extends Component
         $this->convStartDate = '';
         $this->convEndDate = '';
         $this->convAssignedBudget = '';
+        $this->convEstimatedDuration = '';
+        $this->convContractingModality = 'especial';
+        $this->convRequesterName = '';
+        $this->convRequesterPosition = '';
         $this->distributions = [];
         $this->resetValidation();
     }
@@ -839,10 +868,14 @@ class PrecontractualManagement extends Component
 
         $this->validate([
             'proposalSupplierId' => 'required|exists:suppliers,id',
+            'proposalReceivedDate' => 'required|date',
+            'proposalReceivedTime' => 'required',
             'proposalSubtotal' => 'required|numeric|min:0.01',
             'proposalIva' => 'nullable|numeric|min:0',
         ], [
             'proposalSupplierId.required' => 'Seleccione un proveedor.',
+            'proposalReceivedDate.required' => 'La fecha de recepción es obligatoria.',
+            'proposalReceivedTime.required' => 'La hora de recepción es obligatoria.',
             'proposalSubtotal.required' => 'El subtotal es obligatorio.',
             'proposalSubtotal.min' => 'El subtotal debe ser mayor a 0.',
         ]);
@@ -865,6 +898,8 @@ class PrecontractualManagement extends Component
             'convocatoria_id' => $this->convocatoria->id,
             'supplier_id' => $this->proposalSupplierId,
             'proposal_number' => $nextNumber,
+            'received_date' => $this->proposalReceivedDate,
+            'received_time' => $this->proposalReceivedTime,
             'subtotal' => $this->proposalSubtotal,
             'iva' => $iva,
             'total' => $total,
@@ -884,6 +919,8 @@ class PrecontractualManagement extends Component
     {
         $this->showProposalModal = false;
         $this->proposalSupplierId = '';
+        $this->proposalReceivedDate = '';
+        $this->proposalReceivedTime = '';
         $this->proposalSubtotal = '';
         $this->proposalIva = '';
         $this->proposalDescription = '';
@@ -1130,7 +1167,13 @@ class PrecontractualManagement extends Component
         }
 
         if (!empty($selected['certificado_disponibilidad'])) {
-            $this->dispatch('openPdfWindow', url: route('precontractual.certificado-disponibilidad.pdf', $this->convocatoriaId));
+            // Generar un PDF individual por cada CDP activo
+            $convocatoria = Convocatoria::with('cdps')->find($this->convocatoriaId);
+            if ($convocatoria) {
+                foreach ($convocatoria->cdps->where('status', '!=', 'cancelled') as $cdp) {
+                    $this->dispatch('openPdfWindow', url: route('precontractual.certificado-disponibilidad.pdf', [$this->convocatoriaId, $cdp->id]));
+                }
+            }
         }
 
         $this->closePrintModal();

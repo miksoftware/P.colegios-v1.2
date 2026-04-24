@@ -86,8 +86,8 @@
                 <tbody>
                     @foreach($proposals as $proposal)
                         <tr>
-                            <td class="center">{{ $proposal->created_at?->format('d/m/Y') ?? '' }}</td>
-                            <td class="center">{{ $proposal->created_at?->format('h:i:s A') ?? '' }}</td>
+                            <td class="center">{{ $proposal->received_date?->format('d/m/Y') ?? $proposal->created_at?->format('d/m/Y') ?? '' }}</td>
+                            <td class="center">{{ $proposal->received_time ? \Carbon\Carbon::parse($proposal->received_time)->format('h:i:s a') : ($proposal->created_at?->format('h:i:s A') ?? '') }}</td>
                             <td>{{ $proposal->supplier?->full_name ?? 'N/A' }}</td>
                             <td class="right">${{ number_format($proposal->total, 2, ',', '.') }}</td>
                         </tr>

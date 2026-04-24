@@ -75,7 +75,7 @@
         {{-- ===== TÍTULO ===== --}}
         <div class="title-box">
             <div class="title-main">Convocatoria a Veedurías Ciudadanas</div>
-            <div class="title-sub">SEGÚN LEY 715 DEC 1075 DE 2015</div>
+            <div class="title-sub">{{ strtoupper($convocatoria->modality_name ?? 'SEGÚN LEY 715 DEC 1075 DE 2015') }}</div>
             <div style="margin-top: 8px;">
                 <div class="title-info">
                     <div class="title-info-cell title-info-label">No.</div>
@@ -97,7 +97,7 @@
 
         {{-- ===== MODALIDAD ===== --}}
         <div class="info-row" style="border-top: 1px solid #ddd; padding-top: 8px;">
-            <span class="info-label">MODALIDAD:</span> SEGÚN LEY 715 DEC 1075 DE 2015
+            <span class="info-label">MODALIDAD:</span> {{ strtoupper($convocatoria->modality_name ?? 'SEGÚN LEY 715 DEC 1075 DE 2015') }}
         </div>
 
         {{-- ===== OBJETO ===== --}}
@@ -127,7 +127,7 @@
                 <tr>
                     <td class="presupuesto-label" style="vertical-align: top;">LUGAR DE CONSULTA:</td>
                     <td>
-                        La documentación relacionada con el presente <span class="bold">SEGÚN LEY 715 DEC 1075 DE 2015</span>
+                        La documentación relacionada con el presente <span class="bold">{{ strtoupper($convocatoria->modality_name ?? 'SEGÚN LEY 715 DEC 1075 DE 2015') }}</span>
                         puede ser consultada en la secretaría de la Institución Educativa ubicada en la
                         <br>
                         <span class="bold">{{ $school->address ?? '' }}</span>

@@ -1148,15 +1148,31 @@ class ContractualManagement extends Component
         }
 
         if (!empty($selected['certificado_registro_presupuestal'])) {
-            $this->dispatch('openPdfWindow', url: route('contractual.certificado-rp.pdf', $this->contractId));
+            // Generar un PDF individual por cada RP activo
+            $contract = Contract::with('rps')->find($this->contractId);
+            if ($contract) {
+                foreach ($contract->rps->where('status', 'active') as $rp) {
+                    $this->dispatch('openPdfWindow', url: route('contractual.certificado-rp.pdf', [$this->contractId, $rp->id]));
+                }
+            }
         }
 
         if (!empty($selected['comprobante_contabilidad'])) {
-            $this->dispatch('openPdfWindow', url: route('contractual.comprobante-contabilidad.pdf', $this->contractId));
+            $contract = Contract::with('rps')->find($this->contractId);
+            if ($contract) {
+                foreach ($contract->rps->where('status', 'active') as $rp) {
+                    $this->dispatch('openPdfWindow', url: route('contractual.comprobante-contabilidad.pdf', [$this->contractId, $rp->id]));
+                }
+            }
         }
 
         if (!empty($selected['certificado_tesoreria'])) {
-            $this->dispatch('openPdfWindow', url: route('contractual.certificado-tesoreria.pdf', $this->contractId));
+            $contract = $contract ?? Contract::with('rps')->find($this->contractId);
+            if ($contract) {
+                foreach ($contract->rps->where('status', 'active') as $rp) {
+                    $this->dispatch('openPdfWindow', url: route('contractual.certificado-tesoreria.pdf', [$this->contractId, $rp->id]));
+                }
+            }
         }
 
         if (!empty($selected['acta_inicio'])) {

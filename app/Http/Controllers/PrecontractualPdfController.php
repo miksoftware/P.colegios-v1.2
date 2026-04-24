@@ -110,20 +110,23 @@ class PrecontractualPdfController extends Controller
                 'cdps.fundingSources.budget',
                 'distributionDetails.expenseDistribution.expenseCode',
                 'distributionDetails.expenseDistribution.budget.budgetItem',
+                'distributionDetails.expenseDistribution.budget.fundingSource',
                 'creator',
             ])
             ->findOrFail($convocatoriaId);
 
         $school = School::findOrFail($schoolId);
 
-        // Filas de rubros: código de gasto + nombre + valor (del CDP/distribución)
+        // Filas de rubros: código de gasto + nombre + fuente + valor
         $rubroRows = [];
         foreach ($convocatoria->distributionDetails as $dd) {
             $expenseCode = $dd->expenseDistribution?->expenseCode;
+            $fundingSource = $dd->expenseDistribution?->budget?->fundingSource;
             if ($expenseCode) {
                 $rubroRows[] = [
                     'code' => $expenseCode->code ?? '',
                     'name' => $expenseCode->name ?? '',
+                    'funding_source' => $fundingSource?->name ?? '',
                     'amount' => (float) $dd->amount,
                 ];
             }
@@ -435,7 +438,7 @@ class PrecontractualPdfController extends Controller
     /**
      * Generar PDF de Certificado de Disponibilidad Presupuestal (CDP formal)
      */
-    public function certificadoDisponibilidad(Request $request, int $convocatoriaId)
+    public function certificadoDisponibilidad(Request $request, int $convocatoriaId, int $cdpId)
     {
         $schoolId = (int) session('selected_school_id');
         abort_if(!$schoolId, 403);
@@ -452,63 +455,53 @@ class PrecontractualPdfController extends Controller
             ])
             ->findOrFail($convocatoriaId);
 
-        $activeCdps = $convocatoria->cdps->where('status', '!=', 'cancelled');
-        abort_if($activeCdps->isEmpty(), 404, 'No hay CDPs asignados.');
+        // Buscar el CDP específico
+        $cdp = $convocatoria->cdps->where('id', $cdpId)->where('status', '!=', 'cancelled')->first();
+        abort_if(!$cdp, 404, 'CDP no encontrado.');
 
         $school = School::findOrFail($schoolId);
 
-        // Obtener códigos de gasto desde las distribuciones de la convocatoria
-        $expenseCodeMap = [];
+        // Código de gasto desde la convocatoria
+        $expenseCode = '';
+        $expenseName = '';
         foreach ($convocatoria->distributionDetails as $dd) {
             $ec = $dd->expenseDistribution?->expenseCode;
             if ($ec) {
-                $expenseCodeMap[] = [
-                    'code' => $ec->code ?? '',
-                    'name' => $ec->name ?? '',
-                ];
+                $expenseCode = $ec->code ?? '';
+                $expenseName = $ec->name ?? '';
+                break;
             }
         }
 
-        // Construir filas: código gasto, nombre gasto, fuentes con montos, valor total
-        $cdpRows = [];
-        foreach ($activeCdps as $index => $cdp) {
-            $sources = [];
-            foreach ($cdp->fundingSources as $cdpFs) {
-                $sources[] = [
-                    'name' => $cdpFs->fundingSource?->name ?? '',
-                    'amount' => (float) $cdpFs->amount,
-                ];
-            }
-
-            // Usar código de gasto si existe, sino fallback al budget item
-            $ecData = $expenseCodeMap[$index] ?? null;
-
-            $cdpRows[] = [
-                'cdp_number' => $cdp->formatted_number,
-                'budget_item_code' => $ecData['code'] ?? $cdp->budgetItem?->code ?? '',
-                'budget_item_name' => $ecData['name'] ?? $cdp->budgetItem?->name ?? '',
-                'sources' => $sources,
-                'total_amount' => (float) $cdp->total_amount,
+        // Construir fila para este CDP individual
+        $sources = [];
+        foreach ($cdp->fundingSources as $cdpFs) {
+            $sources[] = [
+                'name' => $cdpFs->fundingSource?->name ?? '',
+                'amount' => (float) $cdpFs->amount,
             ];
         }
 
-        $grandTotal = collect($cdpRows)->sum('total_amount');
-
-        // Número del CDP principal (el primero)
-        $cdpNumber = $activeCdps->first()->formatted_number ?? '';
+        $cdpRows = [[
+            'cdp_number' => $cdp->formatted_number,
+            'budget_item_code' => $expenseCode ?: ($cdp->budgetItem?->code ?? ''),
+            'budget_item_name' => $expenseName ?: ($cdp->budgetItem?->name ?? ''),
+            'sources' => $sources,
+            'total_amount' => (float) $cdp->total_amount,
+        ]];
 
         $pdf = Pdf::loadView('pdf.certificado-disponibilidad', [
             'convocatoria' => $convocatoria,
             'school' => $school,
             'cdpRows' => $cdpRows,
-            'cdpNumber' => $cdpNumber,
-            'grandTotal' => $grandTotal,
+            'cdpNumber' => $cdp->formatted_number,
+            'grandTotal' => (float) $cdp->total_amount,
             'user' => auth()->user(),
         ]);
 
         $pdf->setPaper('letter');
 
-        return $pdf->stream("certificado-disponibilidad-conv-{$convocatoria->formatted_number}.pdf");
+        return $pdf->stream("certificado-disponibilidad-cdp-{$cdp->formatted_number}.pdf");
     }
 
     /**

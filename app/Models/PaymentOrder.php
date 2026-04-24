@@ -41,6 +41,7 @@ class PaymentOrder extends Model
         'total_retentions',
         'net_payment',
         'observations',
+        'egress_bank_account_id',
         'supplier_bank_name',
         'supplier_account_type',
         'supplier_account_number',

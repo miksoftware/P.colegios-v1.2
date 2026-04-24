@@ -297,6 +297,15 @@
                         Soporte Presupuestal
                     </h2>
 
+                    {{-- Checkbox para omitir CDP/RP --}}
+                    <div class="mb-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" wire:model.live="skipCdpRp" class="rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                            <span class="text-sm text-gray-700">Este pago <span class="font-medium">no requiere CDP ni RP</span> (retenciones, gastos financieros, etc.)</span>
+                        </label>
+                    </div>
+
+                    @if(!$skipCdpRp)
                     <div class="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-4">
                         <p class="text-xs text-purple-700">Al guardar se creará automáticamente un CDP y un RP con los datos presupuestales que ingrese aquí.</p>
                     </div>
@@ -369,6 +378,35 @@
                                         <p class="mt-1 text-xs text-red-600">Excede el saldo disponible.</p>
                                     @endif
                                 </div>
+
+                                {{-- Banco y Cuenta Bancaria --}}
+                                <div class="grid grid-cols-2 gap-3 mt-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Banco *</label>
+                                        <select wire:model.live="directSelectedSources.{{ $index }}.bank_id"
+                                            class="w-full rounded-xl border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500">
+                                            <option value="">-- Banco --</option>
+                                            @foreach($directBanks as $bank)
+                                                <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Cuenta Bancaria *</label>
+                                        <select wire:model="directSelectedSources.{{ $index }}.bank_account_id"
+                                            class="w-full rounded-xl border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500">
+                                            <option value="">-- Cuenta --</option>
+                                            @if(!empty($src['bank_id']))
+                                                @php $selectedBank = collect($directBanks)->firstWhere('id', (int)$src['bank_id']); @endphp
+                                                @if($selectedBank)
+                                                    @foreach($selectedBank['accounts'] as $acct)
+                                                        <option value="{{ $acct['id'] }}">{{ $acct['label'] }}</option>
+                                                    @endforeach
+                                                @endif
+                                            @endif
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                             @endforeach
                         </div>
@@ -385,6 +423,38 @@
                         <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
                             <p class="text-xs text-amber-700">No hay fuentes de financiación con saldo disponible para este rubro.</p>
                         </div>
+                    @endif
+                    @endif {{-- end @if(!$skipCdpRp) --}}
+
+                    @if($skipCdpRp)
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                        <p class="text-xs text-amber-700">
+                            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            No se creará CDP ni RP para este pago. Solo se registrará la orden de pago directa.
+                        </p>
+                    </div>
+
+                    {{-- Banco y Cuenta de Egreso --}}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Banco de Egreso</label>
+                            <select wire:model.live="directEgressBankId" class="w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500">
+                                <option value="">-- Seleccione banco --</option>
+                                @foreach($directEgressBanks as $bank)
+                                    <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Cuenta Bancaria</label>
+                            <select wire:model="directEgressBankAccountId" class="w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500">
+                                <option value="">-- Seleccione cuenta --</option>
+                                @foreach($directEgressBankAccounts as $ba)
+                                    <option value="{{ $ba['id'] }}">{{ $ba['label'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
                     @endif
                 </div>
 

@@ -418,6 +418,21 @@
                                     <input wire:model="holderName" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Nombre del titular">
                                 </div>
 
+                                {{-- Saldo Inicial --}}
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Saldo Inicial de la Cuenta</label>
+                                        <div class="flex">
+                                            <span class="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
+                                            <input wire:model="initialBalance" type="number" step="0.01" min="0" class="flex-1 rounded-r-lg border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="0.00">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Vigencia del Saldo</label>
+                                        <input wire:model="initialBalanceYear" type="number" min="2000" max="2100" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="{{ now()->year }}">
+                                    </div>
+                                </div>
+
                                 {{-- Descripción --}}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Descripción / Uso</label>

@@ -598,23 +598,59 @@
                     {{-- Fuentes de financiación --}}
                     @php
                         $detailSources = [];
-                        if ($paymentOrder->contractRp) {
+                        if ($paymentOrder->payment_type === 'contract' && $paymentOrder->contract) {
+                            // Para pagos con contrato: mostrar fuentes de TODOS los RPs activos
+                            foreach ($paymentOrder->contract->rps->where('status', 'active') as $rp) {
+                                foreach ($rp->fundingSources as $rpFs) {
+                                    $fsName = $rpFs->fundingSource?->name ?? 'N/A';
+                                    $bankName = $rpFs->bank?->name ?? '';
+                                    $accountNumber = $rpFs->bankAccount?->account_number ?? '';
+                                    $detailSources[] = [
+                                        'name' => $fsName,
+                                        'amount' => (float) $rpFs->amount,
+                                        'bank' => $bankName,
+                                        'account' => $accountNumber,
+                                        'rp_number' => $rp->formatted_number,
+                                    ];
+                                }
+                            }
+                        } elseif ($paymentOrder->contractRp) {
                             foreach ($paymentOrder->contractRp->fundingSources as $rpFs) {
-                                $detailSources[] = ['name' => $rpFs->fundingSource?->name ?? 'N/A', 'amount' => (float) $rpFs->amount];
+                                $detailSources[] = [
+                                    'name' => $rpFs->fundingSource?->name ?? 'N/A',
+                                    'amount' => (float) $rpFs->amount,
+                                    'bank' => $rpFs->bank?->name ?? '',
+                                    'account' => $rpFs->bankAccount?->account_number ?? '',
+                                    'rp_number' => $paymentOrder->contractRp->formatted_number,
+                                ];
                             }
                         } elseif ($paymentOrder->cdp) {
                             foreach ($paymentOrder->cdp->fundingSources as $cdpFs) {
-                                $detailSources[] = ['name' => $cdpFs->fundingSource?->name ?? 'N/A', 'amount' => (float) $cdpFs->amount];
+                                $detailSources[] = [
+                                    'name' => $cdpFs->fundingSource?->name ?? 'N/A',
+                                    'amount' => (float) $cdpFs->amount,
+                                    'bank' => '',
+                                    'account' => '',
+                                    'rp_number' => '',
+                                ];
                             }
                         }
                     @endphp
                     @if(count($detailSources) > 0)
                     <div class="mt-4 bg-blue-50 rounded-xl p-4">
                         <p class="text-xs font-medium text-blue-700 uppercase mb-2">Fuentes de Financiación</p>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="space-y-2">
                             @foreach($detailSources as $ds)
-                                <div class="bg-white rounded-lg p-3 border border-blue-100">
-                                    <p class="text-xs text-gray-500">{{ $ds['name'] }}</p>
+                                <div class="bg-white rounded-lg p-3 border border-blue-100 flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">{{ $ds['name'] }}</p>
+                                        @if($ds['rp_number'])
+                                            <p class="text-xs text-gray-500">RP: {{ $ds['rp_number'] }}</p>
+                                        @endif
+                                        @if($ds['bank'])
+                                            <p class="text-xs text-gray-500">{{ $ds['bank'] }} {{ $ds['account'] ? '- ' . $ds['account'] : '' }}</p>
+                                        @endif
+                                    </div>
                                     <p class="text-sm font-bold text-blue-700">${{ number_format($ds['amount'], 2, ',', '.') }}</p>
                                 </div>
                             @endforeach

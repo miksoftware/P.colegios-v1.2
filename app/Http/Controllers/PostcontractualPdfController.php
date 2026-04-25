@@ -105,6 +105,7 @@ class PostcontractualPdfController extends Controller
         $bankName = '';
         $accountNumber = '';
         $fundingSourceName = '';
+        $fundingSourceDetails = []; // Detalle por fuente [{name, amount, bank, account}]
 
         // Obtener códigos de gasto desde la convocatoria del contrato
         $expenseCodeMap = [];
@@ -122,16 +123,22 @@ class PostcontractualPdfController extends Controller
 
         if ($po->payment_type === 'contract' && $po->contract) {
             $rpIndex = 0;
+            $allSources = [];
             foreach ($po->contract->rps->where('status', 'active') as $rp) {
-                $sources = [];
                 foreach ($rp->fundingSources as $rpFs) {
-                    $sources[] = $rpFs->fundingSource?->name ?? '';
+                    $fsName = $rpFs->fundingSource?->name ?? '';
+                    $allSources[] = $fsName;
                     if (!$bankName && $rpFs->bank) {
                         $bankName = $rpFs->bank->name ?? '';
                         $accountNumber = $rpFs->bankAccount?->account_number ?? '';
                     }
+                    $fundingSourceDetails[] = [
+                        'name' => $fsName,
+                        'amount' => (float) $rpFs->amount,
+                        'bank' => $rpFs->bank?->name ?? '',
+                        'account' => $rpFs->bankAccount?->account_number ?? '',
+                    ];
                 }
-                $fundingSourceName = implode(' Y ', array_filter($sources));
 
                 $ecData = $expenseCodeMap[$rpIndex] ?? null;
 
@@ -142,8 +149,8 @@ class PostcontractualPdfController extends Controller
                     'total_amount' => (float) $rp->total_amount,
                 ];
                 $rpIndex++;
-                break;
             }
+            $fundingSourceName = implode(' Y ', array_unique(array_filter($allSources)));
         } elseif ($po->contractRp) {
             $rp = $po->contractRp;
             foreach ($rp->fundingSources as $rpFs) {
@@ -152,6 +159,12 @@ class PostcontractualPdfController extends Controller
                     $accountNumber = $rpFs->bankAccount?->account_number ?? '';
                 }
                 $fundingSourceName = $rpFs->fundingSource?->name ?? '';
+                $fundingSourceDetails[] = [
+                    'name' => $rpFs->fundingSource?->name ?? '',
+                    'amount' => (float) $rpFs->amount,
+                    'bank' => $rpFs->bank?->name ?? '',
+                    'account' => $rpFs->bankAccount?->account_number ?? '',
+                ];
             }
             $rpData[] = [
                 'rp_number' => $rp->formatted_number,
@@ -179,6 +192,7 @@ class PostcontractualPdfController extends Controller
             'retentionRows' => $retentionRows,
             'rpData' => $rpData,
             'fundingSourceName' => $fundingSourceName,
+            'fundingSourceDetails' => $fundingSourceDetails,
             'bankName' => $bankName,
             'accountNumber' => $accountNumber,
             'user' => auth()->user(),

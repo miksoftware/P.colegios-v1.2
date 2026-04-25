@@ -102,29 +102,6 @@ class ContractingReport extends Component
             $rps = $contract->rps;
             $firstRp = $rps->first();
 
-            // Fuentes de financiación (del CDP)
-            $fundingSourceNames = [];
-            foreach ($cdps as $cdp) {
-                foreach ($cdp->fundingSources as $cdpFs) {
-                    $fs = $cdpFs->fundingSource;
-                    if ($fs) {
-                        $fundingSourceNames[] = "{$fs->name} ({$fs->code})";
-                    }
-                }
-            }
-            $fundingSourceLabel = implode(', ', array_unique($fundingSourceNames));
-
-            // Fuente código
-            $fundingSourceCodes = [];
-            foreach ($cdps as $cdp) {
-                foreach ($cdp->fundingSources as $cdpFs) {
-                    $fs = $cdpFs->fundingSource;
-                    if ($fs) {
-                        $fundingSourceCodes[] = $fs->code;
-                    }
-                }
-            }
-
             // Distribuciones de la convocatoria (para obtener expense codes)
             $distributions = $convocatoria?->distributionDetails ?? collect();
             $firstDist = $distributions->first();
@@ -132,7 +109,6 @@ class ContractingReport extends Component
             $budget = $firstDist?->expenseDistribution?->budget;
             $budgetItem = $budget?->budgetItem;
             $accountingAccount = $budgetItem?->accountingAccount;
-            $fundingSource = $budget?->fundingSource;
 
             // Rubro presupuestal info
             $rubroCode = $expenseCode?->code ?? $budgetItem?->code ?? '';
@@ -142,9 +118,6 @@ class ContractingReport extends Component
             // Cuenta contable info
             $acctCode = $accountingAccount?->code ?? '';
             $acctName = $accountingAccount?->name ?? '';
-            $acctLevel = $accountingAccount?->level ?? 0;
-
-            // Obtener jerarquía de cuenta contable
             $acctParent = $accountingAccount?->parent;
             $acctGrandParent = $acctParent?->parent;
 
@@ -155,19 +128,6 @@ class ContractingReport extends Component
             $supplierBank = $supplier?->bankAccounts?->first();
             $bankName = $supplierBank?->bank_name ?? '';
             $bankAccountNumber = $supplierBank?->account_number ?? '';
-
-            // Disponibilidad presupuestal (saldo disponible del rubro)
-            $disponibilidad = 0;
-            if ($firstCdp) {
-                $disponibilidad = (float) $firstCdp->total_amount;
-            }
-
-            // Saldo disponible del rubro después del CDP
-            $proxDisp = 0;
-            if ($budget) {
-                $totalDistributed = $budget->distributions?->sum('amount') ?? 0;
-                $proxDisp = (float) $budget->current_amount - $totalDistributed;
-            }
 
             // Fecha CDP
             $fechaCdp = $firstCdp?->created_at?->format('Y-m-d') ?? '';
@@ -185,18 +145,62 @@ class ContractingReport extends Component
                 $liquidationDate = $lastPayment->payment_date?->format('Y-m-d');
             }
 
-            $this->rows[] = [
-                // Identificación del rubro
+            // Construir fuentes de financiación con montos individuales
+            $fundingSources = [];
+            foreach ($rps->where('status', 'active') as $rp) {
+                foreach ($rp->fundingSources as $rpFs) {
+                    $fs = $rpFs->fundingSource;
+                    if ($fs) {
+                        $key = $fs->id;
+                        if (!isset($fundingSources[$key])) {
+                            $fundingSources[$key] = [
+                                'name' => "{$fs->name} ({$fs->code})",
+                                'code' => $fs->code,
+                                'amount' => 0,
+                            ];
+                        }
+                        $fundingSources[$key]['amount'] += (float) $rpFs->amount;
+                    }
+                }
+            }
+
+            // Si no hay RPs, usar CDPs
+            if (empty($fundingSources)) {
+                foreach ($cdps as $cdp) {
+                    foreach ($cdp->fundingSources as $cdpFs) {
+                        $fs = $cdpFs->fundingSource;
+                        if ($fs) {
+                            $key = $fs->id;
+                            if (!isset($fundingSources[$key])) {
+                                $fundingSources[$key] = [
+                                    'name' => "{$fs->name} ({$fs->code})",
+                                    'code' => $fs->code,
+                                    'amount' => 0,
+                                ];
+                            }
+                            $fundingSources[$key]['amount'] += (float) $cdpFs->amount;
+                        }
+                    }
+                }
+            }
+
+            // Si no hay fuentes, crear una fila con fuente vacía
+            if (empty($fundingSources)) {
+                $fundingSources[0] = [
+                    'name' => '',
+                    'code' => '',
+                    'amount' => (float) $contract->total,
+                ];
+            }
+
+            // Datos base del contrato (compartidos entre filas)
+            $baseRow = [
                 'rubro_name' => $rubroName,
-                'prox_disp' => $proxDisp,
+                'prox_disp' => 0,
                 'rubro_code' => $rubroCode,
-
-                // CDP
                 'cdp_number' => $firstCdp?->cdp_number ?? '',
-                'disponibilidad' => $disponibilidad,
+                'disponibilidad' => (float) ($firstCdp?->total_amount ?? 0),
                 'fecha_cdp' => $fechaCdp,
-
-                // Proveedor
                 'supplier_name' => $supplier?->full_name ?? '',
                 'supplier_first_surname' => $supplier?->first_surname ?? '',
                 'supplier_second_surname' => $supplier?->second_surname ?? '',
@@ -206,131 +210,81 @@ class ContractingReport extends Component
                 'supplier_dv' => $supplier?->dv ?? '',
                 'supplier_document_type' => $supplier?->document_type ?? '',
                 'supplier_person_type' => $supplier?->person_type ?? '',
-
-                // Valores del contrato
-                'subtotal' => (float) $contract->subtotal,
-                'iva' => (float) $contract->iva,
-                'total' => (float) $contract->total,
-                'valor_letras' => '', // Se calcula en JS o se deja vacío
-
-                // Objeto
                 'objeto' => $contract->object ?? '',
                 'justificacion' => $contract->justification ?? $convocatoria?->justification ?? '',
-
-                // Código de gasto
                 'expense_code' => $rubroCode,
                 'sifse_code' => $sifseCode,
-
-                // Supervisor
                 'supervisor_name' => $supervisor ? ($supervisor->name . ' ' . $supervisor->surname) : '',
                 'supervisor_document' => $supervisor?->identification_number ?? '',
                 'supervisor_cargo' => 'RECTOR',
-
-                // Cuenta contable
                 'acct_code' => $acctCode,
                 'acct_name' => $acctName,
                 'acct_parent_code' => $acctParent?->code ?? '',
                 'acct_parent_name' => $acctParent?->name ?? '',
                 'acct_grandparent_code' => $acctGrandParent?->code ?? '',
                 'acct_grandparent_name' => $acctGrandParent?->name ?? '',
-
-                // Necesidades
                 'necesidades' => $convocatoria?->justification ?? '',
-
-                // Duración
                 'duracion' => $contract->duration_days ?? 0,
                 'duracion_label' => ($contract->duration_days ?? 0) . ' DÍAS',
-
-                // Riesgos
                 'riesgos' => 'NO GENERA RIESGOS',
-
-                // Dirección proveedor
                 'supplier_address' => $supplier?->address ?? '',
                 'supplier_phone' => $supplier?->phone ?? $supplier?->mobile ?? '',
                 'supplier_city' => $supplier?->city ?? '',
                 'supplier_regime' => $supplier?->tax_regime_name ?? '',
-
-                // Forma de pago
                 'forma_pago' => $contract->payment_method_name ?? '',
-
-                // Fuente de financiación
-                'funding_source' => $fundingSourceLabel,
-                'funding_source_codes' => implode(', ', array_unique($fundingSourceCodes)),
-
-                // Fechas
                 'fecha_rp' => $fechaRp,
                 'fecha_inicio' => $contract->start_date?->format('Y-m-d') ?? '',
                 'fecha_fin' => $contract->end_date?->format('Y-m-d') ?? '',
-
-                // Contrato
                 'contract_number' => $contract->contract_number ?? '',
                 'contract_formatted' => 'CONTRATO No. ' . $contract->formatted_number,
                 'contract_date' => $contract->start_date?->format('Y-m-d') ?? '',
-
-                // Dependencia
                 'dependencia' => 'RECTORIA',
-
-                // Banco
                 'bank_account' => $bankAccountNumber,
                 'bank_name' => $bankName,
-
-                // Liquidación
                 'fecha_liquidacion' => $liquidationDate,
-
-                // Plazo
                 'plazo' => ($contract->duration_days ?? 0) . ' DÍAS',
-
-                // Modalidad
                 'modalidad' => $contract->modality_name ?? '',
-
-                // RP
                 'rp_number' => $rpNumber,
-
-                // Evaluación
                 'criterio_evaluacion' => 'MENOR PRECIO',
                 'lugar_ejecucion' => $contract->execution_place ?? '',
-
-                // Representante legal
                 'representante_legal' => ($supplier?->person_type === 'juridica') ? '' : 'N/A',
-
-                // Convocatoria
                 'convocatoria_number' => $convocatoria?->convocatoria_number ?? '',
                 'convocatoria_formatted' => $convocatoria ? str_pad($convocatoria->convocatoria_number, 3, '0', STR_PAD_LEFT) : '',
                 'fecha_invitacion' => $convocatoria?->start_date?->format('Y-m-d') ?? '',
-
-                // Introducción manual
                 'intro_manual' => $this->school->contracting_manual_approval_number
-                    ? "En cumplimiento a lo establecido en el CAPÍTULO 2, Numeral 1 del Manual de contratación institucional aprobado mediante acuerdo No. " . $this->school->contracting_manual_approval_number . " de fecha " . ($this->school->contracting_manual_approval_date ?? '') . " por el Consejo Directivo, en la cual se establecen los parámetros para garantizar la selección objetiva del proveedor, se publica la presente convocatoria para la comparación de cotizaciones."
+                    ? "En cumplimiento a lo establecido en el CAPÍTULO 2, Numeral 1 del Manual de contratación institucional aprobado mediante acuerdo No. " . $this->school->contracting_manual_approval_number . " de fecha " . ($this->school->contracting_manual_approval_date ?? '') . " por el Consejo Directivo."
                     : '',
-
-                // Presupuesto asignado
                 'presupuesto_asignado' => (float) ($convocatoria?->assigned_budget ?? 0),
-
-                // Fechas de propuesta
                 'fecha_max_propuesta' => $convocatoria?->start_date?->format('Y-m-d') ?? '',
                 'hora_propuesta' => '',
                 'fecha_revision' => $convocatoria?->evaluation_date?->format('Y-m-d') ?? '',
                 'hora_revision' => '',
                 'fecha_evaluacion' => $convocatoria?->evaluation_date?->format('Y-m-d') ?? '',
-
-                // Propuestas
                 'num_propuestas' => $convocatoria?->proposals_count ?? $convocatoria?->proposals?->count() ?? 0,
-
-                // Acuerdo PAA
                 'acuerdo_paa' => $this->school->budget_agreement_number ?? '',
                 'fecha_acuerdo' => $this->school->budget_approval_date ?? '',
-
-                // Certificación
                 'fecha_certificacion' => $fechaCdp,
-
-                // Status
                 'status' => $contract->status,
                 'status_name' => $contract->status_name,
                 'status_color' => $contract->status_color,
-
-                // ID
                 'id' => $contract->id,
             ];
+
+            // Generar una fila por cada fuente de financiación
+            $totalContract = (float) $contract->total;
+            $totalFundingSources = collect($fundingSources)->sum('amount');
+
+            foreach ($fundingSources as $fsData) {
+                $ratio = $totalFundingSources > 0 ? $fsData['amount'] / $totalFundingSources : 1;
+                $row = $baseRow;
+                $row['funding_source'] = $fsData['name'];
+                $row['funding_source_codes'] = $fsData['code'];
+                $row['subtotal'] = round((float) $contract->subtotal * $ratio, 2);
+                $row['iva'] = round((float) $contract->iva * $ratio, 2);
+                $row['total'] = round($totalContract * $ratio, 2);
+                $row['valor_letras'] = '';
+                $this->rows[] = $row;
+            }
         }
 
         // Resumen

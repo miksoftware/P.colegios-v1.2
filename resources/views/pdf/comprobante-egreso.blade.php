@@ -182,6 +182,38 @@
             </tr>
         </table>
         @endforeach
+        @if(!empty($fundingSourceDetails) && count($fundingSourceDetails) > 1)
+        {{-- Múltiples fuentes de financiación --}}
+        @foreach($fundingSourceDetails as $fsd)
+        <table class="pres-table">
+            <tr>
+                <td class="pres-label">Fte. Financiación:</td>
+                <td>{{ $fsd['name'] }}</td>
+                <td class="pres-label">Valor:</td>
+                <td class="bold">${{ number_format($fsd['amount'], 2, ',', '.') }}</td>
+            </tr>
+            @if($fsd['bank'])
+            <tr>
+                <td></td><td></td>
+                <td class="pres-label">Banco:</td>
+                <td>{{ $fsd['bank'] }}</td>
+            </tr>
+            <tr>
+                <td></td><td></td>
+                <td class="pres-label">Cuenta No.:</td>
+                <td>{{ $fsd['account'] }}</td>
+            </tr>
+            @endif
+        </table>
+        @endforeach
+        <table class="pres-table">
+            <tr>
+                <td class="pres-label">Pago con:</td>
+                <td>TRANSFERENCIA</td>
+            </tr>
+        </table>
+        @else
+        {{-- Una sola fuente --}}
         <table class="pres-table">
             <tr>
                 <td class="pres-label">Fte. Financiación:</td>
@@ -203,6 +235,8 @@
                 <td class="pres-label">Pago con:</td>
                 <td>TRANSFERENCIA</td>
             </tr>
+        </table>
+        @endif
         </table>
 
         {{-- FIRMAS --}}

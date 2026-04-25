@@ -621,6 +621,18 @@
                             </div>
                         </div>
 
+                        {{-- Hora de apertura y cierre --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Hora de Apertura</label>
+                                <input type="time" wire:model="convStartTime" class="w-full rounded-xl border-gray-300">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Hora de Cierre</label>
+                                <input type="time" wire:model="convEndTime" class="w-full rounded-xl border-gray-300">
+                            </div>
+                        </div>
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Presupuesto Total Asignado <span class="text-red-500">*</span></label>
                             <div class="flex">

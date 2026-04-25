@@ -205,7 +205,7 @@
                         <td class="bold" style="width: 10%;">DÍA:</td>
                         <td style="width: 40%;">{{ $convocatoria->end_date?->format('d/m/Y') ?? $convocatoria->start_date?->format('d/m/Y') ?? '' }}</td>
                         <td class="bold" style="width: 10%;">HORA:</td>
-                        <td style="width: 40%;">11:30:00 a. m.</td>
+                        <td style="width: 40%;">{{ $convocatoria->end_time ? \Carbon\Carbon::parse($convocatoria->end_time)->format('h:i:s a') : '11:30:00 a. m.' }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -237,7 +237,7 @@
 
         {{-- ===== FORMA DE PAGO ===== --}}
         <div class="section-title">Forma de Pago</div>
-        <div class="text-block">UN (1) PAGO</div>
+        <div class="text-block">A CONVENIR</div>
 
         {{-- ===== DESCUENTOS APLICABLES ===== --}}
         <div class="section-title">Descuentos Aplicables</div>

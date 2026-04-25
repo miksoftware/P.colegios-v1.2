@@ -410,7 +410,9 @@ class PrecontractualManagement extends Component
                 'convocatoria_number' => Convocatoria::getNextConvocatoriaNumber($this->schoolId, $this->filterYear),
                 'fiscal_year' => $this->filterYear,
                 'start_date' => $this->convStartDate,
+                'start_time' => $this->convStartTime ?: null,
                 'end_date' => $this->convEndDate,
+                'end_time' => $this->convEndTime ?: null,
                 'object' => $this->convObject,
                 'justification' => $this->convJustification,
                 'assigned_budget' => $this->convAssignedBudget,
@@ -458,7 +460,9 @@ class PrecontractualManagement extends Component
         $this->convObject = '';
         $this->convJustification = '';
         $this->convStartDate = '';
+        $this->convStartTime = '';
         $this->convEndDate = '';
+        $this->convEndTime = '';
         $this->convAssignedBudget = '';
         $this->convEstimatedDuration = '';
         $this->convContractingModality = 'especial';

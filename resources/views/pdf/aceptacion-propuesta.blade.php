@@ -123,7 +123,7 @@
                 </tr>
                 <tr>
                     <td class="label">Forma de Pago:</td>
-                    <td colspan="3">{{ $contract?->payment_method_name ?? 'UN (1) PAGO' }}</td>
+                    <td colspan="3">{{ $contract?->payment_method_name ?? 'A CONVENIR' }}</td>
                 </tr>
             </table>
         </div>

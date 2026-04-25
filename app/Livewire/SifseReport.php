@@ -171,6 +171,22 @@ class SifseReport extends Component
                 ->toArray();
         }
 
+        // --- Direct payments up to cutoff per budget_item ---
+        $budgetItemIds = $budgets->pluck('budget_item_id')->unique()->toArray();
+        $directPaymentsByItem = [];
+        if (!empty($budgetItemIds)) {
+            $directPaymentsByItem = \App\Models\PaymentOrder::where('school_id', $this->schoolId)
+                ->where('fiscal_year', $year)
+                ->where('payment_type', 'direct')
+                ->whereIn('budget_item_id', $budgetItemIds)
+                ->whereIn('status', ['approved', 'paid'])
+                ->where('payment_date', '<=', $cutoff)
+                ->selectRaw('budget_item_id, SUM(total) as total_paid')
+                ->groupBy('budget_item_id')
+                ->pluck('total_paid', 'budget_item_id')
+                ->toArray();
+        }
+
         // Build raw rows per funding_source + sifse_code
         $rawRows = [];
 
@@ -191,12 +207,14 @@ class SifseReport extends Component
             }
 
             $totalDistAmount = $distributions->sum('amount');
+            $directPayments = (float) ($directPaymentsByItem[$budget->budget_item_id] ?? 0);
 
             foreach ($distributions as $dist) {
                 $expCode = $dist->expenseCode;
                 $sifseCode = $expCode?->sifse_code ?? '';
                 $distPayments = (float) ($paymentsByDist[$dist->id] ?? 0);
                 $ratio = $totalDistAmount > 0 ? (float) $dist->amount / $totalDistAmount : 0;
+                $directProrated = round($directPayments * $ratio, 2);
 
                 $key = "{$fundingCode}|{$sifseCode}";
 
@@ -214,9 +232,9 @@ class SifseReport extends Component
 
                 $rawRows[$key]['initial'] += round($initial * $ratio, 2);
                 $rawRows[$key]['definitive'] += round($definitive * $ratio, 2);
-                $rawRows[$key]['commitments'] += round($totalCommitments * $ratio, 2);
-                $rawRows[$key]['obligations'] += $distPayments;
-                $rawRows[$key]['payments'] += $distPayments;
+                $rawRows[$key]['commitments'] += round($totalCommitments * $ratio, 2) + $directProrated;
+                $rawRows[$key]['obligations'] += $distPayments + $directProrated;
+                $rawRows[$key]['payments'] += $distPayments + $directProrated;
             }
         }
 

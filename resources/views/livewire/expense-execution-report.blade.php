@@ -39,6 +39,16 @@
                         @endfor
                     </select>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Trimestre</label>
+                    <select wire:model.live="filterQuarter" class="w-full rounded-xl border-gray-300">
+                        <option value="">Todos (Consolidado)</option>
+                        <option value="1">1er Trimestre (Ene - Mar)</option>
+                        <option value="2">2do Trimestre (Abr - Jun)</option>
+                        <option value="3">3er Trimestre (Jul - Sep)</option>
+                        <option value="4">4to Trimestre (Oct - Dic)</option>
+                    </select>
+                </div>
             </div>
         </div>
 

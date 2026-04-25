@@ -100,6 +100,26 @@ class PacExpenseReport extends Component
                 ->toArray();
         }
 
+        // Pre-load direct payments per budget_item grouped by month
+        $budgetItemIds = $budgets->pluck('budget_item_id')->unique()->toArray();
+        $directPaymentsByItemMonth = [];
+        $directPaymentsTotalByItem = [];
+        if (!empty($budgetItemIds)) {
+            $rawDirect = \App\Models\PaymentOrder::where('school_id', $this->schoolId)
+                ->where('fiscal_year', $year)
+                ->where('payment_type', 'direct')
+                ->whereIn('budget_item_id', $budgetItemIds)
+                ->whereIn('status', ['approved', 'paid'])
+                ->selectRaw('budget_item_id, MONTH(payment_date) as pay_month, SUM(total) as total_paid')
+                ->groupBy('budget_item_id', 'pay_month')
+                ->get();
+
+            foreach ($rawDirect as $dp) {
+                $directPaymentsByItemMonth[$dp->budget_item_id][$dp->pay_month] = (float) $dp->total_paid;
+                $directPaymentsTotalByItem[$dp->budget_item_id] = ($directPaymentsTotalByItem[$dp->budget_item_id] ?? 0) + (float) $dp->total_paid;
+            }
+        }
+
         // Build rows: aggregate by expense code across all budgets
         $codeRows = [];
 
@@ -114,7 +134,6 @@ class PacExpenseReport extends Component
             $distributions = $budget->distributions;
 
             if ($distributions->isEmpty()) {
-                // Budget without distributions: show with budget item code
                 $code = $budget->budgetItem?->code ?? '';
                 $name = $budget->budgetItem?->name ?? '';
                 $key = $code ?: 'no-code-' . $budget->id;
@@ -129,6 +148,12 @@ class PacExpenseReport extends Component
                 $codeRows[$key]['credits'] += $credits;
                 $codeRows[$key]['contracredits'] += $contracredits;
                 $codeRows[$key]['definitive'] += $definitive;
+
+                // Add direct payments by month for this budget item
+                $directMonthly = $directPaymentsByItemMonth[$budget->budget_item_id] ?? [];
+                for ($m = 1; $m <= 12; $m++) {
+                    $codeRows[$key]['months'][$m] += (float) ($directMonthly[$m] ?? 0);
+                }
             } else {
                 $totalDistAmount = $distributions->sum('amount');
 
@@ -142,7 +167,6 @@ class PacExpenseReport extends Component
                         $codeRows[$key] = $this->emptyRow($code, $name);
                     }
 
-                    // Prorate budget amounts by distribution ratio
                     $ratio = $totalDistAmount > 0 ? (float) $dist->amount / $totalDistAmount : 0;
 
                     $codeRows[$key]['initial'] += round($initial * $ratio, 2);
@@ -152,10 +176,16 @@ class PacExpenseReport extends Component
                     $codeRows[$key]['contracredits'] += round($contracredits * $ratio, 2);
                     $codeRows[$key]['definitive'] += round($definitive * $ratio, 2);
 
-                    // Monthly RP expenditures from payment orders
+                    // Monthly payments from contract payment orders
                     $monthlyData = $paymentsByDistMonth[$dist->id] ?? [];
                     for ($m = 1; $m <= 12; $m++) {
                         $codeRows[$key]['months'][$m] += (float) ($monthlyData[$m] ?? 0);
+                    }
+
+                    // Add prorated direct payments by month
+                    $directMonthly = $directPaymentsByItemMonth[$budget->budget_item_id] ?? [];
+                    for ($m = 1; $m <= 12; $m++) {
+                        $codeRows[$key]['months'][$m] += round((float) ($directMonthly[$m] ?? 0) * $ratio, 2);
                     }
                 }
             }

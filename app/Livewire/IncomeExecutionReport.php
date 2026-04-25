@@ -13,6 +13,7 @@ class IncomeExecutionReport extends Component
     public $schoolId;
     public $school;
     public $filterYear;
+    public $filterQuarter = '';
 
     public $rows = [];
     public $totals = [];
@@ -38,11 +39,25 @@ class IncomeExecutionReport extends Component
         $this->loadReport();
     }
 
+    public function updatedFilterQuarter()
+    {
+        $this->loadReport();
+    }
+
     public function loadReport()
     {
         $year = (int) $this->filterYear;
+        $quarter = $this->filterQuarter ? (int) $this->filterQuarter : null;
 
-        // Get all income budgets for this school/year
+        // Rango de fechas para el trimestre
+        $dateFrom = null;
+        $dateTo = null;
+        if ($quarter) {
+            $dateFrom = "{$year}-" . str_pad(($quarter - 1) * 3 + 1, 2, '0', STR_PAD_LEFT) . "-01";
+            $lastMonth = $quarter * 3;
+            $dateTo = \Carbon\Carbon::parse("{$year}-{$lastMonth}-01")->endOfMonth()->format('Y-m-d');
+        }
+
         $budgets = Budget::forSchool($this->schoolId)
             ->forYear($year)
             ->byType('income')
@@ -54,19 +69,22 @@ class IncomeExecutionReport extends Component
             ->orderBy('budget_item_id')
             ->get();
 
-        // Pre-load total incomes (recaudos) per budget
         $budgetIds = $budgets->pluck('id')->toArray();
 
-        // Income model links to funding_source_id, not budget_id directly.
-        // We need to sum incomes per funding_source for this school/year
         $incomesByFundingSource = [];
         if (!empty($budgetIds)) {
             $fundingSourceIds = $budgets->pluck('funding_source_id')->unique()->filter()->toArray();
             if (!empty($fundingSourceIds)) {
-                $incomesByFundingSource = Income::forSchool($this->schoolId)
-                    ->forYear($year)
-                    ->whereIn('funding_source_id', $fundingSourceIds)
-                    ->selectRaw('funding_source_id, SUM(amount) as total')
+                $query = Income::forSchool($this->schoolId)
+                    ->whereIn('funding_source_id', $fundingSourceIds);
+
+                if ($dateFrom && $dateTo) {
+                    $query->whereBetween('date', [$dateFrom, $dateTo]);
+                } else {
+                    $query->forYear($year);
+                }
+
+                $incomesByFundingSource = $query->selectRaw('funding_source_id, SUM(amount) as total')
                     ->groupBy('funding_source_id')
                     ->pluck('total', 'funding_source_id')
                     ->toArray();
@@ -100,7 +118,6 @@ class IncomeExecutionReport extends Component
             ];
         }
 
-        // Totals
         $c = collect($this->rows);
         $this->totals = [
             'initial' => $c->sum('initial'),
@@ -116,6 +133,10 @@ class IncomeExecutionReport extends Component
 
     public function getPeriodLabelProperty(): string
     {
+        if ($this->filterQuarter) {
+            $labels = [1 => 'PRIMER', 2 => 'SEGUNDO', 3 => 'TERCER', 4 => 'CUARTO'];
+            return "{$labels[(int)$this->filterQuarter]} TRIMESTRE DE {$this->filterYear}";
+        }
         return "A DICIEMBRE 31 DE {$this->filterYear}";
     }
 

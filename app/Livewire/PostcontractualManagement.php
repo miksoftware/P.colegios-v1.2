@@ -1576,7 +1576,7 @@ class PostcontractualManagement extends Component
                 $paymentData['description'] = $this->directDescription;
                 $paymentData['cdp_id'] = $cdp->id;
                 $paymentData['contract_rp_id'] = $rp->id;
-                $paymentData['budget_item_id'] = $this->directBudgetItemId;
+                $paymentData['budget_item_id'] = $firstBudgetItemId ?: null;
             }
 
             $paymentOrder = PaymentOrder::create($paymentData);

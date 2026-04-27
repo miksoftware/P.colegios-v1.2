@@ -94,6 +94,7 @@ class ContractualManagement extends Component
     public $additionCdpFundingSources = [];
     public $additionAvailableFundingSources = [];
     public $additionBudgetItems = [];
+    public $additionExpenseInfo = [];
 
     // Modal Eliminar Otrosí
     public $showDeleteAmendmentModal = false;
@@ -864,8 +865,12 @@ class ContractualManagement extends Component
 
         if (!$this->contractId) return;
 
-        $contract = Contract::with('rps.cdp.budgetItem', 'convocatoria.cdps.budgetItem')
-            ->forSchool($this->schoolId)->findOrFail($this->contractId);
+        $contract = Contract::with([
+            'rps.cdp.budgetItem',
+            'convocatoria.cdps.budgetItem',
+            'convocatoria.distributionDetails.expenseDistribution.expenseCode',
+            'convocatoria.distributionDetails.expenseDistribution.budget',
+        ])->forSchool($this->schoolId)->findOrFail($this->contractId);
 
         if (!in_array($contract->status, ['active', 'in_execution'])) {
             $this->dispatch('toast', message: 'Solo se puede adicionar recursos a contratos activos o en ejecución.', type: 'error');
@@ -895,6 +900,23 @@ class ContractualManagement extends Component
             ])
             ->toArray();
 
+        // Calcular disponibilidad de las distribuciones de gasto del contrato
+        $this->additionExpenseInfo = [];
+        if ($contract->convocatoria && $contract->convocatoria->distributionDetails) {
+            foreach ($contract->convocatoria->distributionDetails as $dd) {
+                $ed = $dd->expenseDistribution;
+                if ($ed) {
+                    $this->additionExpenseInfo[] = [
+                        'expense_code' => ($ed->expenseCode->code ?? '') . ' - ' . ($ed->expenseCode->name ?? ''),
+                        'distributed' => (float) $ed->amount,
+                        'committed' => $ed->total_locked,
+                        'available' => $ed->available_balance,
+                        'budget_item_id' => $ed->budget?->budget_item_id,
+                    ];
+                }
+            }
+        }
+
         $this->additionAmount = '';
         $this->additionDocument = null;
         $this->additionJustification = '';
@@ -917,14 +939,28 @@ class ContractualManagement extends Component
 
         if (empty($this->additionCdpBudgetItemId)) return;
 
-        $contract = Contract::forSchool($this->schoolId)->findOrFail($this->contractId);
+        $contract = Contract::with([
+            'convocatoria.distributionDetails.expenseDistribution.convocatoriaDistributions.convocatoria',
+            'convocatoria.distributionDetails.expenseDistribution.paymentOrderLines.paymentOrder',
+        ])->forSchool($this->schoolId)->findOrFail($this->contractId);
         $maxAddition = $contract->max_addition;
+
+        // Calcular el disponible real desde las distribuciones de gasto del contrato para este rubro
+        $expenseAvailable = 0;
+        if ($contract->convocatoria && $contract->convocatoria->distributionDetails) {
+            foreach ($contract->convocatoria->distributionDetails as $dd) {
+                $ed = $dd->expenseDistribution;
+                if ($ed && $ed->budget && $ed->budget->budget_item_id == $this->additionCdpBudgetItemId) {
+                    $expenseAvailable += $ed->available_balance;
+                }
+            }
+        }
 
         $sources = FundingSource::where('budget_item_id', $this->additionCdpBudgetItemId)
             ->active()
             ->get();
 
-        $this->additionAvailableFundingSources = $sources->map(function ($source) use ($maxAddition) {
+        $this->additionAvailableFundingSources = $sources->map(function ($source) use ($maxAddition, $expenseAvailable) {
             // Obtener el presupuesto de gasto para esta fuente/rubro/año/colegio
             $budget = Budget::forSchool($this->schoolId)
                 ->where('funding_source_id', $source->id)
@@ -947,8 +983,8 @@ class ContractualManagement extends Component
 
             $sourceAvailable = max(0, $budgetAmount - $totalReserved);
 
-            // El disponible real es el menor entre: saldo del presupuesto y máximo de adición del contrato
-            $available = min($sourceAvailable, $maxAddition);
+            // El disponible real es el menor entre: saldo del presupuesto, disponible del gasto, y máximo de adición del contrato
+            $available = min($sourceAvailable, $maxAddition, $expenseAvailable);
 
             return [
                 'id' => $source->id,
@@ -956,6 +992,7 @@ class ContractualManagement extends Component
                 'type' => $source->type_name,
                 'available' => $available,
                 'source_available' => $sourceAvailable,
+                'expense_available' => $expenseAvailable,
                 'budget_id' => $budget->id,
                 'budget_amount' => $budgetAmount,
                 'reserved' => $totalReserved,
@@ -1015,6 +1052,26 @@ class ContractualManagement extends Component
 
         if ($totalAddition > $contract->max_addition) {
             $this->dispatch('toast', message: 'El monto excede el máximo permitido (50% del valor inicial). Máximo: $' . number_format($contract->max_addition, 2, ',', '.'), type: 'error');
+            return;
+        }
+
+        // Validar contra la disponibilidad real de las distribuciones de gasto del contrato
+        $contract->loadMissing([
+            'convocatoria.distributionDetails.expenseDistribution.convocatoriaDistributions.convocatoria',
+            'convocatoria.distributionDetails.expenseDistribution.paymentOrderLines.paymentOrder',
+        ]);
+        $expenseAvailable = 0;
+        if ($contract->convocatoria && $contract->convocatoria->distributionDetails) {
+            foreach ($contract->convocatoria->distributionDetails as $dd) {
+                $ed = $dd->expenseDistribution;
+                if ($ed && $ed->budget && $ed->budget->budget_item_id == $this->additionCdpBudgetItemId) {
+                    $expenseAvailable += $ed->available_balance;
+                }
+            }
+        }
+
+        if ($totalAddition > $expenseAvailable) {
+            $this->dispatch('toast', message: 'El monto ($' . number_format($totalAddition, 2, ',', '.') . ') excede el disponible del código de gasto ($' . number_format($expenseAvailable, 2, ',', '.') . '). Debe aumentar la distribución del gasto primero.', type: 'error');
             return;
         }
 

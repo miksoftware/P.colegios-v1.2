@@ -1233,34 +1233,38 @@
                                     <span class="font-medium">Cuenta contable:</span> {{ $selectedItem['accounting_account'] ?? 'N/A' }}
                                 </div>
                             @endif
-                            {{-- Resumen de disponibilidad del rubro --}}
-                            @php
-                                $totalBudgetAmount = collect($additionAvailableFundingSources)->sum('budget_amount');
-                                $totalReserved = collect($additionAvailableFundingSources)->sum('reserved');
-                                $totalAvailable = collect($additionAvailableFundingSources)->sum('available');
-                            @endphp
-                            <div class="mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                                <p class="font-medium text-blue-800 mb-1">Disponibilidad del Rubro</p>
-                                <div class="grid grid-cols-3 gap-2 text-xs">
-                                    <div>
-                                        <span class="text-gray-500">Presupuestado:</span>
-                                        <p class="font-semibold text-gray-800">${{ number_format($totalBudgetAmount, 2, ',', '.') }}</p>
-                                    </div>
-                                    <div>
-                                        <span class="text-gray-500">Comprometido:</span>
-                                        <p class="font-semibold text-orange-600">${{ number_format($totalReserved, 2, ',', '.') }}</p>
-                                    </div>
-                                    <div>
-                                        <span class="text-gray-500">Disponible:</span>
-                                        <p class="font-bold {{ $totalAvailable > 0 ? 'text-green-700' : 'text-red-600' }}">${{ number_format($totalAvailable, 2, ',', '.') }}</p>
-                                    </div>
-                                </div>
-                                @if($totalAvailable <= 0)
-                                    <p class="mt-2 text-xs text-red-600 font-medium">⚠ Este rubro no tiene disponibilidad presupuestal para realizar una adición.</p>
-                                @endif
-                            </div>
                         @endif
                     </div>
+
+                    {{-- Disponibilidad del Código de Gasto --}}
+                    @if(count($additionExpenseInfo) > 0)
+                        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                            <p class="font-medium text-blue-800 text-sm mb-2">Disponibilidad del Código de Gasto</p>
+                            @foreach($additionExpenseInfo as $ei)
+                                <div class="bg-white rounded-lg p-2 mb-1 last:mb-0">
+                                    <p class="text-xs font-medium text-gray-700 truncate" title="{{ $ei['expense_code'] }}">{{ $ei['expense_code'] }}</p>
+                                    <div class="grid grid-cols-3 gap-2 mt-1 text-xs">
+                                        <div>
+                                            <span class="text-gray-500">Distribuido:</span>
+                                            <p class="font-semibold text-gray-800">${{ number_format($ei['distributed'], 2, ',', '.') }}</p>
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-500">Comprometido:</span>
+                                            <p class="font-semibold text-orange-600">${{ number_format($ei['committed'], 2, ',', '.') }}</p>
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-500">Disponible:</span>
+                                            <p class="font-bold {{ $ei['available'] > 0 ? 'text-green-700' : 'text-red-600' }}">${{ number_format($ei['available'], 2, ',', '.') }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                            @php $totalExpenseAvailable = collect($additionExpenseInfo)->sum('available'); @endphp
+                            @if($totalExpenseAvailable <= 0)
+                                <p class="mt-2 text-xs text-red-600 font-medium">⚠ No hay disponibilidad en el código de gasto. Debe aumentar la distribución del gasto primero.</p>
+                            @endif
+                        </div>
+                    @endif
 
                     {{-- Fuentes disponibles --}}
                     @if(count($additionAvailableFundingSources) > 0)
@@ -1273,15 +1277,8 @@
                                             <div>
                                                 <span class="text-sm font-medium">{{ $afs['name'] }}</span>
                                                 <div class="text-xs text-gray-500">
-                                                    Presupuestado: ${{ number_format($afs['budget_amount'] ?? 0, 2, ',', '.') }}
-                                                    · Comprometido: ${{ number_format($afs['reserved'] ?? 0, 2, ',', '.') }}
-                                                    · <span class="font-semibold text-green-700">Disp. rubro: ${{ number_format($afs['source_available'] ?? $afs['available'], 2, ',', '.') }}</span>
+                                                    <span class="font-semibold text-green-700">Disponible: ${{ number_format($afs['available'], 2, ',', '.') }}</span>
                                                 </div>
-                                                @if(($afs['source_available'] ?? $afs['available']) != $afs['available'])
-                                                    <div class="text-xs text-blue-600">
-                                                        Máx. por contrato (50%): ${{ number_format($afs['available'], 2, ',', '.') }}
-                                                    </div>
-                                                @endif
                                             </div>
                                             <button type="button" wire:click="addAdditionFundingSource({{ $afs['id'] }})" class="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-lg hover:bg-emerald-200">
                                                 + Agregar
@@ -1293,7 +1290,7 @@
                         </div>
                     @elseif($additionCdpBudgetItemId)
                         <div class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-                            <span class="font-medium">⚠ Sin disponibilidad.</span> No hay fuentes con saldo disponible para este rubro. El presupuesto de gasto está completamente comprometido por CDPs existentes.
+                            <span class="font-medium">⚠ Sin disponibilidad.</span> No hay fuentes con saldo disponible para este rubro. El código de gasto está completamente comprometido.
                         </div>
                     @endif
 

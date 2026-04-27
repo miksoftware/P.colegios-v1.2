@@ -1331,6 +1331,13 @@
                     @endif
                     @error('additionCdpFundingSources') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
 
+                    {{-- Fecha del Otrosí --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha del Otrosí <span class="text-red-500">*</span></label>
+                        <input type="date" wire:model="additionOtrosiDate" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
+                        @error('additionOtrosiDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
                     {{-- Justificación --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Justificación de la Adición <span class="text-red-500">*</span></label>

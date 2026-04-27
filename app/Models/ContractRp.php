@@ -19,12 +19,14 @@ class ContractRp extends Model
         'status',
         'is_addition',
         'addition_justification',
+        'otrosi_date',
         'created_by',
     ];
 
     protected $casts = [
         'total_amount' => 'decimal:2',
         'is_addition' => 'boolean',
+        'otrosi_date' => 'date',
     ];
 
     const STATUSES = [

@@ -90,6 +90,7 @@ class ContractualManagement extends Component
     public $additionAmount = '';
     public $additionDocument = null;
     public $additionJustification = '';
+    public $additionOtrosiDate = '';
     public $additionCdpBudgetItemId = '';
     public $additionCdpFundingSources = [];
     public $additionAvailableFundingSources = [];
@@ -920,6 +921,7 @@ class ContractualManagement extends Component
         $this->additionAmount = '';
         $this->additionDocument = null;
         $this->additionJustification = '';
+        $this->additionOtrosiDate = now()->format('Y-m-d');
         $this->additionCdpBudgetItemId = '';
         $this->additionCdpFundingSources = [];
         $this->additionAvailableFundingSources = [];
@@ -1034,6 +1036,7 @@ class ContractualManagement extends Component
         $this->validate([
             'additionDocument' => 'required|file|mimes:pdf,doc,docx|max:10240',
             'additionJustification' => 'required|string|min:10',
+            'additionOtrosiDate' => 'required|date',
             'additionCdpBudgetItemId' => 'required',
             'additionCdpFundingSources' => 'required|array|min:1',
             'additionCdpFundingSources.*.amount' => 'required|numeric|min:0.01',
@@ -1042,6 +1045,8 @@ class ContractualManagement extends Component
             'additionDocument.mimes' => 'El documento debe ser PDF, DOC o DOCX.',
             'additionJustification.required' => 'La justificación es obligatoria.',
             'additionJustification.min' => 'La justificación debe tener al menos 10 caracteres.',
+            'additionOtrosiDate.required' => 'La fecha del otrosí es obligatoria.',
+            'additionOtrosiDate.date' => 'La fecha del otrosí no es válida.',
             'additionCdpBudgetItemId.required' => 'Seleccione un rubro.',
             'additionCdpFundingSources.required' => 'Agregue al menos una fuente.',
             'additionCdpFundingSources.*.amount.required' => 'Ingrese un monto.',
@@ -1143,6 +1148,7 @@ class ContractualManagement extends Component
                 'status' => 'active',
                 'is_addition' => true,
                 'addition_justification' => $this->additionJustification,
+                'otrosi_date' => $this->additionOtrosiDate,
                 'created_by' => auth()->id(),
             ]);
 

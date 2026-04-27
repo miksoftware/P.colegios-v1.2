@@ -80,6 +80,7 @@ class ContractualPdfController extends Controller
             'grandTotal' => $grandTotal,
             'isAddition' => (bool) $rp->is_addition,
             'additionJustification' => $rp->addition_justification,
+            'otrosiDate' => $rp->otrosi_date,
             'user' => auth()->user(),
         ]);
 

@@ -128,10 +128,31 @@
             {{ $convocatoria->object }}
         </div>
 
+        {{-- OTROSÍ DE ADICIÓN (si aplica) --}}
+        @if(!empty($isAddition) && $isAddition)
+        <div style="padding: 10px 15px; border-top: 1px solid #ccc; background: #f0fdf4;">
+            <div style="margin-bottom: 4px;">
+                <span style="font-weight: bold; color: #166534; font-size: 9px; text-transform: uppercase;">Otrosí de Adición de Recursos — Contrato No. {{ $additionContract?->formatted_number ?? '' }}</span>
+            </div>
+            <div style="font-size: 9px; color: #333;">
+                Este Certificado de Disponibilidad Presupuestal corresponde a una adición de recursos al Contrato No. {{ $additionContract?->formatted_number ?? '' }} mediante Otrosí
+                @if(!empty($otrosiDate))
+                    de fecha {{ $otrosiDate->format('d/m/Y') }}
+                @endif.
+            </div>
+            @if(!empty($additionJustification))
+            <div style="margin-top: 4px; font-size: 9px;">
+                <span style="font-weight: bold; color: #1e3a5f;">Justificación:</span>
+                {{ $additionJustification }}
+            </div>
+            @endif
+        </div>
+        @endif
+
         {{-- LUGAR Y FECHA --}}
         <div class="lugar-fecha">
             <span class="bold">Lugar y Fecha de Expedición:</span>
-            {{ $school->municipality ?? 'N/A' }} &nbsp;&nbsp;&nbsp; {{ $convocatoria->start_date?->format('d/m/Y') ?? now()->format('d/m/Y') }}
+            {{ $school->municipality ?? 'N/A' }} &nbsp;&nbsp;&nbsp; {{ (!empty($isAddition) && !empty($otrosiDate)) ? $otrosiDate->format('d/m/Y') : ($convocatoria->start_date?->format('d/m/Y') ?? now()->format('d/m/Y')) }}
         </div>
 
         {{-- FIRMAS --}}

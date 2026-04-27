@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ContractRp;
 use App\Models\Convocatoria;
 use App\Models\School;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -459,6 +460,13 @@ class PrecontractualPdfController extends Controller
         $cdp = $convocatoria->cdps->where('id', $cdpId)->where('status', '!=', 'cancelled')->first();
         abort_if(!$cdp, 404, 'CDP no encontrado.');
 
+        // Verificar si este CDP es de una adición de recursos
+        $additionRp = ContractRp::where('cdp_id', $cdp->id)->where('is_addition', true)->first();
+        $isAddition = (bool) $additionRp;
+        $additionJustification = $additionRp?->addition_justification;
+        $otrosiDate = $additionRp?->otrosi_date;
+        $additionContract = $additionRp?->contract;
+
         $school = School::findOrFail($schoolId);
 
         // Código de gasto desde la convocatoria
@@ -496,6 +504,10 @@ class PrecontractualPdfController extends Controller
             'cdpRows' => $cdpRows,
             'cdpNumber' => $cdp->formatted_number,
             'grandTotal' => (float) $cdp->total_amount,
+            'isAddition' => $isAddition,
+            'additionJustification' => $additionJustification,
+            'otrosiDate' => $otrosiDate,
+            'additionContract' => $additionContract,
             'user' => auth()->user(),
         ]);
 

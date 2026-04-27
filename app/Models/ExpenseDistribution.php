@@ -127,6 +127,7 @@ class ExpenseDistribution extends Model
      * - Si la convocatoria tiene contrato con pagos para esta distribución → bloqueo = lo pagado (mínimo el compromiso)
      * - Si la convocatoria tiene contrato (no anulado) → bloqueo = compromiso original
      * - Si la convocatoria NO tiene contrato → bloqueo = compromiso original (aún reservado)
+     * Además cuenta las adiciones de recursos (RPs de adición) de contratos vinculados.
      */
     public function getTotalLockedAttribute(): float
     {
@@ -135,7 +136,7 @@ class ExpenseDistribution extends Model
         // Usar relaciones cargadas si están disponibles
         $convDistributions = $this->relationLoaded('convocatoriaDistributions')
             ? $this->convocatoriaDistributions
-            : $this->convocatoriaDistributions()->with('convocatoria.contract.paymentOrders')->get();
+            : $this->convocatoriaDistributions()->with('convocatoria.contract.rps.fundingSources')->get();
 
         $paymentLines = $this->relationLoaded('paymentOrderLines')
             ? $this->paymentOrderLines
@@ -164,9 +165,26 @@ class ExpenseDistribution extends Model
                 ->filter(fn($line) => $line->paymentOrder->contract && $line->paymentOrder->contract->convocatoria_id == $cd->convocatoria_id)
                 ->sum('total');
 
-            // Bloqueo = el mayor entre lo pagado y el compromiso original
-            // (si se pagó más de lo comprometido, usar lo pagado; si no, mantener compromiso)
-            $locked += max((float) $paidForThis, (float) $cd->amount);
+            // Bloqueo base = el mayor entre lo pagado y el compromiso original
+            $baseLocked = max((float) $paidForThis, (float) $cd->amount);
+            $locked += $baseLocked;
+
+            // Sumar adiciones de recursos del contrato (RPs de adición activos)
+            // que apuntan al mismo budget_id de esta distribución
+            if ($contract && $contract->status !== 'annulled') {
+                $additionRps = $contract->rps ?? collect();
+                foreach ($additionRps as $rp) {
+                    if ($rp->status !== 'active' || !$rp->is_addition) {
+                        continue;
+                    }
+                    // Verificar que las fuentes del RP apuntan al mismo budget
+                    foreach ($rp->fundingSources ?? [] as $rpFs) {
+                        if ($rpFs->budget_id == $this->budget_id) {
+                            $locked += (float) $rpFs->amount;
+                        }
+                    }
+                }
+            }
         }
 
         return $locked;

@@ -1410,10 +1410,10 @@ class PostcontractualManagement extends Component
 
             // Si el proveedor NO factura electrónicamente, asignar número de documento soporte
             $resolvedSupplier = null;
-            if ($this->paymentType === 'contract' && $this->contractId) {
-                $resolvedSupplier = Contract::find($this->contractId)?->supplier;
-            } elseif ($this->directSupplierId) {
-                $resolvedSupplier = Supplier::find($this->directSupplierId);
+            if ($this->paymentType === 'contract' && $this->selectedContractId) {
+                $resolvedSupplier = Contract::find($this->selectedContractId)?->supplier;
+            } elseif ($this->selectedSupplierId) {
+                $resolvedSupplier = Supplier::find($this->selectedSupplierId);
             }
 
             if ($resolvedSupplier && !$resolvedSupplier->electronic_invoicing) {

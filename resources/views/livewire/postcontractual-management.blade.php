@@ -923,48 +923,51 @@
                         </div>
                     @endif
                     <div class="space-y-3">
-                        @if($isElectronic)
-                            {{-- Documentos para proveedores que facturan electrónicamente --}}
-                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                                <input type="checkbox" wire:model="printDocuments.comprobante_egreso" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                <div>
-                                    <span class="font-medium text-gray-900">Comprobante de Egreso</span>
-                                    <p class="text-xs text-gray-500 mt-0.5">Comprobante con imputación contable, retenciones, imputación presupuestal y datos bancarios.</p>
-                                </div>
-                            </label>
+                        {{-- Comprobante de Egreso (siempre) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.comprobante_egreso" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Comprobante de Egreso</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Comprobante con imputación contable, retenciones, imputación presupuestal y datos bancarios.</p>
+                            </div>
+                        </label>
 
-                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                                <input type="checkbox" wire:model="printDocuments.orden_pago" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                <div>
-                                    <span class="font-medium text-gray-900">Orden de Pago</span>
-                                    <p class="text-xs text-gray-500 mt-0.5">Resolución de pago con considerandos, rubro presupuestal, beneficiario y monto.</p>
-                                </div>
-                            </label>
+                        {{-- Orden de Pago (siempre) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.orden_pago" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Orden de Pago</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Resolución de pago con considerandos, rubro presupuestal, beneficiario y monto.</p>
+                            </div>
+                        </label>
 
-                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                                <input type="checkbox" wire:model="printDocuments.constancia_recibido" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                <div>
-                                    <span class="font-medium text-gray-900">Constancia de Recibido a Satisfacción</span>
-                                    <p class="text-xs text-gray-500 mt-0.5">Constancia del rector certificando recepción a satisfacción de bienes y/o servicios.</p>
-                                </div>
-                            </label>
+                        {{-- Constancia de Recibido (siempre) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.constancia_recibido" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Constancia de Recibido a Satisfacción</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Constancia del rector certificando recepción a satisfacción de bienes y/o servicios.</p>
+                            </div>
+                        </label>
 
-                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                                <input type="checkbox" wire:model="printDocuments.certificado_retenciones" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                <div>
-                                    <span class="font-medium text-gray-900">Certificado de Retenciones</span>
-                                    <p class="text-xs text-gray-500 mt-0.5">Resumen de retenciones de renta y de IVA practicadas en el pago.</p>
-                                </div>
-                            </label>
-                        @else
-                            {{-- Solo documento soporte para proveedores que NO facturan electrónicamente --}}
-                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                                <input type="checkbox" wire:model="printDocuments.documento_soporte" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                <div>
-                                    <span class="font-medium text-gray-900">Documento Soporte</span>
-                                    <p class="text-xs text-gray-500 mt-0.5">Documento soporte para no obligados a facturar electrónicamente. Incluye resolución DIAN y numeración consecutiva.</p>
-                                </div>
-                            </label>
+                        {{-- Certificado de Retenciones (siempre) --}}
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.certificado_retenciones" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Certificado de Retenciones</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Resumen de retenciones de renta y de IVA practicadas en el pago.</p>
+                            </div>
+                        </label>
+
+                        {{-- Documento Soporte (solo si NO factura electrónicamente) --}}
+                        @if(!$isElectronic)
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-yellow-300 bg-yellow-50/50 hover:border-yellow-400 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.documento_soporte" class="mt-0.5 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Documento Soporte</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Documento soporte para no obligados a facturar electrónicamente. Incluye resolución DIAN y numeración consecutiva.</p>
+                            </div>
+                        </label>
                         @endif
                     </div>
                 </div>

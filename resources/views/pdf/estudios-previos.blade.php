@@ -201,7 +201,7 @@
 
                 {{-- Forma de pago --}}
                 <p style="margin-top: 10px;">
-                    <span class="bold">{{ $contract?->payment_method_name ?? 'UN (1) PAGO' }}</span>
+                    <span class="bold">Forma de pago:</span> A convenir.
                 </p>
             </div>
         </div>

@@ -218,7 +218,7 @@
                         <td class="bold" style="width: 10%;">DÍA:</td>
                         <td style="width: 40%;">{{ $convocatoria->evaluation_date?->format('d/m/Y') ?? '' }}</td>
                         <td class="bold" style="width: 10%;">HORA:</td>
-                        <td style="width: 40%;">1:00:00 p. m.</td>
+                        <td style="width: 40%;">{{ $convocatoria->evaluation_date?->format('h:i:s a') ?? '' }}</td>
                     </tr>
                 </tbody>
             </table>

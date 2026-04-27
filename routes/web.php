@@ -240,6 +240,15 @@ Route::get('dashboard', App\Livewire\Dashboard::class)
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');
 
+// Noticias
+Route::get('noticias', App\Livewire\NewsViewer::class)
+    ->middleware(['auth', 'verified', 'can:news.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('news.index');
+
+Route::get('noticias/gestionar', App\Livewire\NewsManagement::class)
+    ->middleware(['auth', 'verified', 'can:news.create'])
+    ->name('news.manage');
+
 Route::view('profile', 'profile')
     ->middleware(['auth'])
     ->name('profile');

@@ -109,7 +109,7 @@
             <div style="text-align: center; margin-top: 25px;">
                 <div class="sig-line" style="margin: 0 auto;">
                     <div class="sig-name">{{ $contract->supervisor ? strtoupper(trim($contract->supervisor->name . ' ' . $contract->supervisor->surname)) : $school->rector_display_name }}</div>
-                    <div class="sig-role">SUPERVISOR:</div>
+                    <div class="sig-role">{{ $contract->supervisor?->job_title ?? 'SUPERVISOR' }}:</div>
                     <div class="sig-detail">{{ $contract->supervisor?->identification_number ?? $school->rector_display_document ?? '' }}</div>
                 </div>
             </div>

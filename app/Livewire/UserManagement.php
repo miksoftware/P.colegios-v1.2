@@ -19,6 +19,7 @@ class UserManagement extends Component
     // Form fields
     public $name = '';
     public $surname = '';
+    public $job_title = '';
     public $identification_type = '';
     public $identification_number = '';
     public $email = '';
@@ -63,7 +64,7 @@ class UserManagement extends Component
         }
         
         $this->resetValidation();
-        $this->reset(['name', 'surname', 'identification_type', 'identification_number', 'email', 'password', 'role', 'userId', 'isEditing']);
+        $this->reset(['name', 'surname', 'job_title', 'identification_type', 'identification_number', 'email', 'password', 'role', 'userId', 'isEditing']);
         $this->showModal = true;
     }
 
@@ -95,6 +96,7 @@ class UserManagement extends Component
         $this->userId = $user->id;
         $this->name = $user->name;
         $this->surname = $user->surname;
+        $this->job_title = $user->job_title ?? '';
         $this->identification_type = $user->identification_type;
         $this->identification_number = $user->identification_number;
         $this->email = $user->email;
@@ -116,6 +118,7 @@ class UserManagement extends Component
         $rules = [
             'name' => 'required|string|max:255',
             'surname' => 'required|string|max:255',
+            'job_title' => 'nullable|string|max:255',
             'identification_type' => 'required|string',
             'identification_number' => 'required|string|max:50',
             'email' => ['required', 'email', Rule::unique('users')->ignore($this->userId)],
@@ -135,6 +138,7 @@ class UserManagement extends Component
             $updateData = [
                 'name' => $this->name,
                 'surname' => $this->surname,
+                'job_title' => $this->job_title ?: null,
                 'identification_type' => $this->identification_type,
                 'identification_number' => $this->identification_number,
                 'email' => $this->email,
@@ -157,6 +161,7 @@ class UserManagement extends Component
             $user = User::create([
                 'name' => $this->name,
                 'surname' => $this->surname,
+                'job_title' => $this->job_title ?: null,
                 'identification_type' => $this->identification_type,
                 'identification_number' => $this->identification_number,
                 'email' => $this->email,

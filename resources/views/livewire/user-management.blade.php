@@ -170,6 +170,12 @@
                         </div>
 
                         <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
+                            <input type="text" wire:model="job_title" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Ej: Rector, Auxiliar Administrativo...">
+                            @error('job_title') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">
                                 Contraseña {{ $isEditing ? '(Dejar en blanco para mantener)' : '' }}
                             </label>

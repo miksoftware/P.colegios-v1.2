@@ -966,8 +966,9 @@ class PrecontractualManagement extends Component
             'is_selected' => (bool) $p->is_selected,
         ])->toArray();
 
-        // Pre-llenar con fecha y hora actual
-        $this->evaluationDate = now()->format('Y-m-d');
+        // Pre-llenar con fecha y hora actual (o fecha de cierre si es posterior a hoy)
+        $minDate = $this->convocatoria->end_date?->format('Y-m-d') ?? now()->format('Y-m-d');
+        $this->evaluationDate = now()->format('Y-m-d') >= $minDate ? now()->format('Y-m-d') : $minDate;
         $this->evaluationTime = now()->format('H:i');
 
         $this->showEvaluateModal = true;

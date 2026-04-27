@@ -66,7 +66,7 @@
             </div>
             <div class="date-cell date-number">
                 <span class="bold">No.</span>
-                <span class="number-value">{{ $po->invoice_number ?? $po->formatted_number }}</span>
+                <span class="number-value">{{ $po->document_support_number ?? $po->invoice_number ?? $po->formatted_number }}</span>
             </div>
         </div>
 

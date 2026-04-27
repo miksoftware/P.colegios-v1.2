@@ -28,11 +28,13 @@ class Supplier extends Model
         'phone',
         'email',
         'is_active',
+        'electronic_invoicing',
         'notes',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'electronic_invoicing' => 'boolean',
     ];
 
     /**

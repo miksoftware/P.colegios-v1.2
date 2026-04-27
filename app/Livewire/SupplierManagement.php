@@ -45,6 +45,7 @@ class SupplierManagement extends Component
     public $email = '';
     public $bank_accounts = [];
     public $is_active = true;
+    public $electronic_invoicing = true;
     public $notes = '';
 
     // Colecciones para selects
@@ -91,6 +92,7 @@ class SupplierManagement extends Component
             'bank_accounts.*.account_type' => 'required|in:ahorros,corriente',
             'bank_accounts.*.account_number' => 'required|string|max:30',
             'is_active' => 'boolean',
+            'electronic_invoicing' => 'boolean',
             'notes' => 'nullable|string',
         ];
     }
@@ -236,6 +238,7 @@ class SupplierManagement extends Component
             'account_number' => $ba->account_number,
         ])->toArray();
         $this->is_active = $supplier->is_active;
+        $this->electronic_invoicing = $supplier->electronic_invoicing;
         $this->notes = $supplier->notes;
 
         $this->isEditing = true;
@@ -274,6 +277,7 @@ class SupplierManagement extends Component
             'phone' => $this->phone,
             'email' => $this->email ? strtolower($this->email) : null,
             'is_active' => $this->is_active,
+            'electronic_invoicing' => $this->electronic_invoicing,
             'notes' => $this->notes,
         ];
 
@@ -395,6 +399,7 @@ class SupplierManagement extends Component
         $this->email = '';
         $this->bank_accounts = [];
         $this->is_active = true;
+        $this->electronic_invoicing = true;
         $this->notes = '';
         $this->isEditing = false;
         $this->resetValidation();

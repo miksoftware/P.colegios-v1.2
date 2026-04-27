@@ -898,6 +898,10 @@
 
     {{-- Modal Imprimir Documentos --}}
     @if($showPrintModal)
+    @php
+        $poSupplier = $paymentOrder?->contract?->supplier ?? $paymentOrder?->supplier;
+        $isElectronic = $poSupplier?->electronic_invoicing ?? true;
+    @endphp
     <div class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
             <div class="fixed inset-0 bg-gray-500/75" wire:click="closePrintModal"></div>
@@ -910,50 +914,58 @@
                     <p class="text-sm text-gray-300 mt-1">Seleccione los documentos que desea generar en PDF</p>
                 </div>
                 <div class="p-6">
+                    @if(!$isElectronic)
+                        <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-800">
+                            <span class="font-medium">Proveedor no factura electrónicamente.</span>
+                            @if($paymentOrder?->document_support_number)
+                                Documento soporte No. {{ $paymentOrder->document_support_number }}
+                            @endif
+                        </div>
+                    @endif
                     <div class="space-y-3">
-                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                            <input type="checkbox" wire:model="printDocuments.comprobante_egreso" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                            <div>
-                                <span class="font-medium text-gray-900">Comprobante de Egreso</span>
-                                <p class="text-xs text-gray-500 mt-0.5">Comprobante con imputación contable, retenciones, imputación presupuestal y datos bancarios.</p>
-                            </div>
-                        </label>
+                        @if($isElectronic)
+                            {{-- Documentos para proveedores que facturan electrónicamente --}}
+                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                                <input type="checkbox" wire:model="printDocuments.comprobante_egreso" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="font-medium text-gray-900">Comprobante de Egreso</span>
+                                    <p class="text-xs text-gray-500 mt-0.5">Comprobante con imputación contable, retenciones, imputación presupuestal y datos bancarios.</p>
+                                </div>
+                            </label>
 
-                        {{-- Orden de Pago --}}
-                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                            <input type="checkbox" wire:model="printDocuments.orden_pago" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                            <div>
-                                <span class="font-medium text-gray-900">Orden de Pago</span>
-                                <p class="text-xs text-gray-500 mt-0.5">Resolución de pago con considerandos, rubro presupuestal, beneficiario y monto.</p>
-                            </div>
-                        </label>
+                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                                <input type="checkbox" wire:model="printDocuments.orden_pago" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="font-medium text-gray-900">Orden de Pago</span>
+                                    <p class="text-xs text-gray-500 mt-0.5">Resolución de pago con considerandos, rubro presupuestal, beneficiario y monto.</p>
+                                </div>
+                            </label>
 
-                        {{-- Constancia de Recibido a Satisfacción --}}
-                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                            <input type="checkbox" wire:model="printDocuments.constancia_recibido" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                            <div>
-                                <span class="font-medium text-gray-900">Constancia de Recibido a Satisfacción</span>
-                                <p class="text-xs text-gray-500 mt-0.5">Constancia del rector certificando recepción a satisfacción de bienes y/o servicios.</p>
-                            </div>
-                        </label>
+                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                                <input type="checkbox" wire:model="printDocuments.constancia_recibido" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="font-medium text-gray-900">Constancia de Recibido a Satisfacción</span>
+                                    <p class="text-xs text-gray-500 mt-0.5">Constancia del rector certificando recepción a satisfacción de bienes y/o servicios.</p>
+                                </div>
+                            </label>
 
-                        {{-- Certificado de Retenciones --}}
-                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                            <input type="checkbox" wire:model="printDocuments.certificado_retenciones" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                            <div>
-                                <span class="font-medium text-gray-900">Certificado de Retenciones</span>
-                                <p class="text-xs text-gray-500 mt-0.5">Resumen de retenciones de renta y de IVA practicadas en el pago.</p>
-                            </div>
-                        </label>
-
-                        {{-- Documento Soporte --}}
-                        <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
-                            <input type="checkbox" wire:model="printDocuments.documento_soporte" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                            <div>
-                                <span class="font-medium text-gray-900">Documento Soporte (No obligados a facturar)</span>
-                                <p class="text-xs text-gray-500 mt-0.5">Para proveedores que no facturan electrónicamente. Incluye resolución DIAN, datos del proveedor, objeto y valor.</p>
-                            </div>
-                        </label>
+                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                                <input type="checkbox" wire:model="printDocuments.certificado_retenciones" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="font-medium text-gray-900">Certificado de Retenciones</span>
+                                    <p class="text-xs text-gray-500 mt-0.5">Resumen de retenciones de renta y de IVA practicadas en el pago.</p>
+                                </div>
+                            </label>
+                        @else
+                            {{-- Solo documento soporte para proveedores que NO facturan electrónicamente --}}
+                            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
+                                <input type="checkbox" wire:model="printDocuments.documento_soporte" class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="font-medium text-gray-900">Documento Soporte</span>
+                                    <p class="text-xs text-gray-500 mt-0.5">Documento soporte para no obligados a facturar electrónicamente. Incluye resolución DIAN y numeración consecutiva.</p>
+                                </div>
+                            </label>
+                        @endif
                     </div>
                 </div>
                 <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">

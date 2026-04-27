@@ -23,6 +23,7 @@ class PaymentOrder extends Model
         'payment_number',
         'fiscal_year',
         'invoice_number',
+        'document_support_number',
         'invoice_date',
         'payment_date',
         'is_full_payment',
@@ -292,6 +293,37 @@ class PaymentOrder extends Model
         $next = ($max ?? 0) + 1;
 
         return 'FAC-' . str_pad($next, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Obtiene el siguiente número de documento soporte basado en el rango DIAN del colegio.
+     * El rango viene como "617-700", se toma el inicio y se busca el máximo usado.
+     */
+    public static function getNextDocumentSupportNumber(int $schoolId): int
+    {
+        $school = \App\Models\School::find($schoolId);
+        $range = $school?->dian_range_1 ?? '617-700';
+
+        // Parsear rango: "617-700" → inicio=617, fin=700
+        $parts = explode('-', $range);
+        $rangeStart = (int) trim($parts[0] ?? 617);
+        $rangeEnd = (int) trim($parts[1] ?? 700);
+
+        // Buscar el máximo número de documento soporte usado para este colegio
+        $maxUsed = static::where('school_id', $schoolId)
+            ->whereNotNull('document_support_number')
+            ->get()
+            ->map(fn($po) => (int) $po->document_support_number)
+            ->max();
+
+        $next = $maxUsed ? $maxUsed + 1 : $rangeStart;
+
+        // Validar que no exceda el rango
+        if ($next > $rangeEnd) {
+            return $next; // Se permite pero se podría alertar
+        }
+
+        return $next;
     }
 
     /**

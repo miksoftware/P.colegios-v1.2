@@ -1277,6 +1277,7 @@ class PostcontractualManagement extends Component
                 'payment_number'             => PaymentOrder::getNextPaymentNumber($this->schoolId, $year),
                 'fiscal_year'                => $year,
                 'invoice_number'             => $this->invoiceNumber,
+                'document_support_number'    => null,
                 'invoice_date'               => $this->invoiceDate,
                 'payment_date'               => $this->paymentDate,
                 'is_full_payment'            => $this->paymentType === 'direct' ? true : $this->isFullPayment,
@@ -1385,6 +1386,19 @@ class PostcontractualManagement extends Component
             }
 
             $paymentOrder = PaymentOrder::create($paymentData);
+
+            // Si el proveedor NO factura electrónicamente, asignar número de documento soporte
+            $resolvedSupplier = null;
+            if ($this->paymentType === 'contract' && $this->contractId) {
+                $resolvedSupplier = Contract::find($this->contractId)?->supplier;
+            } elseif ($this->directSupplierId) {
+                $resolvedSupplier = Supplier::find($this->directSupplierId);
+            }
+
+            if ($resolvedSupplier && !$resolvedSupplier->electronic_invoicing) {
+                $docSupportNumber = PaymentOrder::getNextDocumentSupportNumber($this->schoolId);
+                $paymentOrder->update(['document_support_number' => (string) $docSupportNumber]);
+            }
 
             // Guardar snapshot de cuenta bancaria seleccionada
             if ($this->selectedBankAccountId) {

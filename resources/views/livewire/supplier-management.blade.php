@@ -538,7 +538,7 @@
                                     placeholder="Observaciones adicionales..."
                                 ></textarea>
                             </div>
-                            <div class="flex items-start pt-6">
+                            <div class="flex items-start pt-6 gap-6">
                                 <label class="flex items-center gap-3 cursor-pointer">
                                     <input 
                                         type="checkbox" 
@@ -548,6 +548,17 @@
                                     <div>
                                         <span class="text-sm font-medium text-gray-900">Proveedor activo</span>
                                         <p class="text-xs text-gray-500">Los proveedores inactivos no aparecen en selecciones</p>
+                                    </div>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        wire:model="electronic_invoicing"
+                                        class="w-5 h-5 rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                    >
+                                    <div>
+                                        <span class="text-sm font-medium text-gray-900">Factura electrónicamente</span>
+                                        <p class="text-xs text-gray-500">Si no factura, se genera documento soporte con numeración DIAN</p>
                                     </div>
                                 </label>
                             </div>

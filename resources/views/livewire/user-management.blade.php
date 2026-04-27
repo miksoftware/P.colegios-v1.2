@@ -23,18 +23,18 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             @foreach($users as $user)
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow p-6 relative group">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center text-white font-bold text-xl shadow-md">
+                    <div class="flex justify-between items-start gap-2 mb-4">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center text-white font-bold text-xl shadow-md flex-shrink-0">
                                 {{ substr($user->name, 0, 1) }}
                             </div>
-                            <div>
-                                <h3 class="text-lg font-bold text-gray-900 leading-tight">{{ $user->name }} {{ $user->surname }}</h3>
-                                <p class="text-sm text-gray-500">{{ $user->email }}</p>
+                            <div class="min-w-0">
+                                <h3 class="text-lg font-bold text-gray-900 leading-tight truncate">{{ $user->name }} {{ $user->surname }}</h3>
+                                <p class="text-sm text-gray-500 truncate">{{ $user->email }}</p>
                             </div>
                         </div>
                         
-                        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div class="flex gap-1 flex-shrink-0">
                             @can('users.edit')
                             <button 
                                 wire:click="editUser({{ $user->id }})"

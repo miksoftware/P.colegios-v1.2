@@ -624,10 +624,11 @@ class PostcontractualManagement extends Component
                 'document'       => $supplier->full_document,
                 'address'        => $supplier->address ?? 'No registrada',
                 'municipality'   => $supplier->municipality?->name ?? 'No registrado',
-                'phone'          => $supplier->phone ?? $supplier->mobile ?? 'No registrado',
+                'phone'          => $supplier->phone ?? 'No registrado',
                 'tax_regime'     => $supplier->tax_regime ?? '',
                 'tax_regime_name'=> $supplier->tax_regime ? (Supplier::TAX_REGIMES[$supplier->tax_regime] ?? $supplier->tax_regime) : 'No registrado',
                 'person_type'    => $supplier->person_type ?? '',
+                'electronic_invoicing' => $supplier->electronic_invoicing,
             ];
 
             // Cargar cuentas bancarias del proveedor
@@ -1172,23 +1173,30 @@ class PostcontractualManagement extends Component
             return;
         }
 
+        // Determinar si el proveedor factura electrónicamente
+        $supplierInvoices = $this->supplierData['electronic_invoicing'] ?? true;
+
         // Validación base
         $rules = [
             'paymentDate'  => 'required|date',
-            'invoiceDate'  => 'required|date',
-            'invoiceNumber'=> 'required|string|max:100',
             'paySubtotal'  => 'required|numeric|min:0.01',
             'payIva'       => 'nullable|numeric|min:0',
             'payTotal'     => 'required|numeric|min:0.01',
         ];
         $messages = [
             'paymentDate.required'  => 'La fecha de pago es obligatoria.',
-            'invoiceDate.required'  => 'La fecha de la factura es obligatoria.',
-            'invoiceNumber.required'=> 'El número de factura es obligatorio.',
             'paySubtotal.required'  => 'El subtotal es obligatorio.',
             'paySubtotal.min'       => 'El subtotal debe ser mayor a 0.',
             'payTotal.required'     => 'El total es obligatorio.',
         ];
+
+        // Solo requerir factura si el proveedor factura electrónicamente
+        if ($supplierInvoices) {
+            $rules['invoiceDate'] = 'required|date';
+            $rules['invoiceNumber'] = 'required|string|max:100';
+            $messages['invoiceDate.required'] = 'La fecha de la factura es obligatoria.';
+            $messages['invoiceNumber.required'] = 'El número de factura es obligatorio.';
+        }
 
         if ($this->paymentType === 'contract') {
             $rules['selectedContractId'] = 'required|exists:contracts,id';

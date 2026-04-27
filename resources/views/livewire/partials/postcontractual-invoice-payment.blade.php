@@ -1,10 +1,29 @@
 {{-- Datos de Factura y Pago (compartido) --}}
+@php
+    $supplierInvoices = $supplierData['electronic_invoicing'] ?? true;
+@endphp
 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
         <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
-        Datos de Factura y Pago
+        {{ $supplierInvoices ? 'Datos de Factura y Pago' : 'Datos de Pago' }}
     </h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+
+    @if(!$supplierInvoices)
+        @php
+            $nextDocSupport = \App\Models\PaymentOrder::getNextDocumentSupportNumber(session('selected_school_id'));
+            $school = \App\Models\School::find(session('selected_school_id'));
+            $dianRange = $school?->dian_range_1 ?? 'N/A';
+        @endphp
+        <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-800 flex items-center gap-2">
+            <svg class="w-5 h-5 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>
+                <span>Este proveedor <span class="font-medium">no factura electrónicamente</span>. Se generará documento soporte.</span>
+                <p class="mt-1">Número de documento soporte: <span class="font-bold text-yellow-900">{{ $nextDocSupport }}</span> <span class="text-xs">(Rango DIAN: {{ $dianRange }})</span></p>
+            </div>
+        </div>
+    @endif
+
+    <div class="grid grid-cols-1 md:grid-cols-{{ $supplierInvoices ? '3' : '1' }} gap-4 mb-4">
         <div x-data="{
             init() {
                 flatpickr(this.$refs.paymentDateInput, {
@@ -19,6 +38,7 @@
             <input type="text" x-ref="paymentDateInput" value="{{ $paymentDate }}" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500 bg-white" placeholder="Seleccionar fecha..." readonly>
             @error('paymentDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
         </div>
+        @if($supplierInvoices)
         <div x-data="{
             init() {
                 flatpickr(this.$refs.invoiceDateInput, {
@@ -38,6 +58,7 @@
             <input type="text" wire:model="invoiceNumber" class="w-full rounded-xl border-gray-300 text-sm focus:border-emerald-500 focus:ring-emerald-500">
             @error('invoiceNumber') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
         </div>
+        @endif
     </div>
 
     @if($showFullPaymentToggle ?? false)

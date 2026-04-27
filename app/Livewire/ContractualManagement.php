@@ -1115,26 +1115,25 @@ class ContractualManagement extends Component
 
         DB::beginTransaction();
         try {
-            // Crear CDP de adición
+            // Crear CDP de adición — el CDP certifica la disponibilidad total del gasto
             $cdp = Cdp::create([
                 'school_id' => $this->schoolId,
                 'convocatoria_id' => $contract->convocatoria_id,
                 'cdp_number' => Cdp::getNextCdpNumber($this->schoolId, $year),
                 'fiscal_year' => $year,
                 'budget_item_id' => $this->additionCdpBudgetItemId,
-                'total_amount' => $totalAddition,
+                'total_amount' => $expenseAvailable,
                 'status' => 'used',
                 'created_by' => auth()->id(),
             ]);
 
             foreach ($this->additionCdpFundingSources as $fs) {
-                $source = FundingSource::find($fs['id']);
                 CdpFundingSource::create([
                     'cdp_id' => $cdp->id,
                     'funding_source_id' => $fs['id'],
                     'budget_id' => $fs['budget_id'],
                     'amount' => (float) $fs['amount'],
-                    'available_balance_at_creation' => $source ? $source->getAvailableBalanceForYear($year, $this->schoolId) : 0,
+                    'available_balance_at_creation' => $expenseAvailable,
                 ]);
             }
 

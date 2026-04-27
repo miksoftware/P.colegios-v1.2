@@ -22,18 +22,18 @@ class PostcontractualPdfController extends Controller
         $po = PaymentOrder::forSchool($schoolId)
             ->with([
                 'contract.supplier',
-                'contract.convocatoria.distributionDetails.expenseDistribution.expenseCode',
-                'contract.rps.cdp.budgetItem.accountingAccount.parent.parent.parent.parent',
+                'contract.convocatoria.distributionDetails.expenseDistribution.expenseCode.accountingAccount.parent.parent.parent.parent',
+                'contract.rps.cdp.budgetItem',
                 'contract.rps.fundingSources.fundingSource',
                 'contract.rps.fundingSources.bank',
                 'contract.rps.fundingSources.bankAccount',
                 'supplier',
-                'cdp.budgetItem.accountingAccount.parent.parent.parent.parent',
+                'cdp.budgetItem',
                 'contractRp.fundingSources.fundingSource',
                 'contractRp.fundingSources.bank',
                 'contractRp.fundingSources.bankAccount',
-                'budgetItem.accountingAccount.parent.parent.parent.parent',
-                'expenseLines.expenseCode',
+                'budgetItem',
+                'expenseLines.expenseCode.accountingAccount.parent.parent.parent.parent',
                 'creator',
             ])
             ->findOrFail($paymentOrderId);
@@ -45,18 +45,45 @@ class PostcontractualPdfController extends Controller
         $netPayment = (float) $po->net_payment;
         $amountInWords = PrecontractualPdfController::amountToWords($netPayment);
 
-        // Imputación contable - Débito (cuenta de gasto del rubro)
+        // Imputación contable - Débito (cuenta contable del código de gasto)
         $debitEntries = [];
         if ($po->payment_type === 'contract' && $po->contract) {
-            foreach ($po->contract->rps->where('status', 'active') as $rp) {
-                $account = $rp->cdp?->budgetItem?->accountingAccount;
-                if ($account) {
-                    $debitEntries[] = [
-                        'hierarchy' => $this->buildAccountHierarchy($account),
-                        'amount' => (float) $po->total,
-                    ];
-                    break; // Solo necesitamos una entrada de débito
+            // Buscar cuenta contable desde el ExpenseCode de la convocatoria
+            $account = null;
+            if ($po->contract->convocatoria) {
+                foreach ($po->contract->convocatoria->distributionDetails as $dd) {
+                    $ec = $dd->expenseDistribution?->expenseCode;
+                    if ($ec && $ec->accountingAccount) {
+                        $account = $ec->accountingAccount;
+                        break;
+                    }
                 }
+            }
+            // Fallback: cuenta del rubro presupuestal del CDP
+            if (!$account) {
+                foreach ($po->contract->rps->where('status', 'active') as $rp) {
+                    $acct = $rp->cdp?->budgetItem?->accountingAccount;
+                    if ($acct) {
+                        $account = $acct;
+                        break;
+                    }
+                }
+            }
+            if ($account) {
+                $debitEntries[] = [
+                    'hierarchy' => $this->buildAccountHierarchy($account),
+                    'amount' => (float) $po->total,
+                ];
+            }
+        } elseif ($po->expenseLines->isNotEmpty()) {
+            // Buscar desde las líneas de gasto de la orden de pago
+            $ec = $po->expenseLines->first()?->expenseCode;
+            $account = $ec?->accountingAccount;
+            if ($account) {
+                $debitEntries[] = [
+                    'hierarchy' => $this->buildAccountHierarchy($account),
+                    'amount' => (float) $po->total,
+                ];
             }
         } elseif ($po->budgetItem?->accountingAccount) {
             $debitEntries[] = [

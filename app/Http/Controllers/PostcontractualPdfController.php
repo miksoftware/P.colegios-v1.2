@@ -391,6 +391,136 @@ class PostcontractualPdfController extends Controller
         return $pdf->stream("documento-soporte-{$po->formatted_number}.pdf");
     }
 
+    /**
+     * Generar PDF de Certificado de Disponibilidad Presupuestal para pagos directos
+     */
+    public function certificadoCdp(Request $request, int $paymentOrderId)
+    {
+        $schoolId = (int) session('selected_school_id');
+        abort_if(!$schoolId, 403);
+        abort_if(!auth()->user()->can('postcontractual.view'), 403);
+
+        $po = PaymentOrder::forSchool($schoolId)
+            ->with([
+                'cdp.budgetItem',
+                'cdp.fundingSources.fundingSource',
+                'supplier',
+            ])
+            ->findOrFail($paymentOrderId);
+
+        abort_if(!$po->cdp_id, 404, 'Esta orden de pago no tiene CDP asociado.');
+
+        $cdp = $po->cdp;
+        $school = School::findOrFail($schoolId);
+
+        $expenseCode = $po->budgetItem?->code ?? $cdp->budgetItem?->code ?? '';
+        $expenseName = $po->description ?? $cdp->budgetItem?->name ?? '';
+
+        $sources = [];
+        foreach ($cdp->fundingSources as $cdpFs) {
+            $sources[] = [
+                'name' => $cdpFs->fundingSource?->name ?? '',
+                'amount' => (float) $cdpFs->amount,
+            ];
+        }
+
+        $cdpRows = [[
+            'cdp_number' => $cdp->formatted_number,
+            'budget_item_code' => $expenseCode,
+            'budget_item_name' => $expenseName,
+            'sources' => $sources,
+            'total_amount' => (float) $cdp->total_amount,
+        ]];
+
+        // Crear un objeto convocatoria ficticio con los datos necesarios para la vista
+        $convocatoriaData = new \stdClass();
+        $convocatoriaData->object = $po->description ?? 'Pago directo';
+        $convocatoriaData->start_date = $po->payment_date;
+        $convocatoriaData->formatted_number = 'PD-' . $po->formatted_number;
+
+        $pdf = Pdf::loadView('pdf.certificado-disponibilidad', [
+            'convocatoria' => $convocatoriaData,
+            'school' => $school,
+            'cdpRows' => $cdpRows,
+            'cdpNumber' => $cdp->formatted_number,
+            'grandTotal' => (float) $cdp->total_amount,
+            'isAddition' => false,
+            'additionJustification' => null,
+            'otrosiDate' => null,
+            'additionContract' => null,
+            'user' => auth()->user(),
+        ]);
+
+        $pdf->setPaper('letter');
+        return $pdf->stream("certificado-cdp-{$cdp->formatted_number}.pdf");
+    }
+
+    /**
+     * Generar PDF de Certificado de Registro Presupuestal para pagos directos
+     */
+    public function certificadoRp(Request $request, int $paymentOrderId)
+    {
+        $schoolId = (int) session('selected_school_id');
+        abort_if(!$schoolId, 403);
+        abort_if(!auth()->user()->can('postcontractual.view'), 403);
+
+        $po = PaymentOrder::forSchool($schoolId)
+            ->with([
+                'contractRp.cdp.budgetItem',
+                'contractRp.fundingSources.fundingSource',
+                'supplier',
+            ])
+            ->findOrFail($paymentOrderId);
+
+        abort_if(!$po->contract_rp_id, 404, 'Esta orden de pago no tiene RP asociado.');
+
+        $rp = $po->contractRp;
+        $school = School::findOrFail($schoolId);
+        $supplier = $po->supplier ?? $po->resolved_supplier;
+
+        $expenseCode = $po->budgetItem?->code ?? $rp->cdp?->budgetItem?->code ?? '';
+        $expenseName = $po->description ?? $rp->cdp?->budgetItem?->name ?? '';
+
+        $sources = [];
+        foreach ($rp->fundingSources as $rpFs) {
+            $sources[] = [
+                'name' => $rpFs->fundingSource?->name ?? '',
+                'amount' => (float) $rpFs->amount,
+            ];
+        }
+
+        $rpRows = [[
+            'cdp_number' => $rp->cdp?->formatted_number ?? '',
+            'expense_code' => $expenseCode,
+            'expense_name' => $expenseName,
+            'sources' => $sources,
+            'total_amount' => (float) $rp->total_amount,
+        ]];
+
+        // Crear un objeto contrato ficticio con los datos necesarios
+        $contractData = new \stdClass();
+        $contractData->formatted_number = 'PD-' . $po->formatted_number;
+        $contractData->fiscal_year = $po->fiscal_year;
+        $contractData->object = $po->description ?? 'Pago directo';
+        $contractData->start_date = $po->payment_date;
+
+        $pdf = Pdf::loadView('pdf.certificado-registro-presupuestal', [
+            'contract' => $contractData,
+            'school' => $school,
+            'supplier' => $supplier,
+            'rpNumber' => $rp->formatted_number,
+            'rpRows' => $rpRows,
+            'grandTotal' => (float) $rp->total_amount,
+            'isAddition' => false,
+            'additionJustification' => null,
+            'otrosiDate' => null,
+            'user' => auth()->user(),
+        ]);
+
+        $pdf->setPaper('letter');
+        return $pdf->stream("certificado-rp-{$rp->formatted_number}.pdf");
+    }
+
     private function buildAccountHierarchy(?AccountingAccount $account): array
     {
         if (!$account) return [];

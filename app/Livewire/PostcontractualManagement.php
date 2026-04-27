@@ -1627,6 +1627,8 @@ class PostcontractualManagement extends Component
             'constancia_recibido' => false,
             'certificado_retenciones' => false,
             'documento_soporte' => false,
+            'certificado_cdp' => false,
+            'certificado_rp' => false,
         ];
         $this->showPrintModal = true;
     }
@@ -1663,6 +1665,14 @@ class PostcontractualManagement extends Component
 
         if (!empty($selected['documento_soporte'])) {
             $this->dispatch('openPdfWindow', url: route('postcontractual.documento-soporte.pdf', $this->paymentOrderId));
+        }
+
+        if (!empty($selected['certificado_cdp'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.certificado-cdp.pdf', $this->paymentOrderId));
+        }
+
+        if (!empty($selected['certificado_rp'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.certificado-rp.pdf', $this->paymentOrderId));
         }
 
         $this->closePrintModal();

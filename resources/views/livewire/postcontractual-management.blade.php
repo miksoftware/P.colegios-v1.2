@@ -969,6 +969,31 @@
                             </div>
                         </label>
                         @endif
+
+                        {{-- CDP y RP (solo para pagos directos que crearon CDP/RP) --}}
+                        @if($paymentOrder && $paymentOrder->cdp_id && !$paymentOrder->contract_id)
+                        <div class="border-t pt-3 mt-3">
+                            <p class="text-xs font-medium text-gray-500 uppercase mb-2">Documentos Presupuestales</p>
+                            <div class="space-y-3">
+                                <label class="flex items-start gap-3 p-3 rounded-xl border border-purple-200 bg-purple-50/50 hover:border-purple-300 cursor-pointer transition-colors">
+                                    <input type="checkbox" wire:model="printDocuments.certificado_cdp" class="mt-0.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                                    <div>
+                                        <span class="font-medium text-gray-900">Certificado de Disponibilidad Presupuestal (CDP)</span>
+                                        <p class="text-xs text-gray-500 mt-0.5">CDP No. {{ $paymentOrder->cdp?->formatted_number ?? '' }}</p>
+                                    </div>
+                                </label>
+                                @if($paymentOrder->contract_rp_id)
+                                <label class="flex items-start gap-3 p-3 rounded-xl border border-purple-200 bg-purple-50/50 hover:border-purple-300 cursor-pointer transition-colors">
+                                    <input type="checkbox" wire:model="printDocuments.certificado_rp" class="mt-0.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                                    <div>
+                                        <span class="font-medium text-gray-900">Certificado de Registro Presupuestal (RP)</span>
+                                        <p class="text-xs text-gray-500 mt-0.5">RP No. {{ $paymentOrder->contractRp?->formatted_number ?? '' }}</p>
+                                    </div>
+                                </label>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
                     </div>
                 </div>
                 <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">

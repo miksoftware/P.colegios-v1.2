@@ -21,6 +21,7 @@ class ExpenseCodeManagement extends Component
     public $sifse_code = '';
     public $code = '';
     public $name = '';
+    public $accounting_account_id = '';
     public $is_active = true;
 
     public $showDeleteModal = false;
@@ -41,6 +42,7 @@ class ExpenseCodeManagement extends Component
             'sifse_code' => ['required', 'string', 'max:10', $uniqueRule],
             'code' => 'required|string|max:50',
             'name' => 'required|string|max:500',
+            'accounting_account_id' => 'nullable|exists:accounting_accounts,id',
             'is_active' => 'boolean',
         ];
     }
@@ -72,7 +74,7 @@ class ExpenseCodeManagement extends Component
 
     public function getExpenseCodesProperty()
     {
-        $query = ExpenseCode::query();
+        $query = ExpenseCode::with('accountingAccount');
 
         if ($this->search) {
             $query->search($this->search);
@@ -91,6 +93,16 @@ class ExpenseCodeManagement extends Component
             'total' => ExpenseCode::count(),
             'active' => ExpenseCode::active()->count(),
         ];
+    }
+
+    public function getAccountingAccountsProperty()
+    {
+        return \App\Models\AccountingAccount::where('allows_movement', true)
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get()
+            ->map(fn($a) => ['id' => $a->id, 'name' => $a->code . ' - ' . $a->name])
+            ->toArray();
     }
 
     public function openCreateModal()
@@ -115,6 +127,7 @@ class ExpenseCodeManagement extends Component
         $this->sifse_code = $expenseCode->sifse_code;
         $this->code = $expenseCode->code;
         $this->name = $expenseCode->name;
+        $this->accounting_account_id = $expenseCode->accounting_account_id ?? '';
         $this->is_active = $expenseCode->is_active;
         $this->isEditing = true;
         $this->showModal = true;
@@ -134,6 +147,7 @@ class ExpenseCodeManagement extends Component
             'sifse_code' => strtoupper(trim($this->sifse_code)),
             'code' => strtoupper(trim($this->code)),
             'name' => mb_strtoupper(trim($this->name)),
+            'accounting_account_id' => $this->accounting_account_id ?: null,
             'is_active' => $this->is_active,
         ];
 
@@ -207,6 +221,7 @@ class ExpenseCodeManagement extends Component
         $this->sifse_code = '';
         $this->code = '';
         $this->name = '';
+        $this->accounting_account_id = '';
         $this->is_active = true;
         $this->isEditing = false;
         $this->resetValidation();

@@ -72,6 +72,7 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SIFSE</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código PAA</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cta. Contable</th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                     </tr>
@@ -87,6 +88,9 @@
                         </td>
                         <td class="px-6 py-4">
                             <span class="text-sm text-gray-900">{{ $expenseCode->name }}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="font-mono text-xs text-gray-600">{{ $expenseCode->accountingAccount ? $expenseCode->accountingAccount->code . ' - ' . $expenseCode->accountingAccount->name : '-' }}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center">
                             <button 
@@ -114,7 +118,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
                             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
                             <p class="mt-2">No se encontraron códigos</p>
                         </td>
@@ -139,29 +143,49 @@
             
             <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl transform transition-all sm:my-8 w-full max-w-lg">
                 <form wire:submit="save">
-                    <div class="px-6 py-4 border-b border-gray-200">
-                        <h3 class="text-lg font-bold text-gray-900">
-                            {{ $isEditing ? 'Editar Código' : 'Nuevo Código Presupuestal' }}
-                        </h3>
+                    <div class="px-6 py-4 border-b border-gray-200 bg-blue-50">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-bold text-blue-900">
+                                    {{ $isEditing ? 'Editar Código' : 'Nuevo Código de Gasto' }}
+                                </h3>
+                                <p class="text-sm text-blue-700">Código presupuestal de gasto</p>
+                            </div>
+                            <button type="button" wire:click="closeModal" class="text-gray-400 hover:text-gray-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="p-6 space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Código SIFSE <span class="text-red-500">*</span></label>
-                            <input type="text" wire:model="sifse_code" class="w-full rounded-xl border-gray-300 font-mono" placeholder="7">
-                            @error('sifse_code') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Código PAA <span class="text-red-500">*</span></label>
-                            <input type="text" wire:model="code" class="w-full rounded-xl border-gray-300 font-mono" placeholder="2.1.2.01.01.003.01.06">
-                            @error('code') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Código SIFSE <span class="text-red-500">*</span></label>
+                                <input type="text" wire:model="sifse_code" class="w-full rounded-xl border-gray-300 font-mono" placeholder="7">
+                                @error('sifse_code') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Código PAA <span class="text-red-500">*</span></label>
+                                <input type="text" wire:model="code" class="w-full rounded-xl border-gray-300 font-mono" placeholder="2.1.2.01.01.003.01.06">
+                                @error('code') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            </div>
                         </div>
                         
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Nombre <span class="text-red-500">*</span></label>
                             <textarea wire:model="name" rows="3" class="w-full rounded-xl border-gray-300" placeholder="Descripción del código presupuestal..."></textarea>
                             @error('name') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Cuenta Contable</label>
+                            <x-searchable-select
+                                wire:model="accounting_account_id"
+                                :options="$this->accountingAccounts"
+                                placeholder="Seleccionar cuenta contable..."
+                                searchPlaceholder="Buscar por código o nombre..."
+                            />
+                            @error('accounting_account_id') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
                         
                         <div class="flex items-center gap-2">

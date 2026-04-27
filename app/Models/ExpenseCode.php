@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ExpenseCode extends Model
 {
@@ -13,6 +14,7 @@ class ExpenseCode extends Model
         'sifse_code',
         'code',
         'name',
+        'accounting_account_id',
         'is_active',
     ];
 
@@ -33,6 +35,11 @@ class ExpenseCode extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function accountingAccount(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\AccountingAccount::class);
     }
 
     public function scopeSearch($query, string $search)

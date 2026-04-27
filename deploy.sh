@@ -69,6 +69,7 @@ PERMISSION_SEEDERS=(
     "PostcontractualPermissionSeeder"
     "BankPermissionSeeder"
     "ReportPermissionSeeder"
+    "NewsPermissionSeeder"
 )
 for SEEDER in "${PERMISSION_SEEDERS[@]}"; do
     docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed-once --reset="$SEEDER" 2>&1 | grep -v "^$"
@@ -93,6 +94,7 @@ docker exec ${PROJECT_NAME}_php mkdir -p /var/www/html/storage/app/livewire-tmp
 docker exec ${PROJECT_NAME}_php chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 docker exec ${PROJECT_NAME}_php chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 docker exec ${PROJECT_NAME}_php chmod 666 /var/www/html/.env 2>/dev/null || true
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan storage:link --force 2>/dev/null || true
 echo -e "${GREEN}✓ Permisos ajustados${NC}"
 
 echo ""

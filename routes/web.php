@@ -196,6 +196,14 @@ Route::get('postcontractual/{paymentOrderId}/certificado-rp/pdf', [App\Http\Cont
     ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('postcontractual.certificado-rp.pdf');
 
+Route::get('postcontractual/{paymentOrderId}/comprobante-contabilidad/pdf', [App\Http\Controllers\PostcontractualPdfController::class, 'comprobanteContabilidadDirecto'])
+    ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('postcontractual.comprobante-contabilidad.pdf');
+
+Route::get('postcontractual/{paymentOrderId}/certificado-tesoreria/pdf', [App\Http\Controllers\PostcontractualPdfController::class, 'certificadoTesoreriaDirecto'])
+    ->middleware(['auth', 'verified', 'can:postcontractual.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('postcontractual.certificado-tesoreria.pdf');
+
 Route::get('reports/payment-report', App\Livewire\PaymentReportManagement::class)
     ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('reports.payment');

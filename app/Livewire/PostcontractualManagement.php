@@ -1829,6 +1829,8 @@ class PostcontractualManagement extends Component
             'documento_soporte' => false,
             'certificado_cdp' => false,
             'certificado_rp' => false,
+            'comprobante_contabilidad' => false,
+            'certificado_tesoreria' => false,
         ];
         $this->showPrintModal = true;
     }
@@ -1873,6 +1875,14 @@ class PostcontractualManagement extends Component
 
         if (!empty($selected['certificado_rp'])) {
             $this->dispatch('openPdfWindow', url: route('postcontractual.certificado-rp.pdf', $this->paymentOrderId));
+        }
+
+        if (!empty($selected['comprobante_contabilidad'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.comprobante-contabilidad.pdf', $this->paymentOrderId));
+        }
+
+        if (!empty($selected['certificado_tesoreria'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.certificado-tesoreria.pdf', $this->paymentOrderId));
         }
 
         $this->closePrintModal();

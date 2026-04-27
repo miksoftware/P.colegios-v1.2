@@ -587,6 +587,199 @@ class PostcontractualPdfController extends Controller
         return $pdf->stream("certificado-rp-{$rp->formatted_number}.pdf");
     }
 
+    /**
+     * Comprobante de Contabilidad para pagos directos
+     */
+    public function comprobanteContabilidadDirecto(Request $request, int $paymentOrderId)
+    {
+        $schoolId = (int) session('selected_school_id');
+        abort_if(!$schoolId, 403);
+        abort_if(!auth()->user()->can('postcontractual.view'), 403);
+
+        $po = PaymentOrder::forSchool($schoolId)
+            ->with([
+                'contractRp.cdp.budgetItem',
+                'contractRp.fundingSources.fundingSource',
+                'expenseLines.expenseCode.accountingAccount.parent.parent.parent.parent',
+                'supplier',
+            ])
+            ->findOrFail($paymentOrderId);
+
+        abort_if(!$po->contract_rp_id, 404, 'No tiene RP asociado.');
+
+        $rp = $po->contractRp;
+        $school = School::findOrFail($schoolId);
+        $supplier = $po->supplier;
+
+        $amount = (float) $rp->total_amount;
+        $amountInWords = PrecontractualPdfController::amountToWords($amount);
+
+        // Débito: cuenta contable del código de gasto
+        $debitEntries = [];
+        $account = null;
+        if ($po->expenseLines->isNotEmpty()) {
+            $account = $po->expenseLines->first()->expenseCode?->accountingAccount;
+        }
+        if (!$account) {
+            foreach ($rp->fundingSources as $rpFs) {
+                if ($rpFs->budget_id) {
+                    $dist = \App\Models\ExpenseDistribution::where('budget_id', $rpFs->budget_id)
+                        ->with('expenseCode.accountingAccount.parent.parent.parent.parent')
+                        ->first();
+                    if ($dist?->expenseCode?->accountingAccount) {
+                        $account = $dist->expenseCode->accountingAccount;
+                        break;
+                    }
+                }
+            }
+        }
+        if ($account) {
+            $debitEntries[] = ['hierarchy' => $this->buildAccountHierarchy($account), 'amount' => $amount];
+        }
+
+        // Crédito: cuenta 2401
+        $creditAccount = AccountingAccount::where('code', 'like', '2401%')->where('allows_movement', true)->first();
+        $creditHierarchy = $creditAccount ? $this->buildAccountHierarchy($creditAccount) : [];
+
+        // Código de gasto
+        $expenseCode = '';
+        $expenseName = '';
+        if ($po->expenseLines->isNotEmpty()) {
+            $ec = $po->expenseLines->first()->expenseCode;
+            if ($ec) { $expenseCode = $ec->code; $expenseName = $ec->name; }
+        }
+        if (!$expenseCode) {
+            foreach ($rp->fundingSources as $rpFs) {
+                if ($rpFs->budget_id) {
+                    $dist = \App\Models\ExpenseDistribution::where('budget_id', $rpFs->budget_id)->with('expenseCode')->first();
+                    if ($dist?->expenseCode) { $expenseCode = $dist->expenseCode->code; $expenseName = $dist->expenseCode->name; break; }
+                }
+            }
+        }
+
+        $sources = [];
+        foreach ($rp->fundingSources as $rpFs) {
+            $sources[] = ['name' => $rpFs->fundingSource?->name ?? '', 'amount' => (float) $rpFs->amount];
+        }
+
+        $rpRows = [[
+            'rp_number' => $rp->formatted_number,
+            'expense_code' => $expenseCode ?: ($po->description ?? ''),
+            'expense_name' => $expenseName ?: ($po->description ?? ''),
+            'sources' => $sources,
+            'total_amount' => $amount,
+        ]];
+
+        $contractData = new \stdClass();
+        $contractData->formatted_number = 'PD-' . $po->formatted_number;
+        $contractData->fiscal_year = $po->fiscal_year;
+        $contractData->object = $po->description ?? 'Pago directo';
+        $contractData->start_date = $po->payment_date;
+
+        $pdf = Pdf::loadView('pdf.comprobante-contabilidad', [
+            'contract' => $contractData,
+            'school' => $school,
+            'supplier' => $supplier,
+            'amount' => $amount,
+            'amountInWords' => $amountInWords,
+            'debitEntries' => $debitEntries,
+            'creditHierarchy' => $creditHierarchy,
+            'rpRows' => $rpRows,
+            'isAddition' => false,
+            'additionJustification' => null,
+            'isDirectPayment' => true,
+            'user' => auth()->user(),
+        ]);
+
+        $pdf->setPaper('letter');
+        return $pdf->stream("comprobante-contabilidad-pd-{$po->formatted_number}.pdf");
+    }
+
+    /**
+     * Certificado de Tesorería para pagos directos
+     */
+    public function certificadoTesoreriaDirecto(Request $request, int $paymentOrderId)
+    {
+        $schoolId = (int) session('selected_school_id');
+        abort_if(!$schoolId, 403);
+        abort_if(!auth()->user()->can('postcontractual.view'), 403);
+
+        $po = PaymentOrder::forSchool($schoolId)
+            ->with([
+                'contractRp.cdp.budgetItem',
+                'contractRp.fundingSources.fundingSource',
+                'contractRp.fundingSources.bank',
+                'contractRp.fundingSources.bankAccount',
+                'expenseLines.expenseCode',
+                'supplier',
+            ])
+            ->findOrFail($paymentOrderId);
+
+        abort_if(!$po->contract_rp_id, 404, 'No tiene RP asociado.');
+
+        $rp = $po->contractRp;
+        $school = School::findOrFail($schoolId);
+
+        $bankName = '';
+        $accountNumber = '';
+        $sourcesInfo = [];
+
+        foreach ($rp->fundingSources as $rpFs) {
+            if ($rpFs->bank && !$bankName) {
+                $bankName = $rpFs->bank->name ?? '';
+                $accountNumber = $rpFs->bankAccount?->account_number ?? '';
+            }
+            $sourcesInfo[] = ['name' => $rpFs->fundingSource?->name ?? '', 'amount' => (float) $rpFs->amount];
+        }
+
+        // Código de gasto
+        $expenseCode = '';
+        $expenseName = '';
+        if ($po->expenseLines->isNotEmpty()) {
+            $ec = $po->expenseLines->first()->expenseCode;
+            if ($ec) { $expenseCode = $ec->code; $expenseName = $ec->name; }
+        }
+        if (!$expenseCode) {
+            foreach ($rp->fundingSources as $rpFs) {
+                if ($rpFs->budget_id) {
+                    $dist = \App\Models\ExpenseDistribution::where('budget_id', $rpFs->budget_id)->with('expenseCode')->first();
+                    if ($dist?->expenseCode) { $expenseCode = $dist->expenseCode->code; $expenseName = $dist->expenseCode->name; break; }
+                }
+            }
+        }
+        if (!$expenseCode) {
+            $expenseCode = $po->description ?? '';
+            $expenseName = $po->description ?? '';
+        }
+
+        $amount = (float) $rp->total_amount;
+        $amountInWords = PrecontractualPdfController::amountToWords($amount);
+
+        $contractData = new \stdClass();
+        $contractData->formatted_number = 'PD-' . $po->formatted_number;
+        $contractData->fiscal_year = $po->fiscal_year;
+        $contractData->object = $po->description ?? 'Pago directo';
+        $contractData->start_date = $po->payment_date;
+
+        $pdf = Pdf::loadView('pdf.certificado-tesoreria', [
+            'contract' => $contractData,
+            'school' => $school,
+            'rpNumber' => $rp->formatted_number,
+            'bankName' => $bankName,
+            'accountNumber' => $accountNumber,
+            'sourcesInfo' => $sourcesInfo,
+            'budgetItemCode' => $expenseCode,
+            'budgetItemName' => $expenseName,
+            'amount' => $amount,
+            'amountInWords' => $amountInWords,
+            'isDirectPayment' => true,
+            'user' => auth()->user(),
+        ]);
+
+        $pdf->setPaper('letter');
+        return $pdf->stream("certificado-tesoreria-pd-{$po->formatted_number}.pdf");
+    }
+
     private function buildAccountHierarchy(?AccountingAccount $account): array
     {
         if (!$account) return [];

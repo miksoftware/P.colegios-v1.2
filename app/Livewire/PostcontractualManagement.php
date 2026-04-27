@@ -119,6 +119,11 @@ class PostcontractualManagement extends Component
     public $skipCdpRp = false; // Para pagos que no requieren CDP/RP (retenciones, gastos financieros)
     public $directEgressBankId = ''; // Banco de egreso para pagos sin CDP/RP
     public $directEgressBankAccountId = ''; // Cuenta bancaria de egreso para pagos sin CDP/RP
+
+    // Códigos de gasto para pago directo (nuevo flujo)
+    public $directExpenseCodes = []; // códigos de gasto disponibles con disponibilidad
+    public $directSelectedExpenseCodes = []; // códigos seleccionados [{id, code, name, budget_items: [{id, name, sources: [...]}]}]
+    public $directExpenseAllocations = []; // asignaciones [{expense_code_id, budget_item_id, funding_source_id, amount, budget_id, bank_id, bank_account_id}]
     public $directEgressBanks = []; // Bancos disponibles del colegio
     public $directEgressBankAccounts = []; // Cuentas del banco seleccionado
     public $directBanks = []; // Bancos del colegio para selección en pago directo
@@ -410,6 +415,160 @@ class PostcontractualManagement extends Component
             ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
             ->values()
             ->toArray();
+
+        // Cargar códigos de gasto permitidos para pagos directos
+        $this->loadDirectExpenseCodes();
+    }
+
+    /**
+     * Códigos de gasto PAA permitidos para pagos directos.
+     */
+    public const DIRECT_PAYMENT_EXPENSE_CODES = [
+        '2.1.2.02.02.006.06',
+        '2.1.2.02.02.006.07',
+        '2.1.2.02.02.007.01',
+        '2.1.2.02.02.007.02',
+        '2.1.2.02.02.007.03',
+        '2.1.2.02.02.008.01',
+        '2.1.2.02.02.008.02',
+        '2.1.2.02.02.008.03',
+    ];
+
+    public function loadDirectExpenseCodes()
+    {
+        $year = (int) $this->filterYear;
+        $expenseCodes = \App\Models\ExpenseCode::active()
+            ->whereIn('code', self::DIRECT_PAYMENT_EXPENSE_CODES)
+            ->with('accountingAccount')
+            ->get();
+
+        $this->directExpenseCodes = [];
+        foreach ($expenseCodes as $ec) {
+            $distributions = \App\Models\ExpenseDistribution::where('school_id', $this->schoolId)
+                ->where('expense_code_id', $ec->id)
+                ->where('is_active', true)
+                ->with(['budget.budgetItem', 'budget.fundingSource'])
+                ->whereHas('budget', fn($q) => $q->where('fiscal_year', $year)->where('type', 'expense'))
+                ->get();
+
+            if ($distributions->isEmpty()) continue;
+
+            $totalAvailable = 0;
+            foreach ($distributions as $dist) {
+                $totalAvailable += max(0, $dist->available_balance);
+            }
+            if ($totalAvailable <= 0) continue;
+
+            $this->directExpenseCodes[] = [
+                'id' => $ec->id,
+                'code' => $ec->code,
+                'name' => $ec->name,
+                'sifse_code' => $ec->sifse_code,
+                'available' => round($totalAvailable, 2),
+            ];
+        }
+    }
+
+    public function toggleDirectExpenseCode($expenseCodeId)
+    {
+        $expenseCodeId = (int) $expenseCodeId;
+        $idx = collect($this->directSelectedExpenseCodes)->search(fn($s) => $s['id'] === $expenseCodeId);
+
+        if ($idx !== false) {
+            unset($this->directSelectedExpenseCodes[$idx]);
+            $this->directSelectedExpenseCodes = array_values($this->directSelectedExpenseCodes);
+            $this->directExpenseAllocations = array_values(
+                array_filter($this->directExpenseAllocations, fn($a) => $a['expense_code_id'] !== $expenseCodeId)
+            );
+            return;
+        }
+
+        $ec = collect($this->directExpenseCodes)->firstWhere('id', $expenseCodeId);
+        if (!$ec) return;
+
+        $year = (int) $this->filterYear;
+        $distributions = \App\Models\ExpenseDistribution::where('school_id', $this->schoolId)
+            ->where('expense_code_id', $expenseCodeId)
+            ->where('is_active', true)
+            ->with(['budget.budgetItem', 'budget.fundingSource'])
+            ->whereHas('budget', fn($q) => $q->where('fiscal_year', $year)->where('type', 'expense'))
+            ->get();
+
+        $sources = [];
+        foreach ($distributions as $dist) {
+            $budget = $dist->budget;
+            if (!$budget || !$budget->budgetItem || !$budget->fundingSource) continue;
+            $reserved = Cdp::getTotalReservedForFundingSource($budget->fundingSource->id, $year, $this->schoolId);
+            $realAvailable = max(0, (float) $budget->current_amount - $reserved);
+            if ($realAvailable <= 0) continue;
+
+            $sources[] = [
+                'budget_item_id' => $budget->budget_item_id,
+                'budget_item_name' => $budget->budgetItem->code . ' - ' . $budget->budgetItem->name,
+                'funding_source_id' => $budget->fundingSource->id,
+                'funding_source_name' => $budget->fundingSource->code . ' - ' . $budget->fundingSource->name,
+                'budget_id' => $budget->id,
+                'available' => round($realAvailable, 2),
+            ];
+        }
+
+        if (empty($sources)) {
+            $this->dispatch('toast', message: 'No hay rubros con disponibilidad para este código.', type: 'warning');
+            return;
+        }
+
+        $this->directSelectedExpenseCodes[] = [
+            'id' => $ec['id'], 'code' => $ec['code'], 'name' => $ec['name'], 'sources' => $sources,
+        ];
+
+        // Auto-agregar si solo hay una fuente
+        if (count($sources) === 1) {
+            $s = $sources[0];
+            $this->directExpenseAllocations[] = [
+                'expense_code_id' => $ec['id'],
+                'budget_item_id' => $s['budget_item_id'],
+                'funding_source_id' => $s['funding_source_id'],
+                'funding_source_name' => $s['funding_source_name'],
+                'budget_id' => $s['budget_id'],
+                'available' => $s['available'],
+                'amount' => '',
+                'bank_id' => '',
+                'bank_account_id' => '',
+            ];
+        }
+
+        if (empty($this->directBanks)) $this->loadDirectBanks();
+    }
+
+    public function addDirectExpenseAllocation($expenseCodeId, $sourceIndex)
+    {
+        $selected = collect($this->directSelectedExpenseCodes)->firstWhere('id', (int) $expenseCodeId);
+        if (!$selected || !isset($selected['sources'][$sourceIndex])) return;
+        $s = $selected['sources'][$sourceIndex];
+
+        $exists = collect($this->directExpenseAllocations)->contains(fn($a) =>
+            $a['expense_code_id'] === (int) $expenseCodeId && $a['funding_source_id'] === $s['funding_source_id']
+        );
+        if ($exists) { $this->dispatch('toast', message: 'Ya fue agregada.', type: 'warning'); return; }
+
+        $this->directExpenseAllocations[] = [
+            'expense_code_id' => (int) $expenseCodeId,
+            'budget_item_id' => $s['budget_item_id'],
+            'funding_source_id' => $s['funding_source_id'],
+            'funding_source_name' => $s['funding_source_name'],
+            'budget_id' => $s['budget_id'],
+            'available' => $s['available'],
+            'amount' => '',
+            'bank_id' => '',
+            'bank_account_id' => '',
+        ];
+        if (empty($this->directBanks)) $this->loadDirectBanks();
+    }
+
+    public function removeDirectExpenseAllocation($index)
+    {
+        unset($this->directExpenseAllocations[$index]);
+        $this->directExpenseAllocations = array_values($this->directExpenseAllocations);
     }
 
     public function updatedDirectBudgetItemId($value)
@@ -1222,8 +1381,7 @@ class PostcontractualManagement extends Component
             $messages['directDescription.min'] = 'La descripción debe tener al menos 5 caracteres.';
 
             if (!$this->skipCdpRp) {
-                $rules['directBudgetItemId'] = 'required|exists:budget_items,id';
-                $messages['directBudgetItemId.required'] = 'Debe seleccionar un rubro presupuestal.';
+                // La validación de asignaciones se hace en el bloque de creación de CDP/RP
             }
         }
 
@@ -1334,21 +1492,41 @@ class PostcontractualManagement extends Component
                     $paymentData['egress_bank_account_id'] = $this->directEgressBankAccountId;
                 }
             } else {
-                // Validar fuentes de financiación
-                if (empty($this->directSelectedSources)) {
-                    throw new \Exception('Debe agregar al menos una fuente de financiación.');
+                // Pago directo con CDP/RP — usar asignaciones de códigos de gasto
+                $allocations = !empty($this->directExpenseAllocations) ? $this->directExpenseAllocations : [];
+
+                // Fallback al flujo antiguo si hay directSelectedSources (compatibilidad)
+                if (empty($allocations) && !empty($this->directSelectedSources)) {
+                    $allocations = collect($this->directSelectedSources)->map(fn($src) => [
+                        'expense_code_id' => null,
+                        'budget_item_id' => null,
+                        'funding_source_id' => $src['id'],
+                        'budget_id' => $src['budget_id'],
+                        'available' => $src['available'],
+                        'amount' => $src['amount'],
+                        'bank_id' => $src['bank_id'] ?? '',
+                        'bank_account_id' => $src['bank_account_id'] ?? '',
+                    ])->toArray();
                 }
+
+                if (empty($allocations)) {
+                    throw new \Exception('Debe seleccionar al menos un código de gasto y asignar montos.');
+                }
+
                 $totalSources = 0;
-                foreach ($this->directSelectedSources as $src) {
-                    $amt = (float) ($src['amount'] ?? 0);
+                foreach ($allocations as $alloc) {
+                    $amt = (float) ($alloc['amount'] ?? 0);
                     if ($amt <= 0) {
-                        throw new \Exception('Todas las fuentes deben tener un monto mayor a 0.');
+                        throw new \Exception('Todas las asignaciones deben tener un monto mayor a 0.');
                     }
-                    if ($amt > (float) ($src['available'] ?? 0)) {
-                        throw new \Exception("El monto de la fuente \"{$src['name']}\" excede el saldo disponible.");
+                    if ($amt > (float) ($alloc['available'] ?? 0)) {
+                        throw new \Exception('El monto excede el saldo disponible de una fuente.');
                     }
                     $totalSources += $amt;
                 }
+
+                // Usar el budget_item_id de la primera asignación para el CDP
+                $firstBudgetItemId = $allocations[0]['budget_item_id'] ?? $this->directBudgetItemId;
 
                 // Crear CDP
                 $cdp = Cdp::create([
@@ -1356,22 +1534,21 @@ class PostcontractualManagement extends Component
                     'convocatoria_id'=> null,
                     'cdp_number'     => Cdp::getNextCdpNumber($this->schoolId, $year),
                     'fiscal_year'    => $year,
-                    'budget_item_id' => $this->directBudgetItemId,
+                    'budget_item_id' => $firstBudgetItemId,
                     'total_amount'   => $totalSources,
                     'status'         => 'used',
                     'created_by'     => auth()->id(),
                 ]);
 
-                // Crear detalle de fuentes del CDP
-                foreach ($this->directSelectedSources as $src) {
-                    $source = FundingSource::find($src['id']);
+                foreach ($allocations as $alloc) {
+                    $source = FundingSource::find($alloc['funding_source_id']);
                     $balance = $source ? $source->getAvailableBalanceForYear($year, $this->schoolId) : 0;
 
                     CdpFundingSource::create([
                         'cdp_id'                      => $cdp->id,
-                        'funding_source_id'           => $src['id'],
-                        'budget_id'                   => $src['budget_id'],
-                        'amount'                      => (float) $src['amount'],
+                        'funding_source_id'           => $alloc['funding_source_id'],
+                        'budget_id'                   => $alloc['budget_id'],
+                        'amount'                      => (float) $alloc['amount'],
                         'available_balance_at_creation'=> $balance,
                     ]);
                 }
@@ -1387,15 +1564,14 @@ class PostcontractualManagement extends Component
                     'created_by'   => auth()->id(),
                 ]);
 
-                // Crear detalle de fuentes del RP
-                foreach ($this->directSelectedSources as $src) {
+                foreach ($allocations as $alloc) {
                     RpFundingSource::create([
                         'contract_rp_id'    => $rp->id,
-                        'funding_source_id' => $src['id'],
-                        'budget_id'         => $src['budget_id'],
-                        'amount'            => (float) $src['amount'],
-                        'bank_id'           => $src['bank_id'] ?: null,
-                        'bank_account_id'   => $src['bank_account_id'] ?: null,
+                        'funding_source_id' => $alloc['funding_source_id'],
+                        'budget_id'         => $alloc['budget_id'],
+                        'amount'            => (float) $alloc['amount'],
+                        'bank_id'           => !empty($alloc['bank_id']) ? $alloc['bank_id'] : null,
+                        'bank_account_id'   => !empty($alloc['bank_account_id']) ? $alloc['bank_account_id'] : null,
                     ]);
                 }
 
@@ -1613,6 +1789,9 @@ class PostcontractualManagement extends Component
         $this->directBudgetItemId = '';
         $this->directFundingSources = [];
         $this->directSelectedSources = [];
+        $this->directExpenseCodes = [];
+        $this->directSelectedExpenseCodes = [];
+        $this->directExpenseAllocations = [];
     }
 
     // ══════════════════════════════════════════════════════════

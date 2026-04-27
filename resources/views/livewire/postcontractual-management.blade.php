@@ -310,118 +310,111 @@
                         <p class="text-xs text-purple-700">Al guardar se creará automáticamente un CDP y un RP con los datos presupuestales que ingrese aquí.</p>
                     </div>
 
-                    {{-- Rubro Presupuestal --}}
+                    {{-- Selección de Códigos de Gasto --}}
+                    @if(count($directExpenseCodes) > 0)
                     <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Rubro Presupuestal *</label>
-                        <select wire:model.live="directBudgetItemId" class="w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500">
-                            <option value="">-- Seleccione un rubro --</option>
-                            @foreach($directBudgetItems as $bi)
-                                <option value="{{ $bi['id'] }}">{{ $bi['name'] }}</option>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Seleccione los códigos de gasto</label>
+                        <div class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-xl p-3">
+                            @foreach($directExpenseCodes as $ec)
+                                @php $isSelected = collect($directSelectedExpenseCodes)->contains('id', $ec['id']); @endphp
+                                <label class="flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors {{ $isSelected ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300' }}" wire:key="dec-{{ $ec['id'] }}">
+                                    <input type="checkbox" wire:click="toggleDirectExpenseCode({{ $ec['id'] }})" {{ $isSelected ? 'checked' : '' }} class="mt-1 rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium text-gray-900">{{ $ec['code'] }} - {{ $ec['name'] }}</p>
+                                        <p class="text-xs text-gray-500">SIFSE: {{ $ec['sifse_code'] }}</p>
+                                    </div>
+                                    <span class="text-sm font-semibold text-green-700 flex-shrink-0">Disp: ${{ number_format($ec['available'], 2, ',', '.') }}</span>
+                                </label>
                             @endforeach
-                        </select>
-                        @if(empty($directBudgetItems))
-                            <p class="text-xs text-amber-600 mt-1">No hay rubros con presupuesto de gasto activo para este año.</p>
-                        @endif
-                        @error('directBudgetItemId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
                     </div>
 
-                    {{-- Fuentes de Financiación --}}
-                    @if($directBudgetItemId && count($directFundingSources) > 0)
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Fuentes de Financiación</label>
+                    {{-- Fuentes seleccionadas por código de gasto --}}
+                    @foreach($directSelectedExpenseCodes as $secIdx => $sec)
+                        <div class="mb-4 border border-purple-200 rounded-xl overflow-hidden" wire:key="sec-{{ $sec['id'] }}">
+                            <div class="bg-purple-100 px-4 py-2">
+                                <p class="text-sm font-semibold text-purple-900">{{ $sec['code'] }} - {{ $sec['name'] }}</p>
+                            </div>
+                            <div class="p-4">
+                                {{-- Fuentes disponibles para agregar --}}
+                                @if(count($sec['sources'] ?? []) > 1)
+                                    @php $allocatedSourceIds = collect($directExpenseAllocations)->where('expense_code_id', $sec['id'])->pluck('funding_source_id')->toArray(); @endphp
+                                    @foreach($sec['sources'] as $sIdx => $src)
+                                        @if(!in_array($src['funding_source_id'], $allocatedSourceIds))
+                                            <div class="flex items-center justify-between bg-gray-50 rounded-lg p-2 mb-2">
+                                                <div>
+                                                    <span class="text-xs font-medium">{{ $src['funding_source_name'] }}</span>
+                                                    <span class="text-xs text-green-700 ml-2">Disp: ${{ number_format($src['available'], 2, ',', '.') }}</span>
+                                                </div>
+                                                <button type="button" wire:click="addDirectExpenseAllocation({{ $sec['id'] }}, {{ $sIdx }})" class="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-lg hover:bg-purple-200">+ Agregar</button>
+                                            </div>
+                                        @endif
+                                    @endforeach
+                                @endif
 
-                        {{-- Botón para agregar fuente --}}
-                        @if(count($directFundingSources) > count($directSelectedSources))
-                        <div class="flex items-center gap-3 mb-3">
-                            <select id="addSourceSelect" class="flex-1 rounded-xl border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500">
-                                <option value="">-- Agregar fuente --</option>
-                                @foreach($directFundingSources as $fs)
-                                    @php $alreadyAdded = collect($directSelectedSources)->contains('id', $fs['id']); @endphp
-                                    @if(!$alreadyAdded)
-                                        <option value="{{ $fs['id'] }}">{{ $fs['name'] }} (Disponible: ${{ number_format($fs['available'], 0, ',', '.') }})</option>
+                                {{-- Asignaciones de este código --}}
+                                @foreach($directExpenseAllocations as $aIdx => $alloc)
+                                    @if($alloc['expense_code_id'] === $sec['id'])
+                                    <div class="border border-purple-200 rounded-lg p-3 mb-2 bg-white" wire:key="alloc-{{ $aIdx }}">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-sm font-medium text-gray-800">{{ $alloc['funding_source_name'] }}</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs text-gray-500">Disp: ${{ number_format($alloc['available'], 0, ',', '.') }}</span>
+                                                <button type="button" wire:click="removeDirectExpenseAllocation({{ $aIdx }})" class="text-red-500 hover:text-red-700">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-2">
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-600 mb-1">Monto *</label>
+                                                <div class="relative">
+                                                    <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 text-xs">$</span>
+                                                    <input type="number" wire:model.live.debounce.300ms="directExpenseAllocations.{{ $aIdx }}.amount" step="0.01" max="{{ $alloc['available'] }}" class="w-full rounded-lg border-gray-300 pl-6 text-sm" placeholder="0">
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-600 mb-1">Banco *</label>
+                                                <select wire:model.live="directExpenseAllocations.{{ $aIdx }}.bank_id" class="w-full rounded-lg border-gray-300 text-sm">
+                                                    <option value="">-- Banco --</option>
+                                                    @foreach($directBanks ?? [] as $bank)
+                                                        <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-600 mb-1">Cuenta *</label>
+                                                <select wire:model="directExpenseAllocations.{{ $aIdx }}.bank_account_id" class="w-full rounded-lg border-gray-300 text-sm">
+                                                    <option value="">-- Cuenta --</option>
+                                                    @if(!empty($alloc['bank_id']))
+                                                        @php $selBank = collect($directBanks ?? [])->firstWhere('id', (int)$alloc['bank_id']); @endphp
+                                                        @if($selBank)
+                                                            @foreach($selBank['accounts'] as $acct)
+                                                                <option value="{{ $acct['id'] }}">{{ $acct['label'] }}</option>
+                                                            @endforeach
+                                                        @endif
+                                                    @endif
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
                                     @endif
                                 @endforeach
-                            </select>
-                            <button type="button"
-                                onclick="let sel = document.getElementById('addSourceSelect'); if(sel.value) { @this.call('addDirectFundingSource', parseInt(sel.value)); sel.value=''; }"
-                                class="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 text-sm transition-colors">
-                                Agregar
-                            </button>
-                        </div>
-                        @endif
-
-                        {{-- Fuentes seleccionadas --}}
-                        @if(count($directSelectedSources) > 0)
-                        <div class="space-y-3">
-                            @foreach($directSelectedSources as $index => $src)
-                            <div class="border border-purple-200 rounded-xl p-4 bg-purple-50" wire:key="direct-src-{{ $index }}">
-                                <div class="flex items-center justify-between mb-2">
-                                    <p class="text-sm font-semibold text-gray-800">{{ $src['name'] }}</p>
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-xs text-gray-500">Disponible: ${{ number_format($src['available'], 0, ',', '.') }}</span>
-                                        @if(count($directSelectedSources) > 1)
-                                        <button type="button" wire:click="removeDirectFundingSource({{ $index }})" class="text-red-500 hover:text-red-700" title="Quitar">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                        </button>
-                                        @endif
-                                    </div>
-                                </div>
-                                <div class="max-w-xs">
-                                    <label class="block text-xs font-medium text-gray-600 mb-1">Monto a comprometer *</label>
-                                    <div class="relative">
-                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-xs">$</span>
-                                        <input type="number" wire:model.live.debounce.300ms="directSelectedSources.{{ $index }}.amount"
-                                            step="0.01" max="{{ $src['available'] }}"
-                                            class="w-full rounded-xl border-gray-300 pl-7 text-sm focus:border-purple-500 focus:ring-purple-500" placeholder="0">
-                                    </div>
-                                    @if((float)($src['amount'] ?? 0) > (float)$src['available'])
-                                        <p class="mt-1 text-xs text-red-600">Excede el saldo disponible.</p>
-                                    @endif
-                                </div>
-
-                                {{-- Banco y Cuenta Bancaria --}}
-                                <div class="grid grid-cols-2 gap-3 mt-3">
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-600 mb-1">Banco *</label>
-                                        <select wire:model.live="directSelectedSources.{{ $index }}.bank_id"
-                                            class="w-full rounded-xl border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500">
-                                            <option value="">-- Banco --</option>
-                                            @foreach($directBanks as $bank)
-                                                <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-600 mb-1">Cuenta Bancaria *</label>
-                                        <select wire:model="directSelectedSources.{{ $index }}.bank_account_id"
-                                            class="w-full rounded-xl border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500">
-                                            <option value="">-- Cuenta --</option>
-                                            @if(!empty($src['bank_id']))
-                                                @php $selectedBank = collect($directBanks)->firstWhere('id', (int)$src['bank_id']); @endphp
-                                                @if($selectedBank)
-                                                    @foreach($selectedBank['accounts'] as $acct)
-                                                        <option value="{{ $acct['id'] }}">{{ $acct['label'] }}</option>
-                                                    @endforeach
-                                                @endif
-                                            @endif
-                                        </select>
-                                    </div>
-                                </div>
                             </div>
-                            @endforeach
                         </div>
+                    @endforeach
 
-                        {{-- Total comprometido --}}
-                        @php $totalCommitted = collect($directSelectedSources)->sum(fn($s) => (float)($s['amount'] ?? 0)); @endphp
-                        <div class="mt-3 bg-purple-100 rounded-xl p-3 text-center">
+                    {{-- Total comprometido --}}
+                    @if(count($directExpenseAllocations) > 0)
+                        @php $totalCommitted = collect($directExpenseAllocations)->sum(fn($a) => (float)($a['amount'] ?? 0)); @endphp
+                        <div class="bg-purple-100 rounded-xl p-3 text-center">
                             <p class="text-xs text-purple-600 font-medium">Total a comprometer en CDP/RP</p>
                             <p class="text-lg font-bold text-purple-800">${{ number_format($totalCommitted, 2, ',', '.') }}</p>
                         </div>
-                        @endif
-                    </div>
-                    @elseif($directBudgetItemId && count($directFundingSources) === 0)
+                    @endif
+                    @else
                         <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                            <p class="text-xs text-amber-700">No hay fuentes de financiación con saldo disponible para este rubro.</p>
+                            <p class="text-xs text-amber-700">No hay códigos de gasto con disponibilidad para pagos directos en esta vigencia.</p>
                         </div>
                     @endif
                     @endif {{-- end @if(!$skipCdpRp) --}}

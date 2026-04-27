@@ -130,6 +130,7 @@
         </div>
 
         {{-- BENEFICIARIO --}}
+        @if(empty($isDirectPayment))
         <div style="padding: 6px 15px; border-top: 1px solid #ccc;">
             <table class="info-table">
                 <tr>
@@ -152,6 +153,7 @@
                 </tr>
             </table>
         </div>
+        @endif
 
         {{-- OBJETO --}}
         <div class="objeto-section">

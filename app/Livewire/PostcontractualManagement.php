@@ -1594,6 +1594,30 @@ class PostcontractualManagement extends Component
                 $paymentOrder->update(['document_support_number' => (string) $docSupportNumber]);
             }
 
+            // Para pagos directos con códigos de gasto, crear líneas de gasto
+            if ($this->paymentType === 'direct' && !empty($this->directExpenseAllocations)) {
+                foreach ($this->directExpenseAllocations as $alloc) {
+                    if (empty($alloc['expense_code_id']) || empty($alloc['budget_id'])) continue;
+
+                    // Buscar la distribución de gasto correspondiente
+                    $dist = \App\Models\ExpenseDistribution::where('school_id', $this->schoolId)
+                        ->where('budget_id', $alloc['budget_id'])
+                        ->whereHas('expenseCode', fn($q) => $q->where('id', $alloc['expense_code_id']))
+                        ->first();
+
+                    if ($dist) {
+                        PaymentOrderExpenseLine::create([
+                            'payment_order_id'        => $paymentOrder->id,
+                            'expense_distribution_id' => $dist->id,
+                            'expense_code_id'         => $alloc['expense_code_id'],
+                            'subtotal'                => (float) ($alloc['amount'] ?? 0),
+                            'iva'                     => 0,
+                            'total'                   => (float) ($alloc['amount'] ?? 0),
+                        ]);
+                    }
+                }
+            }
+
             // Guardar snapshot de cuenta bancaria seleccionada
             if ($this->selectedBankAccountId) {
                 $bankAccount = SupplierBankAccount::find($this->selectedBankAccountId);

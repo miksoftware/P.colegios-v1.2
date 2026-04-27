@@ -404,6 +404,8 @@ class PostcontractualPdfController extends Controller
             ->with([
                 'cdp.budgetItem',
                 'cdp.fundingSources.fundingSource',
+                'cdp.fundingSources.budget.fundingSource',
+                'expenseLines.expenseCode',
                 'supplier',
             ])
             ->findOrFail($paymentOrderId);
@@ -413,15 +415,48 @@ class PostcontractualPdfController extends Controller
         $cdp = $po->cdp;
         $school = School::findOrFail($schoolId);
 
-        $expenseCode = $po->budgetItem?->code ?? $cdp->budgetItem?->code ?? '';
-        $expenseName = $po->description ?? $cdp->budgetItem?->name ?? '';
+        // Obtener código de gasto desde las líneas de la orden de pago
+        $expenseCode = '';
+        $expenseName = '';
+        if ($po->expenseLines->isNotEmpty()) {
+            $ec = $po->expenseLines->first()->expenseCode;
+            if ($ec) {
+                $expenseCode = $ec->code;
+                $expenseName = $ec->name;
+            }
+        }
 
+        // Fallback: buscar desde la distribución de gasto vinculada al budget
+        if (!$expenseCode) {
+            foreach ($cdp->fundingSources as $cdpFs) {
+                if ($cdpFs->budget_id) {
+                    $dist = \App\Models\ExpenseDistribution::where('budget_id', $cdpFs->budget_id)
+                        ->with('expenseCode')
+                        ->first();
+                    if ($dist && $dist->expenseCode) {
+                        $expenseCode = $dist->expenseCode->code;
+                        $expenseName = $dist->expenseCode->name;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!$expenseCode) {
+            $expenseCode = $cdp->budgetItem?->code ?? '';
+            $expenseName = $po->description ?? $cdp->budgetItem?->name ?? '';
+        }
+
+        // CDP muestra el valor disponible al momento de creación (available_balance_at_creation)
         $sources = [];
+        $grandTotal = 0;
         foreach ($cdp->fundingSources as $cdpFs) {
+            $availableAtCreation = (float) $cdpFs->available_balance_at_creation;
             $sources[] = [
                 'name' => $cdpFs->fundingSource?->name ?? '',
-                'amount' => (float) $cdpFs->amount,
+                'amount' => $availableAtCreation > 0 ? $availableAtCreation : (float) $cdpFs->amount,
             ];
+            $grandTotal += $availableAtCreation > 0 ? $availableAtCreation : (float) $cdpFs->amount;
         }
 
         $cdpRows = [[
@@ -429,13 +464,13 @@ class PostcontractualPdfController extends Controller
             'budget_item_code' => $expenseCode,
             'budget_item_name' => $expenseName,
             'sources' => $sources,
-            'total_amount' => (float) $cdp->total_amount,
+            'total_amount' => $grandTotal,
         ]];
 
-        // Crear un objeto convocatoria ficticio con los datos necesarios para la vista
         $convocatoriaData = new \stdClass();
         $convocatoriaData->object = $po->description ?? 'Pago directo';
         $convocatoriaData->start_date = $po->payment_date;
+        $convocatoriaData->fiscal_year = $po->fiscal_year;
         $convocatoriaData->formatted_number = 'PD-' . $po->formatted_number;
 
         $pdf = Pdf::loadView('pdf.certificado-disponibilidad', [
@@ -443,11 +478,12 @@ class PostcontractualPdfController extends Controller
             'school' => $school,
             'cdpRows' => $cdpRows,
             'cdpNumber' => $cdp->formatted_number,
-            'grandTotal' => (float) $cdp->total_amount,
+            'grandTotal' => $grandTotal,
             'isAddition' => false,
             'additionJustification' => null,
             'otrosiDate' => null,
             'additionContract' => null,
+            'isDirectPayment' => true,
             'user' => auth()->user(),
         ]);
 
@@ -468,6 +504,7 @@ class PostcontractualPdfController extends Controller
             ->with([
                 'contractRp.cdp.budgetItem',
                 'contractRp.fundingSources.fundingSource',
+                'expenseLines.expenseCode',
                 'supplier',
             ])
             ->findOrFail($paymentOrderId);
@@ -478,8 +515,37 @@ class PostcontractualPdfController extends Controller
         $school = School::findOrFail($schoolId);
         $supplier = $po->supplier ?? $po->resolved_supplier;
 
-        $expenseCode = $po->budgetItem?->code ?? $rp->cdp?->budgetItem?->code ?? '';
-        $expenseName = $po->description ?? $rp->cdp?->budgetItem?->name ?? '';
+        // Obtener código de gasto desde las líneas de la orden de pago
+        $expenseCode = '';
+        $expenseName = '';
+        if ($po->expenseLines->isNotEmpty()) {
+            $ec = $po->expenseLines->first()->expenseCode;
+            if ($ec) {
+                $expenseCode = $ec->code;
+                $expenseName = $ec->name;
+            }
+        }
+
+        // Fallback: buscar desde la distribución de gasto vinculada al budget del RP
+        if (!$expenseCode) {
+            foreach ($rp->fundingSources as $rpFs) {
+                if ($rpFs->budget_id) {
+                    $dist = \App\Models\ExpenseDistribution::where('budget_id', $rpFs->budget_id)
+                        ->with('expenseCode')
+                        ->first();
+                    if ($dist && $dist->expenseCode) {
+                        $expenseCode = $dist->expenseCode->code;
+                        $expenseName = $dist->expenseCode->name;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!$expenseCode) {
+            $expenseCode = $rp->cdp?->budgetItem?->code ?? '';
+            $expenseName = $po->description ?? $rp->cdp?->budgetItem?->name ?? '';
+        }
 
         $sources = [];
         foreach ($rp->fundingSources as $rpFs) {
@@ -497,7 +563,6 @@ class PostcontractualPdfController extends Controller
             'total_amount' => (float) $rp->total_amount,
         ]];
 
-        // Crear un objeto contrato ficticio con los datos necesarios
         $contractData = new \stdClass();
         $contractData->formatted_number = 'PD-' . $po->formatted_number;
         $contractData->fiscal_year = $po->fiscal_year;
@@ -514,6 +579,7 @@ class PostcontractualPdfController extends Controller
             'isAddition' => false,
             'additionJustification' => null,
             'otrosiDate' => null,
+            'isDirectPayment' => true,
             'user' => auth()->user(),
         ]);
 

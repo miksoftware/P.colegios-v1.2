@@ -933,7 +933,7 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Evaluación <span class="text-red-500">*</span></label>
-                                <input type="date" wire:model="evaluationDate" class="w-full rounded-xl border-gray-300 focus:border-yellow-500 focus:ring-yellow-500">
+                                <input type="date" wire:model="evaluationDate" min="{{ $convocatoria?->end_date?->format('Y-m-d') }}" class="w-full rounded-xl border-gray-300 focus:border-yellow-500 focus:ring-yellow-500">
                                 @error('evaluationDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>
                             <div>

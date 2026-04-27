@@ -225,7 +225,7 @@
             <br>
             cédula de ciudadanía No. {{ $contract->supervisor?->identification_number ?? $school->rector_display_document ?? '' }}
             <br>
-            Quien tiene nombramiento en la Institución en el cargo de: <span class="bold">RECTOR</span>
+            Quien tiene nombramiento en la Institución en el cargo de: <span class="bold">{{ mb_strtoupper($contract->supervisor?->job_title ?? 'RECTOR') }}</span>
             <br><br>
             La Supervisión del presente contrato deberá controlar la perfecta ejecución del objeto contractual y su correcto cumplimiento. PARÁGRAFO: son funciones del supervisor:
             <br><br>

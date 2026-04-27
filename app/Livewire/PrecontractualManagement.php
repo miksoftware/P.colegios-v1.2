@@ -993,6 +993,10 @@ class PrecontractualManagement extends Component
             $this->addError('evaluationDate', 'La fecha de evaluación es obligatoria.');
             return;
         }
+        if ($this->convocatoria->end_date && $this->evaluationDate < $this->convocatoria->end_date->format('Y-m-d')) {
+            $this->addError('evaluationDate', 'La fecha de evaluación debe ser igual o posterior a la fecha de cierre (' . $this->convocatoria->end_date->format('d/m/Y') . ').');
+            return;
+        }
         if (empty($this->evaluationTime)) {
             $this->addError('evaluationTime', 'La hora de evaluación es obligatoria.');
             return;

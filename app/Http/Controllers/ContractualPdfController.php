@@ -102,8 +102,8 @@ class ContractualPdfController extends Controller
             ->with([
                 'school',
                 'supplier',
-                'convocatoria.distributionDetails.expenseDistribution.expenseCode',
-                'rps.cdp.budgetItem.accountingAccount.parent.parent.parent.parent',
+                'convocatoria.distributionDetails.expenseDistribution.expenseCode.accountingAccount.parent.parent.parent.parent',
+                'rps.cdp.budgetItem',
                 'rps.fundingSources.fundingSource',
                 'creator',
             ])
@@ -119,9 +119,26 @@ class ContractualPdfController extends Controller
         $amount = (float) $rp->total_amount;
         $amountInWords = self::amountToWords($amount);
 
-        // Imputación contable (débito: cuenta de gasto del rubro de este RP)
+        // Imputación contable (débito: cuenta contable del código de gasto)
         $debitEntries = [];
-        $account = $rp->cdp?->budgetItem?->accountingAccount;
+        $account = null;
+
+        // Buscar la cuenta contable desde el ExpenseCode de la convocatoria
+        if ($contract->convocatoria) {
+            foreach ($contract->convocatoria->distributionDetails as $dd) {
+                $ec = $dd->expenseDistribution?->expenseCode;
+                if ($ec && $ec->accountingAccount) {
+                    $account = $ec->accountingAccount;
+                    break;
+                }
+            }
+        }
+
+        // Fallback: cuenta del rubro presupuestal del CDP
+        if (!$account) {
+            $account = $rp->cdp?->budgetItem?->accountingAccount;
+        }
+
         if ($account) {
             $hierarchy = $this->buildAccountHierarchy($account);
             $debitEntries[] = [

@@ -81,7 +81,7 @@
             </tr>
             <tr>
                 <td class="info-label">Cargo:</td>
-                <td>RECTOR</td>
+                <td>{{ mb_strtoupper($contract->supervisor?->job_title ?? 'RECTOR') }}</td>
             </tr>
             <tr>
                 <td class="info-label">Expedido Registro Presupuestal No.:</td>

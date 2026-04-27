@@ -228,6 +228,20 @@ class ContractualPdfController extends Controller
             ];
         }
 
+        // Fallback: si este RP no tiene banco, buscar en otros RPs del contrato
+        if (!$bankName) {
+            foreach ($contract->rps as $otherRp) {
+                if ($otherRp->id === $rp->id) continue;
+                foreach ($otherRp->fundingSources as $otherFs) {
+                    if ($otherFs->bank) {
+                        $bankName = $otherFs->bank->name ?? '';
+                        $accountNumber = $otherFs->bankAccount?->account_number ?? '';
+                        break 2;
+                    }
+                }
+            }
+        }
+
         $expenseCode = '';
         $expenseName = '';
         if ($contract->convocatoria) {

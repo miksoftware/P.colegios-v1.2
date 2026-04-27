@@ -1154,11 +1154,27 @@ class ContractualManagement extends Component
             foreach ($this->additionCdpFundingSources as $fs) {
                 $amount = (float) ($fs['amount'] ?? 0);
                 if ($amount > 0) {
+                    // Heredar banco del RP original del contrato para la misma fuente
+                    $originalRpFs = RpFundingSource::whereHas('contractRp', function ($q) use ($contract) {
+                        $q->where('contract_id', $contract->id)
+                          ->where('is_addition', false)
+                          ->where('status', 'active');
+                    })->where('funding_source_id', $fs['id'])->first();
+
+                    // Si no hay coincidencia por fuente, tomar cualquier RP original con banco
+                    if (!$originalRpFs || !$originalRpFs->bank_id) {
+                        $originalRpFs = RpFundingSource::whereHas('contractRp', function ($q) use ($contract) {
+                            $q->where('contract_id', $contract->id)->where('status', 'active');
+                        })->whereNotNull('bank_id')->first();
+                    }
+
                     RpFundingSource::create([
                         'contract_rp_id' => $rp->id,
                         'funding_source_id' => $fs['id'],
                         'budget_id' => $fs['budget_id'] ?? null,
                         'amount' => $amount,
+                        'bank_id' => $originalRpFs?->bank_id,
+                        'bank_account_id' => $originalRpFs?->bank_account_id,
                     ]);
                 }
             }

@@ -87,7 +87,7 @@
             <tr>
                 <td class="info-label">Dirección:</td>
                 <td>{{ $supplier->address ?? '' }}</td>
-                <td>{{ $supplier->phone ?? $supplier->mobile ?? '' }}</td>
+                <td>{{ $supplier->phone ?? '' }}</td>
             </tr>
         </table>
 

@@ -93,7 +93,7 @@
                 </tr>
                 <tr>
                     <td class="label">Teléfono:</td>
-                    <td colspan="3">{{ $supplier->phone ?? $supplier->mobile ?? '' }}</td>
+                    <td colspan="3">{{ $supplier->phone ?? '' }}</td>
                 </tr>
                 <tr>
                     <td class="label">Cotización No.:</td>

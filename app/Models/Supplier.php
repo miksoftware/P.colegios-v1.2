@@ -26,7 +26,6 @@ class Supplier extends Model
         'department_id',
         'municipality_id',
         'phone',
-        'mobile',
         'email',
         'is_active',
         'notes',

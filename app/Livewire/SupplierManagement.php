@@ -42,7 +42,6 @@ class SupplierManagement extends Component
     public $department_id = '';
     public $municipality_id = '';
     public $phone = '';
-    public $mobile = '';
     public $email = '';
     public $bank_accounts = [];
     public $is_active = true;
@@ -85,8 +84,7 @@ class SupplierManagement extends Component
             'address' => 'required|string|max:255',
             'department_id' => 'required|exists:departments,id',
             'municipality_id' => 'required|exists:municipalities,id',
-            'phone' => 'nullable|string|max:20',
-            'mobile' => 'nullable|string|max:20',
+            'phone' => 'nullable|string|max:100',
             'email' => 'nullable|email|max:150',
             'bank_accounts' => 'array',
             'bank_accounts.*.bank_name' => 'required|string|max:100',
@@ -230,7 +228,6 @@ class SupplierManagement extends Component
         }
         $this->municipality_id = $supplier->municipality_id;
         $this->phone = $supplier->phone;
-        $this->mobile = $supplier->mobile;
         $this->email = $supplier->email;
         $this->bank_accounts = $supplier->bankAccounts->map(fn($ba) => [
             'id'             => $ba->id,
@@ -275,7 +272,6 @@ class SupplierManagement extends Component
             'department_id' => $this->department_id,
             'municipality_id' => $this->municipality_id,
             'phone' => $this->phone,
-            'mobile' => $this->mobile,
             'email' => $this->email ? strtolower($this->email) : null,
             'is_active' => $this->is_active,
             'notes' => $this->notes,
@@ -396,7 +392,6 @@ class SupplierManagement extends Component
         $this->municipality_id = '';
         $this->municipalities = [];
         $this->phone = '';
-        $this->mobile = '';
         $this->email = '';
         $this->bank_accounts = [];
         $this->is_active = true;

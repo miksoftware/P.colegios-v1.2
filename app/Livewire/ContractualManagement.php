@@ -1228,9 +1228,46 @@ class ContractualManagement extends Component
             return;
         }
 
-        // Verificar que no haya pagos asociados a los RPs de adición
+        // Buscar RPs de adición: primero por is_addition=true, si no hay, buscar por fecha de addition_date
         $additionRps = $contract->rps()->where('is_addition', true)->where('status', 'active')->get();
 
+        // Fallback: si no hay RPs marcados como adición (campo no existía antes),
+        // identificar los RPs creados después de la fecha de adición del contrato
+        if ($additionRps->isEmpty() && $contract->addition_date) {
+            // Obtener los IDs de CDPs originales de la convocatoria (los que no son de adición)
+            $originalCdpIds = $contract->convocatoria?->cdps()
+                ->where('created_at', '<', $contract->addition_date)
+                ->pluck('id') ?? collect();
+
+            // Los RPs cuyo CDP no está en los originales son de adición
+            $additionRps = $contract->rps()
+                ->where('status', 'active')
+                ->when($originalCdpIds->isNotEmpty(), function ($q) use ($originalCdpIds) {
+                    $q->whereNotIn('cdp_id', $originalCdpIds);
+                })
+                ->get();
+        }
+
+        // Último fallback: si el contrato tiene addition_amount pero no encontramos RPs,
+        // buscar el RP más reciente que coincida con el monto de adición
+        if ($additionRps->isEmpty() && $contract->addition_amount > 0) {
+            $lastRp = $contract->rps()
+                ->where('status', 'active')
+                ->where('total_amount', $contract->addition_amount)
+                ->orderByDesc('id')
+                ->first();
+
+            if ($lastRp) {
+                $additionRps = collect([$lastRp]);
+            }
+        }
+
+        if ($additionRps->isEmpty()) {
+            $this->dispatch('toast', message: 'No se encontraron RPs de adición para eliminar. Verifique manualmente.', type: 'error');
+            return;
+        }
+
+        // Verificar que no haya pagos asociados a los RPs de adición
         foreach ($additionRps as $rp) {
             $hasPaidOrders = \App\Models\PaymentOrder::where('contract_rp_id', $rp->id)
                 ->whereIn('status', ['approved', 'paid'])

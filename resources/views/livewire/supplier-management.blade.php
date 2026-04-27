@@ -120,8 +120,8 @@
                                 </td>
                                 <td class="px-6 py-4">
                                     <div class="text-sm text-gray-900">{{ $supplier->city }}</div>
-                                    @if($supplier->phone || $supplier->mobile)
-                                        <div class="text-xs text-gray-500">{{ $supplier->phone ?? $supplier->mobile }}</div>
+                                    @if($supplier->phone)
+                                        <div class="text-xs text-gray-500">{{ $supplier->phone }}</div>
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -442,22 +442,14 @@
                                     @error('municipality_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono Fijo</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Teléfonos</label>
                                     <input 
                                         type="text" 
                                         wire:model="phone"
                                         class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                        placeholder="(601) 1234567"
+                                        placeholder="300 1234567 - (601) 1234567"
                                     >
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Celular</label>
-                                    <input 
-                                        type="text" 
-                                        wire:model="mobile"
-                                        class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                        placeholder="300 1234567"
-                                    >
+                                    <p class="text-xs text-gray-400 mt-1">Si tiene varios, sepárelos con -</p>
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico</label>

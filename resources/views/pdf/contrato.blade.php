@@ -81,7 +81,7 @@
                 <td class="info-label">Dirección Contratista:</td>
                 <td>{{ $supplier->address ?? '' }}</td>
                 <td class="info-label">Teléfono del Contratista:</td>
-                <td>{{ $supplier->phone ?? $supplier->mobile ?? '' }}</td>
+                <td>{{ $supplier->phone ?? '' }}</td>
             </tr>
             <tr>
                 <td class="info-label">Supervisor:</td>

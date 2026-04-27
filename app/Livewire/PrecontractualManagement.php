@@ -73,6 +73,8 @@ class PrecontractualManagement extends Component
     // Modal Evaluar
     public $showEvaluateModal = false;
     public $proposalScores = [];
+    public $evaluationDate = '';
+    public $evaluationTime = '';
 
     // Modal Eliminar
     public $showDeleteModal = false;
@@ -569,7 +571,7 @@ class PrecontractualManagement extends Component
 
         $this->convocatoria->update([
             'status' => $this->newStatus,
-            'evaluation_date' => $this->newStatus === 'awarded' ? now() : $this->convocatoria->evaluation_date,
+            'evaluation_date' => ($this->newStatus === 'awarded' && !$this->convocatoria->evaluation_date) ? now() : $this->convocatoria->evaluation_date,
         ]);
 
         $this->dispatch('toast', message: 'Estado actualizado a: ' . Convocatoria::STATUSES[$this->newStatus], type: 'success');
@@ -945,6 +947,12 @@ class PrecontractualManagement extends Component
             return;
         }
 
+        // Si ya fue evaluada, no permitir re-evaluar
+        if ($this->convocatoria->evaluation_date) {
+            $this->dispatch('toast', message: 'Esta convocatoria ya fue evaluada el ' . $this->convocatoria->evaluation_date->format('d/m/Y h:i A') . '. No se puede volver a evaluar.', type: 'warning');
+            return;
+        }
+
         if ($this->convocatoria->proposals->count() < 1) {
             $this->dispatch('toast', message: 'Debe haber al menos una propuesta para evaluar.', type: 'error');
             return;
@@ -958,6 +966,10 @@ class PrecontractualManagement extends Component
             'is_selected' => (bool) $p->is_selected,
         ])->toArray();
 
+        // Pre-llenar con fecha y hora actual
+        $this->evaluationDate = now()->format('Y-m-d');
+        $this->evaluationTime = now()->format('H:i');
+
         $this->showEvaluateModal = true;
     }
 
@@ -965,6 +977,24 @@ class PrecontractualManagement extends Component
     {
         if (!auth()->user()->can('precontractual.evaluate')) {
             $this->dispatch('toast', message: 'No tienes permisos.', type: 'error');
+            return;
+        }
+
+        // Verificar que no haya sido evaluada previamente
+        $this->convocatoria->refresh();
+        if ($this->convocatoria->evaluation_date) {
+            $this->dispatch('toast', message: 'Esta convocatoria ya fue evaluada. No se puede volver a evaluar.', type: 'warning');
+            $this->showEvaluateModal = false;
+            return;
+        }
+
+        // Validar fecha y hora de evaluación
+        if (empty($this->evaluationDate)) {
+            $this->addError('evaluationDate', 'La fecha de evaluación es obligatoria.');
+            return;
+        }
+        if (empty($this->evaluationTime)) {
+            $this->addError('evaluationTime', 'La hora de evaluación es obligatoria.');
             return;
         }
 
@@ -983,7 +1013,9 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        DB::transaction(function () {
+        $evaluationDateTime = \Carbon\Carbon::parse($this->evaluationDate . ' ' . $this->evaluationTime);
+
+        DB::transaction(function () use ($evaluationDateTime) {
             // Primero resetear todas las propuestas de esta convocatoria
             Proposal::where('convocatoria_id', $this->convocatoria->id)
                 ->update(['is_selected' => false]);
@@ -1001,7 +1033,7 @@ class PrecontractualManagement extends Component
             }
 
             $this->convocatoria->update([
-                'evaluation_date' => now(),
+                'evaluation_date' => $evaluationDateTime,
             ]);
         });
 
@@ -1022,6 +1054,9 @@ class PrecontractualManagement extends Component
     {
         $this->showEvaluateModal = false;
         $this->proposalScores = [];
+        $this->evaluationDate = '';
+        $this->evaluationTime = '';
+        $this->resetErrorBag(['evaluationDate', 'evaluationTime']);
     }
 
     // === ELIMINAR ===

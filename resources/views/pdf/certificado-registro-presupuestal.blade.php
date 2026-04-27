@@ -159,6 +159,24 @@
             {{ $contract->object }}
         </div>
 
+        {{-- OTROSÍ DE ADICIÓN (si aplica) --}}
+        @if(!empty($isAddition) && $isAddition)
+        <div style="padding: 10px 15px; border-top: 1px solid #ccc; background: #f0fdf4;">
+            <div style="margin-bottom: 4px;">
+                <span style="font-weight: bold; color: #166534; font-size: 9px; text-transform: uppercase;">Otrosí de Adición de Recursos — Contrato No. {{ $contract->formatted_number }}</span>
+            </div>
+            <div style="font-size: 9px; color: #333;">
+                Este Registro Presupuestal corresponde a una adición de recursos al Contrato No. {{ $contract->formatted_number }} mediante Otrosí.
+            </div>
+            @if(!empty($additionJustification))
+            <div style="margin-top: 4px; font-size: 9px;">
+                <span style="font-weight: bold; color: #1e3a5f;">Justificación:</span>
+                {{ $additionJustification }}
+            </div>
+            @endif
+        </div>
+        @endif
+
         {{-- LUGAR Y FECHA --}}
         <div class="lugar-fecha">
             <span class="bold">Lugar y Fecha de Expedición:</span>

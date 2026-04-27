@@ -29,6 +29,7 @@ class ContractualPermissionSeeder extends Seeder
             'contractual.create' => 'Crear contratos y RPs',
             'contractual.edit'   => 'Editar contratos y RPs',
             'contractual.delete' => 'Eliminar contratos y RPs',
+            'contractual.delete_amendment' => 'Eliminar adiciones y prórrogas (Otrosí)',
         ];
 
         // Crear permisos

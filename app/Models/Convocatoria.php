@@ -43,7 +43,7 @@ class Convocatoria extends Model
         'assigned_budget' => 'decimal:2',
         'estimated_duration_days' => 'integer',
         'requires_multiple_cdps' => 'boolean',
-        'evaluation_date' => 'date',
+        'evaluation_date' => 'datetime',
         'proposals_count' => 'integer',
     ];
 

@@ -17,11 +17,14 @@ class ContractRp extends Model
         'fiscal_year',
         'total_amount',
         'status',
+        'is_addition',
+        'addition_justification',
         'created_by',
     ];
 
     protected $casts = [
         'total_amount' => 'decimal:2',
+        'is_addition' => 'boolean',
     ];
 
     const STATUSES = [

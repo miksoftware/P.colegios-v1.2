@@ -52,6 +52,33 @@ docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed-once --forc
 echo -e "${GREEN}✓ Datos base sincronizados${NC}"
 
 echo ""
+echo -e "${YELLOW}[4.5/8] 🔐 Sincronizando permisos...${NC}"
+# Resetear todos los seeders de permisos para que se re-ejecuten (son idempotentes con updateOrCreate)
+PERMISSION_SEEDERS=(
+    "ModulePermissionSeeder"
+    "BudgetPermissionSeeder"
+    "BudgetItemPermissionSeeder"
+    "BudgetTransferPermissionSeeder"
+    "BudgetModificationPermissionSeeder"
+    "FundingSourcePermissionSeeder"
+    "IncomePermissionSeeder"
+    "ExpensePermissionSeeder"
+    "ExpenseCodePermissionSeeder"
+    "PrecontractualPermissionSeeder"
+    "ContractualPermissionSeeder"
+    "PostcontractualPermissionSeeder"
+    "BankPermissionSeeder"
+    "ReportPermissionSeeder"
+)
+for SEEDER in "${PERMISSION_SEEDERS[@]}"; do
+    docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed-once --reset="$SEEDER" 2>&1 | grep -v "^$"
+done
+echo -e "${BLUE}    Ejecutando seeders de permisos...${NC}"
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed-once --force 2>&1
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan permission:cache-reset 2>&1
+echo -e "${GREEN}✓ Permisos sincronizados${NC}"
+
+echo ""
 echo -e "${YELLOW}[5/8] 📦 Verificando assets...${NC}"
 if docker exec -w /var/www/html ${PROJECT_NAME}_php test -f public/build/manifest.json; then
     echo -e "${GREEN}✓ Assets encontrados en el repositorio${NC}"

@@ -83,15 +83,21 @@ class ContractualManagement extends Component
     public $showExtensionModal = false;
     public $extensionNewEndDate = '';
     public $extensionDocument = null;
+    public $extensionJustification = '';
 
     // Modal Adición de Recursos
     public $showAdditionModal = false;
     public $additionAmount = '';
     public $additionDocument = null;
+    public $additionJustification = '';
     public $additionCdpBudgetItemId = '';
     public $additionCdpFundingSources = [];
     public $additionAvailableFundingSources = [];
     public $additionBudgetItems = [];
+
+    // Modal Eliminar Otrosí
+    public $showDeleteAmendmentModal = false;
+    public $deleteAmendmentType = ''; // 'addition' or 'extension'
 
     // Modal Imprimir Documentos
     public $showPrintModal = false;
@@ -775,6 +781,7 @@ class ContractualManagement extends Component
 
         $this->extensionNewEndDate = '';
         $this->extensionDocument = null;
+        $this->extensionJustification = '';
         $this->showExtensionModal = true;
     }
 
@@ -787,12 +794,15 @@ class ContractualManagement extends Component
         $this->validate([
             'extensionNewEndDate' => 'required|date|after:' . $contract->end_date->format('Y-m-d'),
             'extensionDocument' => 'required|file|mimes:pdf,doc,docx|max:10240',
+            'extensionJustification' => 'required|string|min:10',
         ], [
             'extensionNewEndDate.required' => 'La nueva fecha de terminación es obligatoria.',
             'extensionNewEndDate.after' => 'La nueva fecha debe ser posterior a la fecha actual de terminación (' . $contract->end_date->format('d/m/Y') . ').',
             'extensionDocument.required' => 'El documento Otrosí es obligatorio.',
             'extensionDocument.mimes' => 'El documento debe ser PDF, DOC o DOCX.',
             'extensionDocument.max' => 'El documento no puede superar 10MB.',
+            'extensionJustification.required' => 'La justificación es obligatoria.',
+            'extensionJustification.min' => 'La justificación debe tener al menos 10 caracteres.',
         ]);
 
         $newEnd = \Carbon\Carbon::parse($this->extensionNewEndDate);
@@ -828,6 +838,7 @@ class ContractualManagement extends Component
                 'end_date' => $newEnd,
                 'extension_days' => $contract->extension_days + $extensionDays,
                 'extension_document_path' => $path,
+                'extension_justification' => $this->extensionJustification,
                 'extension_date' => now(),
                 'duration_days' => $totalDays,
             ]);
@@ -835,6 +846,7 @@ class ContractualManagement extends Component
 
         $this->showExtensionModal = false;
         $this->extensionDocument = null;
+        $this->extensionJustification = '';
         $this->dispatch('toast', message: "Prórroga registrada: +{$extensionDays} días hábiles.", type: 'success');
         $this->viewDetail($this->contractId);
     }
@@ -885,6 +897,7 @@ class ContractualManagement extends Component
 
         $this->additionAmount = '';
         $this->additionDocument = null;
+        $this->additionJustification = '';
         $this->additionCdpBudgetItemId = '';
         $this->additionCdpFundingSources = [];
         $this->additionAvailableFundingSources = [];
@@ -934,7 +947,7 @@ class ContractualManagement extends Component
 
             $sourceAvailable = max(0, $budgetAmount - $totalReserved);
 
-            // Limitar al máximo de adición permitido para el contrato
+            // El disponible real es el menor entre: saldo del presupuesto y máximo de adición del contrato
             $available = min($sourceAvailable, $maxAddition);
 
             return [
@@ -942,6 +955,7 @@ class ContractualManagement extends Component
                 'name' => $source->code . ' - ' . $source->name,
                 'type' => $source->type_name,
                 'available' => $available,
+                'source_available' => $sourceAvailable,
                 'budget_id' => $budget->id,
                 'budget_amount' => $budgetAmount,
                 'reserved' => $totalReserved,
@@ -982,12 +996,15 @@ class ContractualManagement extends Component
 
         $this->validate([
             'additionDocument' => 'required|file|mimes:pdf,doc,docx|max:10240',
+            'additionJustification' => 'required|string|min:10',
             'additionCdpBudgetItemId' => 'required',
             'additionCdpFundingSources' => 'required|array|min:1',
             'additionCdpFundingSources.*.amount' => 'required|numeric|min:0.01',
         ], [
             'additionDocument.required' => 'El documento Otrosí es obligatorio.',
             'additionDocument.mimes' => 'El documento debe ser PDF, DOC o DOCX.',
+            'additionJustification.required' => 'La justificación es obligatoria.',
+            'additionJustification.min' => 'La justificación debe tener al menos 10 caracteres.',
             'additionCdpBudgetItemId.required' => 'Seleccione un rubro.',
             'additionCdpFundingSources.required' => 'Agregue al menos una fuente.',
             'additionCdpFundingSources.*.amount.required' => 'Ingrese un monto.',
@@ -1001,10 +1018,32 @@ class ContractualManagement extends Component
             return;
         }
 
-        // Validar montos vs disponibles
+        // Validar montos vs disponibles (recalcular en tiempo real para evitar datos obsoletos)
         foreach ($this->additionCdpFundingSources as $i => $fs) {
-            if ((float) $fs['amount'] > (float) $fs['available']) {
-                $this->addError("additionCdpFundingSources.{$i}.amount", 'Excede el saldo disponible.');
+            $budget = Budget::forSchool($this->schoolId)
+                ->where('funding_source_id', $fs['id'])
+                ->where('budget_item_id', $this->additionCdpBudgetItemId)
+                ->where('fiscal_year', $this->filterYear)
+                ->where('type', 'expense')
+                ->first();
+
+            if (!$budget) {
+                $this->addError("additionCdpFundingSources.{$i}.amount", 'No se encontró presupuesto de gasto para esta fuente.');
+                return;
+            }
+
+            $budgetAmount = (float) $budget->current_amount;
+            $totalReserved = (float) CdpFundingSource::where('budget_id', $budget->id)
+                ->whereHas('cdp', function ($q) {
+                    $q->whereIn('status', ['active', 'used'])
+                      ->where('school_id', $this->schoolId);
+                })
+                ->sum('amount');
+
+            $realAvailable = max(0, $budgetAmount - $totalReserved);
+
+            if ((float) $fs['amount'] > $realAvailable) {
+                $this->addError("additionCdpFundingSources.{$i}.amount", 'Excede el saldo disponible real ($' . number_format($realAvailable, 2, ',', '.') . '). El presupuesto del rubro es $' . number_format($budgetAmount, 2, ',', '.') . ' y ya tiene comprometido $' . number_format($totalReserved, 2, ',', '.') . '.');
                 return;
             }
         }
@@ -1045,6 +1084,8 @@ class ContractualManagement extends Component
                 'fiscal_year' => $year,
                 'total_amount' => $totalAddition,
                 'status' => 'active',
+                'is_addition' => true,
+                'addition_justification' => $this->additionJustification,
                 'created_by' => auth()->id(),
             ]);
 
@@ -1067,6 +1108,7 @@ class ContractualManagement extends Component
                 'subtotal' => (float) $contract->subtotal + $totalAddition,
                 'addition_amount' => (float) $contract->addition_amount + $totalAddition,
                 'addition_document_path' => $path,
+                'addition_justification' => $this->additionJustification,
                 'addition_date' => now(),
             ]);
 
@@ -1081,6 +1123,142 @@ class ContractualManagement extends Component
             DB::rollBack();
             $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
         }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ELIMINAR OTROSÍ (ADICIÓN / PRÓRROGA)
+    // ══════════════════════════════════════════════════════════
+
+    public function confirmDeleteAmendment($type)
+    {
+        if (!auth()->user()->can('contractual.delete_amendment')) {
+            $this->dispatch('toast', message: 'No tienes permisos para eliminar otrosí.', type: 'error');
+            return;
+        }
+
+        if (!$this->contractId) return;
+
+        $this->deleteAmendmentType = $type;
+        $this->showDeleteAmendmentModal = true;
+    }
+
+    public function deleteAmendment()
+    {
+        if (!auth()->user()->can('contractual.delete_amendment')) {
+            $this->dispatch('toast', message: 'No tienes permisos.', type: 'error');
+            return;
+        }
+
+        if (!$this->contractId || !$this->deleteAmendmentType) return;
+
+        $contract = Contract::forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        if ($this->deleteAmendmentType === 'addition') {
+            $this->deleteAddition($contract);
+        } elseif ($this->deleteAmendmentType === 'extension') {
+            $this->deleteExtension($contract);
+        }
+
+        $this->showDeleteAmendmentModal = false;
+        $this->deleteAmendmentType = '';
+        $this->viewDetail($this->contractId);
+    }
+
+    private function deleteAddition(Contract $contract)
+    {
+        if ($contract->addition_amount <= 0) {
+            $this->dispatch('toast', message: 'Este contrato no tiene adiciones registradas.', type: 'error');
+            return;
+        }
+
+        // Verificar que no haya pagos asociados a los RPs de adición
+        $additionRps = $contract->rps()->where('is_addition', true)->where('status', 'active')->get();
+
+        foreach ($additionRps as $rp) {
+            $hasPaidOrders = \App\Models\PaymentOrder::where('contract_rp_id', $rp->id)
+                ->whereIn('status', ['approved', 'paid'])
+                ->exists();
+
+            if ($hasPaidOrders) {
+                $this->dispatch('toast', message: 'No se puede eliminar la adición porque el RP #' . $rp->formatted_number . ' tiene órdenes de pago aprobadas o pagadas.', type: 'error');
+                return;
+            }
+        }
+
+        DB::transaction(function () use ($contract, $additionRps) {
+            foreach ($additionRps as $rp) {
+                // Eliminar fuentes del RP
+                $rp->fundingSources()->delete();
+
+                // Cancelar el CDP asociado
+                if ($rp->cdp) {
+                    $rp->cdp->fundingSources()->delete();
+                    $rp->cdp->update(['status' => 'cancelled']);
+                }
+
+                // Eliminar órdenes de pago pendientes
+                \App\Models\PaymentOrder::where('contract_rp_id', $rp->id)
+                    ->whereIn('status', ['draft', 'pending'])
+                    ->delete();
+
+                // Eliminar el RP
+                $rp->delete();
+            }
+
+            // Restaurar valores del contrato
+            $contract->update([
+                'total' => (float) ($contract->original_total ?? $contract->total),
+                'subtotal' => (float) ($contract->original_total ?? $contract->total) - (float) $contract->iva,
+                'addition_amount' => 0,
+                'addition_document_path' => null,
+                'addition_justification' => null,
+                'addition_date' => null,
+                'original_total' => null,
+            ]);
+        });
+
+        $this->dispatch('toast', message: 'Adición de recursos eliminada. Los CDPs y RPs asociados fueron cancelados/eliminados.', type: 'success');
+    }
+
+    private function deleteExtension(Contract $contract)
+    {
+        if ($contract->extension_days <= 0) {
+            $this->dispatch('toast', message: 'Este contrato no tiene prórrogas registradas.', type: 'error');
+            return;
+        }
+
+        DB::transaction(function () use ($contract) {
+            $originalEnd = $contract->original_end_date ?? $contract->end_date;
+
+            // Recalcular duración en días hábiles con la fecha original
+            $start = $contract->start_date;
+            $totalDays = 0;
+            $cur = $start->copy();
+            while ($cur->lte($originalEnd)) {
+                if ($cur->isWeekday()) {
+                    $totalDays++;
+                }
+                $cur->addDay();
+            }
+
+            $contract->update([
+                'end_date' => $originalEnd,
+                'original_end_date' => null,
+                'extension_days' => 0,
+                'extension_document_path' => null,
+                'extension_justification' => null,
+                'extension_date' => null,
+                'duration_days' => $totalDays,
+            ]);
+        });
+
+        $this->dispatch('toast', message: 'Prórroga eliminada. La fecha de terminación fue restaurada.', type: 'success');
+    }
+
+    public function closeDeleteAmendmentModal()
+    {
+        $this->showDeleteAmendmentModal = false;
+        $this->deleteAmendmentType = '';
     }
 
     // ══════════════════════════════════════════════════════════

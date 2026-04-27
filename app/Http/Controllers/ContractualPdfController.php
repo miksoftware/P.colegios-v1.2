@@ -78,6 +78,8 @@ class ContractualPdfController extends Controller
             'rpNumber' => $rpNumber,
             'rpRows' => $rpRows,
             'grandTotal' => $grandTotal,
+            'isAddition' => (bool) $rp->is_addition,
+            'additionJustification' => $rp->addition_justification,
             'user' => auth()->user(),
         ]);
 
@@ -172,6 +174,8 @@ class ContractualPdfController extends Controller
             'debitEntries' => $debitEntries,
             'creditHierarchy' => $creditHierarchy,
             'rpRows' => $rpRows,
+            'isAddition' => (bool) $rp->is_addition,
+            'additionJustification' => $rp->addition_justification,
             'user' => auth()->user(),
         ]);
 

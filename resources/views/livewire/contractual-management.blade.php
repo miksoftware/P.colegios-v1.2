@@ -631,25 +631,53 @@
                             </div>
                             @if($contract->extension_days > 0)
                                 <div class="mt-2 bg-indigo-50 rounded-lg px-3 py-2 text-sm">
-                                    <span class="font-medium text-indigo-700">Prórroga:</span>
-                                    <span class="text-indigo-600">+{{ $contract->extension_days }} días hábiles</span>
-                                    @if($contract->original_end_date)
-                                        <span class="text-gray-500 ml-2">(Fecha original: {{ $contract->original_end_date->format('d/m/Y') }})</span>
-                                    @endif
-                                    @if($contract->extension_document_path)
-                                        <a href="{{ Storage::url($contract->extension_document_path) }}" target="_blank" class="ml-2 text-indigo-600 underline hover:text-indigo-800">Ver Otrosí</a>
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <span class="font-medium text-indigo-700">Prórroga:</span>
+                                            <span class="text-indigo-600">+{{ $contract->extension_days }} días hábiles</span>
+                                            @if($contract->original_end_date)
+                                                <span class="text-gray-500 ml-2">(Fecha original: {{ $contract->original_end_date->format('d/m/Y') }})</span>
+                                            @endif
+                                            @if($contract->extension_document_path)
+                                                <a href="{{ Storage::url($contract->extension_document_path) }}" target="_blank" class="ml-2 text-indigo-600 underline hover:text-indigo-800">Ver Otrosí</a>
+                                            @endif
+                                        </div>
+                                        @can('contractual.delete_amendment')
+                                            @if(in_array($contract->status, ['active', 'in_execution']))
+                                                <button wire:click="confirmDeleteAmendment('extension')" class="p-1 text-red-500 hover:bg-red-50 rounded-lg" title="Eliminar prórroga">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
+                                            @endif
+                                        @endcan
+                                    </div>
+                                    @if($contract->extension_justification)
+                                        <p class="mt-1 text-xs text-indigo-600 italic">{{ $contract->extension_justification }}</p>
                                     @endif
                                 </div>
                             @endif
                             @if($contract->addition_amount > 0)
                                 <div class="mt-2 bg-emerald-50 rounded-lg px-3 py-2 text-sm">
-                                    <span class="font-medium text-emerald-700">Adición:</span>
-                                    <span class="text-emerald-600">${{ number_format($contract->addition_amount, 2, ',', '.') }}</span>
-                                    @if($contract->original_total)
-                                        <span class="text-gray-500 ml-2">(Valor original: ${{ number_format($contract->original_total, 2, ',', '.') }})</span>
-                                    @endif
-                                    @if($contract->addition_document_path)
-                                        <a href="{{ Storage::url($contract->addition_document_path) }}" target="_blank" class="ml-2 text-emerald-600 underline hover:text-emerald-800">Ver Otrosí</a>
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <span class="font-medium text-emerald-700">Adición:</span>
+                                            <span class="text-emerald-600">${{ number_format($contract->addition_amount, 2, ',', '.') }}</span>
+                                            @if($contract->original_total)
+                                                <span class="text-gray-500 ml-2">(Valor original: ${{ number_format($contract->original_total, 2, ',', '.') }})</span>
+                                            @endif
+                                            @if($contract->addition_document_path)
+                                                <a href="{{ Storage::url($contract->addition_document_path) }}" target="_blank" class="ml-2 text-emerald-600 underline hover:text-emerald-800">Ver Otrosí</a>
+                                            @endif
+                                        </div>
+                                        @can('contractual.delete_amendment')
+                                            @if(in_array($contract->status, ['active', 'in_execution']))
+                                                <button wire:click="confirmDeleteAmendment('addition')" class="p-1 text-red-500 hover:bg-red-50 rounded-lg" title="Eliminar adición">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
+                                            @endif
+                                        @endcan
+                                    </div>
+                                    @if($contract->addition_justification)
+                                        <p class="mt-1 text-xs text-emerald-600 italic">{{ $contract->addition_justification }}</p>
                                     @endif
                                 </div>
                             @endif
@@ -1136,6 +1164,12 @@
                         <p class="text-xs text-gray-400 mt-1">PDF, DOC o DOCX. Máximo 10MB.</p>
                         @error('extensionDocument') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                     </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Justificación de la Prórroga <span class="text-red-500">*</span></label>
+                        <textarea wire:model="extensionJustification" rows="3" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Describa la razón de la prórroga..."></textarea>
+                        @error('extensionJustification') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
                 </div>
                 <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
                     <button type="button" wire:click="$set('showExtensionModal', false)" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
@@ -1199,6 +1233,32 @@
                                     <span class="font-medium">Cuenta contable:</span> {{ $selectedItem['accounting_account'] ?? 'N/A' }}
                                 </div>
                             @endif
+                            {{-- Resumen de disponibilidad del rubro --}}
+                            @php
+                                $totalBudgetAmount = collect($additionAvailableFundingSources)->sum('budget_amount');
+                                $totalReserved = collect($additionAvailableFundingSources)->sum('reserved');
+                                $totalAvailable = collect($additionAvailableFundingSources)->sum('available');
+                            @endphp
+                            <div class="mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                                <p class="font-medium text-blue-800 mb-1">Disponibilidad del Rubro</p>
+                                <div class="grid grid-cols-3 gap-2 text-xs">
+                                    <div>
+                                        <span class="text-gray-500">Presupuestado:</span>
+                                        <p class="font-semibold text-gray-800">${{ number_format($totalBudgetAmount, 2, ',', '.') }}</p>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500">Comprometido:</span>
+                                        <p class="font-semibold text-orange-600">${{ number_format($totalReserved, 2, ',', '.') }}</p>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500">Disponible:</span>
+                                        <p class="font-bold {{ $totalAvailable > 0 ? 'text-green-700' : 'text-red-600' }}">${{ number_format($totalAvailable, 2, ',', '.') }}</p>
+                                    </div>
+                                </div>
+                                @if($totalAvailable <= 0)
+                                    <p class="mt-2 text-xs text-red-600 font-medium">⚠ Este rubro no tiene disponibilidad presupuestal para realizar una adición.</p>
+                                @endif
+                            </div>
                         @endif
                     </div>
 
@@ -1215,8 +1275,13 @@
                                                 <div class="text-xs text-gray-500">
                                                     Presupuestado: ${{ number_format($afs['budget_amount'] ?? 0, 2, ',', '.') }}
                                                     · Comprometido: ${{ number_format($afs['reserved'] ?? 0, 2, ',', '.') }}
-                                                    · <span class="font-semibold text-green-700">Disponible: ${{ number_format($afs['available'], 2, ',', '.') }}</span>
+                                                    · <span class="font-semibold text-green-700">Disp. rubro: ${{ number_format($afs['source_available'] ?? $afs['available'], 2, ',', '.') }}</span>
                                                 </div>
+                                                @if(($afs['source_available'] ?? $afs['available']) != $afs['available'])
+                                                    <div class="text-xs text-blue-600">
+                                                        Máx. por contrato (50%): ${{ number_format($afs['available'], 2, ',', '.') }}
+                                                    </div>
+                                                @endif
                                             </div>
                                             <button type="button" wire:click="addAdditionFundingSource({{ $afs['id'] }})" class="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-lg hover:bg-emerald-200">
                                                 + Agregar
@@ -1227,8 +1292,8 @@
                             </div>
                         </div>
                     @elseif($additionCdpBudgetItemId)
-                        <div class="bg-yellow-50 rounded-lg p-3 text-sm text-yellow-700">
-                            No hay fuentes con saldo disponible. El presupuesto de gasto puede estar completamente comprometido por otros CDPs.
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                            <span class="font-medium">⚠ Sin disponibilidad.</span> No hay fuentes con saldo disponible para este rubro. El presupuesto de gasto está completamente comprometido por CDPs existentes.
                         </div>
                     @endif
 
@@ -1269,6 +1334,13 @@
                     @endif
                     @error('additionCdpFundingSources') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
 
+                    {{-- Justificación --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Justificación de la Adición <span class="text-red-500">*</span></label>
+                        <textarea wire:model="additionJustification" rows="3" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500" placeholder="Describa la razón de la adición de recursos..."></textarea>
+                        @error('additionJustification') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
                     {{-- Documento Otrosí --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Documento Otrosí <span class="text-red-500">*</span></label>
@@ -1285,6 +1357,50 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+    @endif
+
+    {{-- Modal Confirmar Eliminar Otrosí --}}
+    @if($showDeleteAmendmentModal)
+    <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" wire:click.self="closeDeleteAmendmentModal">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div class="px-6 py-4 border-b bg-red-50">
+                <h3 class="text-lg font-bold text-red-900">
+                    Eliminar {{ $deleteAmendmentType === 'addition' ? 'Adición de Recursos' : 'Prórroga' }}
+                </h3>
+                <p class="text-sm text-red-700">Contrato N° {{ $contract?->formatted_number }}</p>
+            </div>
+            <div class="p-6">
+                <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+                    <div class="flex items-start gap-3">
+                        <svg class="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                        <div class="text-sm text-red-800">
+                            @if($deleteAmendmentType === 'addition')
+                                <p class="font-medium mb-1">Esta acción eliminará:</p>
+                                <ul class="list-disc list-inside space-y-1 text-xs">
+                                    <li>La adición de recursos del contrato</li>
+                                    <li>Los CDPs y RPs creados por la adición</li>
+                                    <li>Se restaurará el valor original del contrato</li>
+                                </ul>
+                            @else
+                                <p class="font-medium mb-1">Esta acción eliminará:</p>
+                                <ul class="list-disc list-inside space-y-1 text-xs">
+                                    <li>La prórroga de tiempo del contrato</li>
+                                    <li>Se restaurará la fecha de terminación original</li>
+                                </ul>
+                            @endif
+                            <p class="mt-2 font-medium">Esta acción no se puede deshacer.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                <button type="button" wire:click="closeDeleteAmendmentModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
+                <button type="button" wire:click="deleteAmendment" class="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700">
+                    Eliminar {{ $deleteAmendmentType === 'addition' ? 'Adición' : 'Prórroga' }}
+                </button>
+            </div>
         </div>
     </div>
     @endif

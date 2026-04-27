@@ -100,6 +100,24 @@
             </tr>
         </table>
 
+        {{-- OTROSÍ DE ADICIÓN (si aplica) --}}
+        @if(!empty($isAddition) && $isAddition)
+        <div style="padding: 6px 15px; background: #f0fdf4; border-top: 1px solid #ccc;">
+            <div style="font-weight: bold; color: #166534; font-size: 8px; text-transform: uppercase; margin-bottom: 2px;">
+                Otrosí de Adición de Recursos — Contrato No. {{ $contract->formatted_number }}
+            </div>
+            <div style="font-size: 9px; color: #333;">
+                Este comprobante corresponde a una adición de recursos al Contrato No. {{ $contract->formatted_number }} mediante Otrosí.
+            </div>
+            @if(!empty($additionJustification))
+            <div style="margin-top: 2px; font-size: 9px;">
+                <span style="font-weight: bold; color: #1e3a5f;">Justificación:</span>
+                {{ $additionJustification }}
+            </div>
+            @endif
+        </div>
+        @endif
+
         {{-- LA SUMA DE (EN LETRAS) --}}
         <table class="info-table">
             <tr>

@@ -672,16 +672,29 @@ class PostcontractualManagement extends Component
 
         if ($contract->convocatoria) {
             $distributions = $contract->convocatoria->distributionDetails;
+
+            // Calcular adiciones por código de gasto (RPs de adición del contrato)
+            $additionByBudget = [];
+            foreach ($contract->rps->where('status', 'active')->where('is_addition', true) as $addRp) {
+                foreach ($addRp->fundingSources as $rpFs) {
+                    $bId = $rpFs->budget_id;
+                    $additionByBudget[$bId] = ($additionByBudget[$bId] ?? 0) + (float) $rpFs->amount;
+                }
+            }
+
             foreach ($distributions as $dist) {
                 $ed = $dist->expenseDistribution;
                 if ($ed && $ed->expenseCode) {
                     $budgetId = $ed->budget_id;
                     $rpInfo = $rpInfoByBudgetId[$budgetId] ?? [];
+                    $baseAmount = (float) $dist->amount;
+                    $additionAmount = $additionByBudget[$budgetId] ?? 0;
+
                     $this->expenseDistributions[] = [
                         'id'                      => $ed->id,
                         'expense_code_id'         => $ed->expenseCode->id,
                         'expense_code_name'       => $ed->expenseCode->code . ' - ' . $ed->expenseCode->name,
-                        'convocatoria_amount'     => (float) $dist->amount,
+                        'convocatoria_amount'     => $baseAmount + $additionAmount,
                         'funding_source_name'     => $rpInfo['funding_source_name'] ?? ($ed->budget?->fundingSource ? ($ed->budget->fundingSource->code . ' - ' . $ed->budget->fundingSource->name) : null),
                         'bank_name'               => $rpInfo['bank_name'] ?? null,
                         'bank_account'            => $rpInfo['bank_account'] ?? null,

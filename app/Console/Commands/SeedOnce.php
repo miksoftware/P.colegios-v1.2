@@ -42,6 +42,7 @@ class SeedOnce extends Command
         \Database\Seeders\PostcontractualPermissionSeeder::class,
         \Database\Seeders\BankPermissionSeeder::class,
         \Database\Seeders\ReportPermissionSeeder::class,
+        \Database\Seeders\NewsPermissionSeeder::class,
 
         // 4. Datos contables y presupuestales
         \Database\Seeders\AccountingAccountSeeder::class,

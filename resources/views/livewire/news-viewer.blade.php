@@ -46,7 +46,7 @@
                             <img
                                 src="{{ Storage::url($featured->file_path) }}"
                                 alt="{{ $featured->title }}"
-                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
                             />
                         @elseif($featured->file_path && $featured->file_type === 'pdf')
                             <div class="absolute inset-0 bg-gradient-to-br from-slate-700 to-slate-900 flex flex-col items-center justify-center gap-3">
@@ -109,12 +109,12 @@
                             class="group cursor-pointer bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col"
                         >
                             {{-- Thumbnail --}}
-                            <div class="h-44 overflow-hidden flex-shrink-0 relative bg-gradient-to-br from-slate-100 to-slate-200">
+                            <div class="h-44 overflow-hidden flex-shrink-0 relative bg-slate-800">
                                 @if($item->file_path && $item->file_type === 'image')
                                     <img
                                         src="{{ Storage::url($item->file_path) }}"
                                         alt="{{ $item->title }}"
-                                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                                     />
                                 @elseif($item->file_path && $item->file_type === 'pdf')
                                     <div class="absolute inset-0 bg-gradient-to-br from-red-50 to-red-100 flex flex-col items-center justify-center gap-2">

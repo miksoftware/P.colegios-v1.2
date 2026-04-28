@@ -420,37 +420,175 @@
                     <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                         <p class="text-xs text-amber-700">
                             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            No se creará CDP ni RP para este pago. Solo se registrará la orden de pago directa.
+                            No se creará CDP ni RP. Se registrarán los impuestos pagados y los egresos bancarios.
                         </p>
                     </div>
 
-                    {{-- Banco y Cuenta de Egreso --}}
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Banco de Egreso</label>
-                            <select wire:model.live="directEgressBankId" class="w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500">
-                                <option value="">-- Seleccione banco --</option>
-                                @foreach($directEgressBanks as $bank)
-                                    <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
-                                @endforeach
-                            </select>
+                    {{-- ── Sección 1: Impuestos a pagar ─────────────────────── --}}
+                    <div class="mb-5">
+                        <p class="text-sm font-semibold text-gray-800 mb-3">1. Impuestos a pagar</p>
+                        <div class="space-y-2">
+                            @foreach(\App\Models\PaymentOrder::ACCOUNTING_CODES as $taxKey => $taxLabel)
+                                @php $isSelected = collect($skipTaxLines)->contains('tax_type', $taxKey); @endphp
+                                <div wire:key="tax-{{ $taxKey }}" class="flex items-center gap-3 p-3 rounded-xl border-2 transition-colors {{ $isSelected ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-red-200' }}">
+                                    <input type="checkbox"
+                                           wire:click="toggleSkipTaxLine('{{ $taxKey }}')"
+                                           {{ $isSelected ? 'checked' : '' }}
+                                           class="rounded border-gray-300 text-red-600 focus:ring-red-500 flex-shrink-0">
+                                    <span class="flex-1 text-sm text-gray-800">{{ $taxLabel }}</span>
+                                    @if($isSelected)
+                                        @php $taxIdx = collect($skipTaxLines)->search(fn($l) => $l['tax_type'] === $taxKey); @endphp
+                                        <div class="relative w-40 flex-shrink-0">
+                                            <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 text-xs pointer-events-none">$</span>
+                                            <input type="number"
+                                                   wire:model.live.debounce.300ms="skipTaxLines.{{ $taxIdx }}.amount"
+                                                   step="0.01" min="0.01"
+                                                   class="w-full rounded-lg border-gray-300 pl-5 text-sm focus:border-red-400 focus:ring-red-400"
+                                                   placeholder="0.00">
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Cuenta Bancaria</label>
-                            <select wire:model="directEgressBankAccountId" class="w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500">
-                                <option value="">-- Seleccione cuenta --</option>
-                                @foreach($directEgressBankAccounts as $ba)
-                                    <option value="{{ $ba['id'] }}">{{ $ba['label'] }}</option>
-                                @endforeach
-                            </select>
+                        @if(count($skipTaxLines) > 0)
+                            <div class="mt-3 bg-red-100 rounded-xl p-3 text-center">
+                                <p class="text-xs text-red-600 font-medium">Total Impuestos</p>
+                                <p class="text-xl font-bold text-red-800">${{ number_format($skipTaxTotal, 2, ',', '.') }}</p>
+                            </div>
+                        @endif
+                    </div>
+
+                    {{-- ── Sección 2: Cuentas bancarias de egreso ────────────── --}}
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-sm font-semibold text-gray-800">2. Cuentas bancarias de egreso</p>
+                            <button type="button" wire:click="addSkipBankLine"
+                                    class="px-3 py-1.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-lg hover:bg-purple-200 flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                Agregar cuenta
+                            </button>
                         </div>
+
+                        @if(empty($skipBankLines))
+                            <p class="text-xs text-gray-400 italic">Haga clic en "Agregar cuenta" para indicar desde qué cuenta(s) se realiza el egreso.</p>
+                        @endif
+
+                        <div class="space-y-3">
+                            @foreach($skipBankLines as $blIdx => $bl)
+                                <div wire:key="bl-{{ $blIdx }}" class="border border-purple-200 rounded-xl p-3 bg-white">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-xs font-semibold text-purple-700">Cuenta {{ $blIdx + 1 }}</span>
+                                        <button type="button" wire:click="removeSkipBankLine({{ $blIdx }})"
+                                                class="text-red-400 hover:text-red-600">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        {{-- Banco --}}
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Banco *</label>
+                                            <select wire:model.live="skipBankLines.{{ $blIdx }}.bank_id"
+                                                    class="w-full rounded-lg border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500">
+                                                <option value="">-- Banco --</option>
+                                                @foreach($skipBanks as $bank)
+                                                    <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        {{-- Cuenta --}}
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Cuenta *</label>
+                                            <select wire:model.live="skipBankLines.{{ $blIdx }}.bank_account_id"
+                                                    class="w-full rounded-lg border-gray-300 text-sm focus:border-purple-500 focus:ring-purple-500">
+                                                <option value="">-- Cuenta --</option>
+                                                @if(!empty($bl['bank_id']))
+                                                    @php $selBank = collect($skipBanks)->firstWhere('id', (int)$bl['bank_id']); @endphp
+                                                    @foreach(($selBank['accounts'] ?? []) as $acct)
+                                                        <option value="{{ $acct['id'] }}">{{ $acct['label'] }}</option>
+                                                    @endforeach
+                                                @endif
+                                            </select>
+                                        </div>
+                                        {{-- Monto --}}
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Monto *</label>
+                                            <div class="relative">
+                                                <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 text-xs pointer-events-none">$</span>
+                                                <input type="number"
+                                                       wire:model.live.debounce.300ms="skipBankLines.{{ $blIdx }}.amount"
+                                                       step="0.01" min="0.01"
+                                                       class="w-full rounded-lg border-gray-300 pl-5 text-sm focus:border-purple-500 focus:ring-purple-500"
+                                                       placeholder="0.00">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        {{-- Totalizador / Indicador de balance --}}
+                        @if(count($skipBankLines) > 0)
+                            <div class="mt-3 bg-purple-50 rounded-xl p-3 text-center">
+                                <p class="text-xs text-purple-600 font-medium">Total Cuentas Bancarias</p>
+                                <p class="text-xl font-bold text-purple-800">${{ number_format($skipBankTotal, 2, ',', '.') }}</p>
+                            </div>
+                        @endif
+
+                        {{-- Balance indicator --}}
+                        @if(count($skipTaxLines) > 0 && count($skipBankLines) > 0)
+                            @php $diff = abs($skipTaxTotal - $skipBankTotal); @endphp
+                            @if($diff <= 0.01)
+                                <div class="mt-3 bg-green-100 border border-green-300 rounded-xl p-3 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    <p class="text-sm font-medium text-green-800">Los totales coinciden. Puede guardar el pago.</p>
+                                </div>
+                            @else
+                                <div class="mt-3 bg-red-100 border border-red-300 rounded-xl p-3 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    <div>
+                                        <p class="text-sm font-medium text-red-800">Los totales no coinciden.</p>
+                                        <p class="text-xs text-red-600">
+                                            Impuestos: ${{ number_format($skipTaxTotal, 2, ',', '.') }} —
+                                            Bancos: ${{ number_format($skipBankTotal, 2, ',', '.') }} —
+                                            Diferencia: ${{ number_format($diff, 2, ',', '.') }}
+                                        </p>
+                                    </div>
+                                </div>
+                            @endif
+                        @endif
                     </div>
                     @endif
                 </div>
 
+                @if(!$skipCdpRp)
                 @include('livewire.partials.postcontractual-invoice-payment', ['showFullPaymentToggle' => false])
                 @include('livewire.partials.postcontractual-retentions-single')
                 @include('livewire.partials.postcontractual-summary')
+                @else
+                {{-- Fecha de pago simplificada para pago de impuestos --}}
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        Fecha del Pago
+                    </h2>
+                    <div class="max-w-xs" x-data="{
+                        init() {
+                            flatpickr(this.$refs.paymentDateInput, {
+                                dateFormat: 'Y-m-d',
+                                defaultDate: $wire.paymentDate || null,
+                                disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                onChange: (selectedDates, dateStr) => { $wire.set('paymentDate', dateStr); }
+                            });
+                        }
+                    }">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Pago *</label>
+                        <input type="text" x-ref="paymentDateInput" value="{{ $paymentDate }}"
+                               class="w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
+                               placeholder="Seleccionar fecha..." readonly>
+                        @error('paymentDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+                @endif
                 @include('livewire.partials.postcontractual-observations')
 
                 {{-- Botones --}}
@@ -827,6 +965,76 @@
                 </div>
                 @endif
 
+                {{-- Impuestos pagados (solo pago directo sin CDP/RP) --}}
+                @if($paymentOrder->payment_type === 'direct' && $paymentOrder->taxLines->isNotEmpty())
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
+                        Impuestos Pagados
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-red-50">
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-red-700 uppercase">Tipo de Impuesto</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-red-700 uppercase">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($paymentOrder->taxLines as $tl)
+                                <tr>
+                                    <td class="px-4 py-3 text-gray-800">{{ $tl->tax_type_name }}</td>
+                                    <td class="px-4 py-3 text-right font-semibold text-red-700">${{ number_format($tl->amount, 2, ',', '.') }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-red-100">
+                                    <td class="px-4 py-3 font-bold text-red-800">Total Impuestos</td>
+                                    <td class="px-4 py-3 text-right font-bold text-red-800">${{ number_format($paymentOrder->taxLines->sum('amount'), 2, ',', '.') }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                @endif
+
+                {{-- Egresos bancarios (solo pago directo sin CDP/RP) --}}
+                @if($paymentOrder->payment_type === 'direct' && $paymentOrder->bankLines->isNotEmpty())
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                        Egresos Bancarios
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-purple-50">
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-purple-700 uppercase">Banco</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-purple-700 uppercase">Cuenta</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-purple-700 uppercase">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($paymentOrder->bankLines as $bl)
+                                <tr>
+                                    <td class="px-4 py-3 text-gray-800">{{ $bl->bankAccount?->bank?->name ?? 'N/D' }}</td>
+                                    <td class="px-4 py-3 text-gray-600">{{ $bl->bankAccount?->formatted_account ?? 'N/D' }}</td>
+                                    <td class="px-4 py-3 text-right font-semibold text-purple-700">${{ number_format($bl->amount, 2, ',', '.') }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-purple-100">
+                                    <td class="px-4 py-3 font-bold text-purple-800" colspan="2">Total Egresos</td>
+                                    <td class="px-4 py-3 text-right font-bold text-purple-800">${{ number_format($paymentOrder->bankLines->sum('amount'), 2, ',', '.') }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                @endif
+
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <p class="text-xs text-gray-400">
                         Creado por {{ $paymentOrder->creator?->name ?? 'N/A' }} el {{ $paymentOrder->created_at?->format('d/m/Y H:i') }}
@@ -912,6 +1120,33 @@
                             @endif
                         </div>
                     @endif
+
+                    @if($paymentOrder && $paymentOrder->taxLines->isNotEmpty())
+                    {{-- ── Pago de impuestos sin CDP/RP ── solo muestra estos 2 documentos --}}
+                    <div class="mb-3 p-2 bg-red-50 border border-red-200 rounded-xl">
+                        <p class="text-xs font-semibold text-red-700 flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
+                            Pago de impuestos — documentos especiales
+                        </p>
+                    </div>
+                    <div class="space-y-3">
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-red-300 bg-red-50/50 hover:border-red-400 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.comprobante_egreso_impuestos" class="mt-0.5 rounded border-gray-300 text-red-600 focus:ring-red-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Comprobante de Egreso — Impuestos</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Imputación contable con cuentas 2436xx/2407 en débito y bancos en crédito. Incluye imputación presupuestal.</p>
+                            </div>
+                        </label>
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-red-300 bg-red-50/50 hover:border-red-400 cursor-pointer transition-colors">
+                            <input type="checkbox" wire:model="printDocuments.resolucion_pago_impuestos" class="mt-0.5 rounded border-gray-300 text-red-600 focus:ring-red-500">
+                            <div>
+                                <span class="font-medium text-gray-900">Resolución de Pago — Impuestos</span>
+                                <p class="text-xs text-gray-500 mt-0.5">Resolución de pago con considerandos, beneficiario y monto. Sin rubro presupuestal (sin CDP/RP).</p>
+                            </div>
+                        </label>
+                    </div>
+                    @else
+                    {{-- ── Documentos regulares ── --}}
                     <div class="space-y-3">
                         {{-- Comprobante de Egreso (siempre) --}}
                         <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors">
@@ -999,6 +1234,7 @@
                         </div>
                         @endif
                     </div>
+                    @endif {{-- end @else (regular documents) --}}
                 </div>
                 <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
                     <button type="button" wire:click="closePrintModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>

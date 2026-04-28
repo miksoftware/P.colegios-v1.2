@@ -7,6 +7,7 @@ use App\Models\ContractRp;
 use App\Models\Cdp;
 use App\Models\CdpFundingSource;
 use App\Models\Bank;
+use App\Models\BankAccount;
 use App\Models\BudgetItem;
 use App\Models\FundingSource;
 use App\Models\Budget;
@@ -117,15 +118,19 @@ class PostcontractualManagement extends Component
     public $directFundingSources = []; // fuentes disponibles para el rubro seleccionado
     public $directSelectedSources = []; // fuentes seleccionadas con montos [{id, name, amount, available, budget_id}]
     public $skipCdpRp = false; // Para pagos que no requieren CDP/RP (retenciones, gastos financieros)
-    public $directEgressBankId = ''; // Banco de egreso para pagos sin CDP/RP
-    public $directEgressBankAccountId = ''; // Cuenta bancaria de egreso para pagos sin CDP/RP
+
+    // Líneas de impuestos para pago directo sin CDP/RP
+    public $skipTaxLines = [];   // [{tax_type, amount}]  — impuestos seleccionados con montos
+    public $skipTaxTotal = 0;    // suma en tiempo real de skipTaxLines
+    // Líneas bancarias para pago directo sin CDP/RP
+    public $skipBankLines = [];  // [{bank_id, bank_account_id, amount, bank_label, account_label}]
+    public $skipBankTotal = 0;   // suma en tiempo real de skipBankLines
+    public $skipBanks = [];      // bancos del colegio [{id, name, accounts:[{id, label}]}]
 
     // Códigos de gasto para pago directo (nuevo flujo)
     public $directExpenseCodes = []; // códigos de gasto disponibles con disponibilidad
     public $directSelectedExpenseCodes = []; // códigos seleccionados [{id, code, name, budget_items: [{id, name, sources: [...]}]}]
     public $directExpenseAllocations = []; // asignaciones [{expense_code_id, budget_item_id, funding_source_id, amount, budget_id, bank_id, bank_account_id}]
-    public $directEgressBanks = []; // Bancos disponibles del colegio
-    public $directEgressBankAccounts = []; // Cuentas del banco seleccionado
     public $directBanks = []; // Bancos del colegio para selección en pago directo
     public $directBankAccounts = []; // Cuentas por banco para pago directo
 
@@ -263,39 +268,94 @@ class PostcontractualManagement extends Component
             $this->loadContracts();
         } else {
             $this->loadSuppliers();
-            $this->loadDirectEgressBanks();
         }
     }
 
-    public function loadDirectEgressBanks()
+    public function updatedSkipCdpRp(bool $value)
     {
-        $this->directEgressBanks = Bank::forSchool($this->schoolId)->active()
+        // Precargar bancos cuando el usuario activa "sin CDP/RP"
+        if ($value && empty($this->skipBanks)) {
+            $this->loadSkipBanks();
+        }
+        // Limpiar líneas si desactiva la opción
+        if (!$value) {
+            $this->skipTaxLines  = [];
+            $this->skipTaxTotal  = 0;
+            $this->skipBankLines = [];
+            $this->skipBankTotal = 0;
+        }
+    }
+
+    public function loadSkipBanks()
+    {
+        $this->skipBanks = Bank::forSchool($this->schoolId)->active()
+            ->with(['accounts' => fn($q) => $q->active()])
             ->orderBy('name')
             ->get()
-            ->map(fn($b) => ['id' => $b->id, 'name' => $b->name])
+            ->map(fn($bank) => [
+                'id'       => $bank->id,
+                'name'     => $bank->name,
+                'accounts' => $bank->accounts->map(fn($a) => [
+                    'id'    => $a->id,
+                    'label' => $a->account_number . ' - ' . $a->account_type_name
+                               . ($a->holder_name ? ' (' . $a->holder_name . ')' : ''),
+                ])->toArray(),
+            ])
             ->toArray();
     }
 
-    public function updatedDirectEgressBankId($value)
+    // ── Líneas de impuestos (skipCdpRp) ──────────────────────
+
+    public function toggleSkipTaxLine(string $taxType)
     {
-        $this->directEgressBankAccountId = '';
-        $this->directEgressBankAccounts = [];
+        $idx = collect($this->skipTaxLines)->search(fn($l) => $l['tax_type'] === $taxType);
 
-        if (empty($value)) return;
-
-        $this->directEgressBankAccounts = BankAccount::where('bank_id', $value)
-            ->active()
-            ->orderBy('account_number')
-            ->get()
-            ->map(fn($ba) => [
-                'id' => $ba->id,
-                'label' => $ba->account_number . ' - ' . $ba->account_type_name . ($ba->holder_name ? ' (' . $ba->holder_name . ')' : ''),
-            ])
-            ->toArray();
-
-        if (count($this->directEgressBankAccounts) === 1) {
-            $this->directEgressBankAccountId = $this->directEgressBankAccounts[0]['id'];
+        if ($idx !== false) {
+            unset($this->skipTaxLines[$idx]);
+            $this->skipTaxLines = array_values($this->skipTaxLines);
+        } else {
+            $this->skipTaxLines[] = ['tax_type' => $taxType, 'amount' => ''];
         }
+
+        $this->recalculateSkipTotals();
+    }
+
+    public function updatedSkipTaxLines($value, $key)
+    {
+        $this->recalculateSkipTotals();
+    }
+
+    // ── Líneas bancarias (skipCdpRp) ─────────────────────────
+
+    public function addSkipBankLine()
+    {
+        if (empty($this->skipBanks)) {
+            $this->loadSkipBanks();
+        }
+        $this->skipBankLines[] = ['bank_id' => '', 'bank_account_id' => '', 'amount' => ''];
+    }
+
+    public function removeSkipBankLine(int $index)
+    {
+        unset($this->skipBankLines[$index]);
+        $this->skipBankLines = array_values($this->skipBankLines);
+        $this->recalculateSkipTotals();
+    }
+
+    public function updatedSkipBankLines($value, $key)
+    {
+        // Cuando cambia el banco de una línea, resetear la cuenta
+        if (str_ends_with($key, '.bank_id')) {
+            $index = (int) explode('.', $key)[0];
+            $this->skipBankLines[$index]['bank_account_id'] = '';
+        }
+        $this->recalculateSkipTotals();
+    }
+
+    private function recalculateSkipTotals(): void
+    {
+        $this->skipTaxTotal  = collect($this->skipTaxLines)->sum(fn($l) => (float) ($l['amount'] ?? 0));
+        $this->skipBankTotal = collect($this->skipBankLines)->sum(fn($l) => (float) ($l['amount'] ?? 0));
     }
 
     public function loadContracts()
@@ -692,13 +752,6 @@ class PostcontractualManagement extends Component
         $this->fundingSourcesData = [];
         $this->selectedSupplierId = '';
         $this->directDescription = '';
-        $this->selectedCdpId = '';
-        $this->cdpData = [];
-        $this->availableRps = [];
-        $this->selectedRpId = '';
-        $this->rpData = [];
-        $this->directBudgetItemName = '';
-        $this->availableCdps = [];
         $this->isFullPayment = true;
         $this->paySubtotal = '';
         $this->payIva = '';
@@ -727,10 +780,11 @@ class PostcontractualManagement extends Component
         $this->selectedExpenseDistributionId = '';
         $this->expenseLines = [];
         $this->skipCdpRp = false;
-        $this->directEgressBankId = '';
-        $this->directEgressBankAccountId = '';
-        $this->directEgressBanks = [];
-        $this->directEgressBankAccounts = [];
+        $this->skipTaxLines = [];
+        $this->skipTaxTotal = 0;
+        $this->skipBankLines = [];
+        $this->skipBankTotal = 0;
+        $this->skipBanks = [];
     }
 
     public function onContractSelected()
@@ -1347,39 +1401,39 @@ class PostcontractualManagement extends Component
 
         // Validación base
         $rules = [
-            'paymentDate'  => 'required|date',
-            'paySubtotal'  => 'required|numeric|min:0.01',
-            'payIva'       => 'nullable|numeric|min:0',
-            'payTotal'     => 'required|numeric|min:0.01',
+            'paymentDate' => 'required|date',
         ];
         $messages = [
-            'paymentDate.required'  => 'La fecha de pago es obligatoria.',
-            'paySubtotal.required'  => 'El subtotal es obligatorio.',
-            'paySubtotal.min'       => 'El subtotal debe ser mayor a 0.',
-            'payTotal.required'     => 'El total es obligatorio.',
+            'paymentDate.required' => 'La fecha de pago es obligatoria.',
         ];
 
-        // Solo requerir factura si el proveedor factura electrónicamente
-        if ($supplierInvoices) {
-            $rules['invoiceDate'] = 'required|date';
-            $rules['invoiceNumber'] = 'required|string|max:100';
-            $messages['invoiceDate.required'] = 'La fecha de la factura es obligatoria.';
-            $messages['invoiceNumber.required'] = 'El número de factura es obligatorio.';
+        // Los campos de factura/subtotal/total NO aplican para pago de impuestos (skipCdpRp)
+        if (!$this->skipCdpRp) {
+            $rules['paySubtotal'] = 'required|numeric|min:0.01';
+            $rules['payIva']      = 'nullable|numeric|min:0';
+            $rules['payTotal']    = 'required|numeric|min:0.01';
+            $messages['paySubtotal.required'] = 'El subtotal es obligatorio.';
+            $messages['paySubtotal.min']      = 'El subtotal debe ser mayor a 0.';
+            $messages['payTotal.required']    = 'El total es obligatorio.';
+
+            // Solo requerir factura si el proveedor factura electrónicamente
+            if ($supplierInvoices) {
+                $rules['invoiceDate']   = 'required|date';
+                $rules['invoiceNumber'] = 'required|string|max:100';
+                $messages['invoiceDate.required']   = 'La fecha de la factura es obligatoria.';
+                $messages['invoiceNumber.required'] = 'El número de factura es obligatorio.';
+            }
         }
 
         if ($this->paymentType === 'contract') {
             $rules['selectedContractId'] = 'required|exists:contracts,id';
             $messages['selectedContractId.required'] = 'Debe seleccionar un contrato.';
         } else {
-            $rules['selectedSupplierId'] = 'required|exists:suppliers,id';
-            $rules['directDescription'] = 'required|string|min:5|max:1000';
-            $messages['selectedSupplierId.required'] = 'Debe seleccionar un proveedor.';
-            $messages['directDescription.required'] = 'La descripción del pago es obligatoria.';
-            $messages['directDescription.min'] = 'La descripción debe tener al menos 5 caracteres.';
-
-            if (!$this->skipCdpRp) {
-                // La validación de asignaciones se hace en el bloque de creación de CDP/RP
-            }
+            $rules['selectedSupplierId']  = 'required|exists:suppliers,id';
+            $rules['directDescription']   = 'required|string|min:5|max:1000';
+            $messages['selectedSupplierId.required']  = 'Debe seleccionar un proveedor.';
+            $messages['directDescription.required']   = 'La descripción del pago es obligatoria.';
+            $messages['directDescription.min']        = 'La descripción debe tener al menos 5 caracteres.';
         }
 
         $this->validate($rules, $messages);
@@ -1443,9 +1497,50 @@ class PostcontractualManagement extends Component
             }
         }
 
+        // Validaciones específicas para pago directo sin CDP/RP
+        if ($this->paymentType === 'direct' && $this->skipCdpRp) {
+            $this->recalculateSkipTotals();
+
+            if (empty($this->skipTaxLines)) {
+                $this->dispatch('toast', message: 'Debe seleccionar al menos un impuesto a pagar.', type: 'error');
+                return;
+            }
+
+            foreach ($this->skipTaxLines as $tl) {
+                if ((float) ($tl['amount'] ?? 0) <= 0) {
+                    $this->dispatch('toast', message: 'Todos los impuestos seleccionados deben tener un monto mayor a 0.', type: 'error');
+                    return;
+                }
+            }
+
+            if (empty($this->skipBankLines)) {
+                $this->dispatch('toast', message: 'Debe agregar al menos una cuenta bancaria de egreso.', type: 'error');
+                return;
+            }
+
+            foreach ($this->skipBankLines as $bl) {
+                if (empty($bl['bank_account_id'])) {
+                    $this->dispatch('toast', message: 'Todas las líneas bancarias deben tener una cuenta seleccionada.', type: 'error');
+                    return;
+                }
+                if ((float) ($bl['amount'] ?? 0) <= 0) {
+                    $this->dispatch('toast', message: 'Todos los montos bancarios deben ser mayores a 0.', type: 'error');
+                    return;
+                }
+            }
+
+            if (abs($this->skipTaxTotal - $this->skipBankTotal) > 0.01) {
+                $this->dispatch('toast', message: 'El total de impuestos ($' . number_format($this->skipTaxTotal, 2, ',', '.') . ') debe ser igual al total de las cuentas bancarias ($' . number_format($this->skipBankTotal, 2, ',', '.') . ').', type: 'error');
+                return;
+            }
+        }
+
         DB::beginTransaction();
         try {
             $year = (int) $this->filterYear;
+
+            // Para pago directo sin CDP/RP, los totales vienen de las líneas de impuestos
+            $skipTotal = $this->skipCdpRp ? $this->skipTaxTotal : 0;
 
             $paymentData = [
                 'school_id'                  => $this->schoolId,
@@ -1457,20 +1552,20 @@ class PostcontractualManagement extends Component
                 'invoice_date'               => $this->invoiceDate ?: null,
                 'payment_date'               => $this->paymentDate,
                 'is_full_payment'            => $this->paymentType === 'direct' ? true : $this->isFullPayment,
-                'subtotal'                   => (float) $this->paySubtotal,
-                'iva'                        => (float) ($this->payIva ?? 0),
-                'total'                      => (float) $this->payTotal,
-                'retention_concept'          => $this->paymentMode === 'single' ? ($this->retentionConcept ?: null) : null,
-                'supplier_declares_rent'     => $this->paymentMode === 'single' ? $this->supplierDeclaresRent : false,
-                'retention_percentage'       => $this->paymentMode === 'single' ? $this->retentionPercentage : 0,
-                'retefuente'                 => $this->retefuente,
-                'reteiva'                    => $this->reteiva,
-                'estampilla_produlto_mayor'  => $this->estampillaProdultoMayor,
-                'estampilla_procultura'      => $this->estampillaProcultura,
-                'retencion_ica'              => $this->retencionIca,
-                'other_taxes_total'          => $this->otherTaxesTotal,
-                'total_retentions'           => $this->totalRetentions,
-                'net_payment'                => $this->netPayment,
+                'subtotal'                   => $this->skipCdpRp ? $skipTotal : (float) $this->paySubtotal,
+                'iva'                        => $this->skipCdpRp ? 0 : (float) ($this->payIva ?? 0),
+                'total'                      => $this->skipCdpRp ? $skipTotal : (float) $this->payTotal,
+                'retention_concept'          => $this->skipCdpRp ? null : ($this->paymentMode === 'single' ? ($this->retentionConcept ?: null) : null),
+                'supplier_declares_rent'     => $this->skipCdpRp ? false : ($this->paymentMode === 'single' ? $this->supplierDeclaresRent : false),
+                'retention_percentage'       => $this->skipCdpRp ? 0 : ($this->paymentMode === 'single' ? $this->retentionPercentage : 0),
+                'retefuente'                 => $this->skipCdpRp ? 0 : $this->retefuente,
+                'reteiva'                    => $this->skipCdpRp ? 0 : $this->reteiva,
+                'estampilla_produlto_mayor'  => $this->skipCdpRp ? 0 : $this->estampillaProdultoMayor,
+                'estampilla_procultura'      => $this->skipCdpRp ? 0 : $this->estampillaProcultura,
+                'retencion_ica'              => $this->skipCdpRp ? 0 : $this->retencionIca,
+                'other_taxes_total'          => $this->skipCdpRp ? 0 : $this->otherTaxesTotal,
+                'total_retentions'           => $this->skipCdpRp ? 0 : $this->totalRetentions,
+                'net_payment'                => $this->skipCdpRp ? $skipTotal : $this->netPayment,
                 'observations'               => $this->observations ?: null,
                 'supplier_bank_name'         => null,
                 'supplier_account_type'      => null,
@@ -1482,12 +1577,9 @@ class PostcontractualManagement extends Component
             if ($this->paymentType === 'contract') {
                 $paymentData['contract_id'] = $this->selectedContractId;
             } elseif ($this->skipCdpRp) {
-                // Pago directo sin CDP/RP (retenciones, gastos financieros)
+                // Pago directo sin CDP/RP (retenciones, impuestos)
                 $paymentData['supplier_id'] = $this->selectedSupplierId;
                 $paymentData['description'] = $this->directDescription;
-                if ($this->directEgressBankAccountId) {
-                    $paymentData['egress_bank_account_id'] = $this->directEgressBankAccountId;
-                }
             } else {
                 // Pago directo con CDP/RP — usar asignaciones de códigos de gasto
                 $allocations = !empty($this->directExpenseAllocations) ? $this->directExpenseAllocations : [];
@@ -1618,7 +1710,7 @@ class PostcontractualManagement extends Component
                 }
             }
 
-            // Guardar snapshot de cuenta bancaria seleccionada
+            // Guardar snapshot de cuenta bancaria seleccionada (flujos con proveedor)
             if ($this->selectedBankAccountId) {
                 $bankAccount = SupplierBankAccount::find($this->selectedBankAccountId);
                 if ($bankAccount) {
@@ -1626,6 +1718,24 @@ class PostcontractualManagement extends Component
                         'supplier_bank_name'      => $bankAccount->bank_name,
                         'supplier_account_type'   => $bankAccount->account_type_name,
                         'supplier_account_number' => $bankAccount->account_number,
+                    ]);
+                }
+            }
+
+            // Guardar líneas de impuestos y bancarias (pago directo sin CDP/RP)
+            if ($this->paymentType === 'direct' && $this->skipCdpRp) {
+                foreach ($this->skipTaxLines as $tl) {
+                    \App\Models\PaymentOrderTaxLine::create([
+                        'payment_order_id' => $paymentOrder->id,
+                        'tax_type'         => $tl['tax_type'],
+                        'amount'           => (float) $tl['amount'],
+                    ]);
+                }
+                foreach ($this->skipBankLines as $bl) {
+                    \App\Models\PaymentOrderBankLine::create([
+                        'payment_order_id' => $paymentOrder->id,
+                        'bank_account_id'  => (int) $bl['bank_account_id'],
+                        'amount'           => (float) $bl['amount'],
                     ]);
                 }
             }
@@ -1813,6 +1923,13 @@ class PostcontractualManagement extends Component
         $this->directExpenseCodes = [];
         $this->directSelectedExpenseCodes = [];
         $this->directExpenseAllocations = [];
+        // Impuestos / bancos (skipCdpRp)
+        $this->skipCdpRp = false;
+        $this->skipTaxLines = [];
+        $this->skipTaxTotal = 0;
+        $this->skipBankLines = [];
+        $this->skipBankTotal = 0;
+        $this->skipBanks = [];
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1831,6 +1948,8 @@ class PostcontractualManagement extends Component
             'certificado_rp' => false,
             'comprobante_contabilidad' => false,
             'certificado_tesoreria' => false,
+            'comprobante_egreso_impuestos' => false,
+            'resolucion_pago_impuestos' => false,
         ];
         $this->showPrintModal = true;
     }
@@ -1885,6 +2004,14 @@ class PostcontractualManagement extends Component
             $this->dispatch('openPdfWindow', url: route('postcontractual.certificado-tesoreria.pdf', $this->paymentOrderId));
         }
 
+        if (!empty($selected['comprobante_egreso_impuestos'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.comprobante-egreso-impuestos.pdf', $this->paymentOrderId));
+        }
+
+        if (!empty($selected['resolucion_pago_impuestos'])) {
+            $this->dispatch('openPdfWindow', url: route('postcontractual.resolucion-pago-impuestos.pdf', $this->paymentOrderId));
+        }
+
         $this->closePrintModal();
     }
 
@@ -1908,6 +2035,8 @@ class PostcontractualManagement extends Component
                 'contractRp.fundingSources.fundingSource',
                 'budgetItem',
                 'expenseLines.expenseCode',
+                'taxLines',
+                'bankLines.bankAccount.bank',
                 'creator',
             ])->forSchool($this->schoolId)->find($this->paymentOrderId);
         }

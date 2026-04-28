@@ -780,6 +780,77 @@ class PostcontractualPdfController extends Controller
         return $pdf->stream("certificado-tesoreria-pd-{$po->formatted_number}.pdf");
     }
 
+    /**
+     * Comprobante de Egreso para pago de impuestos (sin CDP/RP)
+     */
+    public function comprobanteEgresoImpuestos(Request $request, int $paymentOrderId)
+    {
+        $schoolId = (int) session('selected_school_id');
+        abort_if(!$schoolId, 403);
+        abort_if(!auth()->user()->can('postcontractual.view'), 403);
+
+        $po = PaymentOrder::forSchool($schoolId)
+            ->with(['supplier', 'taxLines', 'bankLines.bankAccount.bank', 'creator'])
+            ->findOrFail($paymentOrderId);
+
+        $school = \App\Models\School::findOrFail($schoolId);
+        $supplier = $po->supplier;
+
+        // Mapa tax_type => amount para acceso rápido en la vista
+        $taxAmounts = $po->taxLines
+            ->pluck('amount', 'tax_type')
+            ->map(fn($a) => (float) $a)
+            ->toArray();
+
+        $amount = (float) $po->total;
+        $amountInWords = PrecontractualPdfController::amountToWords($amount);
+
+        $pdf = Pdf::loadView('pdf.comprobante-egreso-impuestos', [
+            'po'           => $po,
+            'school'       => $school,
+            'supplier'     => $supplier,
+            'amount'       => $amount,
+            'amountInWords'=> $amountInWords,
+            'taxAmounts'   => $taxAmounts,
+            'user'         => auth()->user(),
+        ]);
+
+        $pdf->setPaper('letter');
+        return $pdf->stream("comprobante-egreso-impuestos-{$po->formatted_number}.pdf");
+    }
+
+    /**
+     * Resolución de Pago para pago de impuestos (sin CDP/RP)
+     */
+    public function resolucionPagoImpuestos(Request $request, int $paymentOrderId)
+    {
+        $schoolId = (int) session('selected_school_id');
+        abort_if(!$schoolId, 403);
+        abort_if(!auth()->user()->can('postcontractual.view'), 403);
+
+        $po = PaymentOrder::forSchool($schoolId)
+            ->with(['supplier'])
+            ->findOrFail($paymentOrderId);
+
+        $school = \App\Models\School::findOrFail($schoolId);
+        $supplier = $po->supplier;
+
+        $amount = (float) $po->total;
+        $amountInWords = PrecontractualPdfController::amountToWords($amount);
+
+        $pdf = Pdf::loadView('pdf.resolucion-pago-impuestos', [
+            'po'           => $po,
+            'school'       => $school,
+            'supplier'     => $supplier,
+            'amount'       => $amount,
+            'amountInWords'=> $amountInWords,
+            'user'         => auth()->user(),
+        ]);
+
+        $pdf->setPaper('letter');
+        return $pdf->stream("resolucion-pago-impuestos-{$po->formatted_number}.pdf");
+    }
+
     private function buildAccountHierarchy(?AccountingAccount $account): array
     {
         if (!$account) return [];

@@ -191,6 +191,16 @@ class PaymentOrder extends Model
         return $this->hasMany(PaymentOrderExpenseLine::class);
     }
 
+    public function taxLines(): HasMany
+    {
+        return $this->hasMany(PaymentOrderTaxLine::class);
+    }
+
+    public function bankLines(): HasMany
+    {
+        return $this->hasMany(PaymentOrderBankLine::class);
+    }
+
     // ── Accessors ─────────────────────────────────────────────
 
     public function getFormattedNumberAttribute(): string

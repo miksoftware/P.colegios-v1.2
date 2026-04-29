@@ -171,6 +171,8 @@ class ExpenseExecutionReport extends Component
         }
 
         // Pre-load direct payments (pagos sin contrato) per budget_item
+        // SOLO los que NO tienen expense_lines: los que sí las tienen ya están
+        // capturados en $paymentsByDist y prorrateados causaría doble conteo.
         $directPaymentsByBudgetItem = [];
         $budgetItemIds = $budgets->pluck('budget_item_id')->unique()->toArray();
         if (!empty($budgetItemIds)) {
@@ -178,7 +180,8 @@ class ExpenseExecutionReport extends Component
                 ->where('fiscal_year', $year)
                 ->where('payment_type', 'direct')
                 ->whereIn('budget_item_id', $budgetItemIds)
-                ->whereIn('status', ['approved', 'paid']);
+                ->whereIn('status', ['approved', 'paid'])
+                ->whereDoesntHave('expenseLines');
             if ($dateFrom && $dateTo) {
                 $query->whereBetween('payment_date', [$dateFrom, $dateTo]);
             }

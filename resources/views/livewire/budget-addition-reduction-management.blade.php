@@ -336,7 +336,6 @@
 
                     @else
                     {{-- ADICIÓN: toggle para elegir modo --}}
-                    @if(count($affectedDistributions) > 0)
                     <div class="rounded-xl border border-amber-200 overflow-hidden">
                         <div class="bg-amber-50 px-4 py-3">
                             <p class="text-xs font-semibold text-amber-800 mb-2">Este presupuesto tiene <strong>{{ count($affectedDistributions) }}</strong> distribución(es). ¿Cómo deseas adicionar?</p>

@@ -40,13 +40,23 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Trimestre</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Período (acumulado)</label>
                     <select wire:model.live="filterQuarter" class="w-full rounded-xl border-gray-300">
-                        <option value="">Todos (Consolidado)</option>
-                        <option value="1">1er Trimestre (Ene - Mar)</option>
-                        <option value="2">2do Trimestre (Abr - Jun)</option>
-                        <option value="3">3er Trimestre (Jul - Sep)</option>
-                        <option value="4">4to Trimestre (Oct - Dic)</option>
+                        <option value="">Anual (Consolidado)</option>
+                        <optgroup label="── Trimestral ──">
+                            <option value="1">Al 1er Trimestre (Ene – Mar)</option>
+                            <option value="2">Al 2do Trimestre (Ene – Jun)</option>
+                            <option value="3">Al 3er Trimestre (Ene – Sep)</option>
+                            <option value="4">Al 4to Trimestre (Ene – Dic)</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Semestral (acumulado)</label>
+                    <select wire:model.live="filterSemester" class="w-full rounded-xl border-gray-300">
+                        <option value="">—</option>
+                        <option value="1">Al 1er Semestre (Ene – Jun)</option>
+                        <option value="2">Al 2do Semestre (Ene – Dic)</option>
                     </select>
                 </div>
             </div>

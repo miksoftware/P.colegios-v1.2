@@ -16,6 +16,7 @@ class ExpenseExecutionReport extends Component
     public $school;
     public $filterYear;
     public $filterQuarter = '';
+    public $filterSemester = '';
 
     public $rows = [];
     public $totals = [];
@@ -43,6 +44,13 @@ class ExpenseExecutionReport extends Component
 
     public function updatedFilterQuarter()
     {
+        $this->filterSemester = '';
+        $this->loadReport();
+    }
+
+    public function updatedFilterSemester()
+    {
+        $this->filterQuarter = '';
         $this->loadReport();
     }
 
@@ -50,13 +58,19 @@ class ExpenseExecutionReport extends Component
     {
         $year = (int) $this->filterYear;
         $quarter = $this->filterQuarter ? (int) $this->filterQuarter : null;
+        $semester = $this->filterSemester ? (int) $this->filterSemester : null;
 
-        // Rango de fechas para el trimestre
+        // Rango de fechas ACUMULADO: siempre desde enero 1 hasta el fin del período seleccionado.
+        // Trimestre 2 → enero–junio, Semestre 1 → enero–junio, Semestre 2 → enero–diciembre, etc.
         $dateFrom = null;
         $dateTo = null;
         if ($quarter) {
-            $dateFrom = "{$year}-" . str_pad(($quarter - 1) * 3 + 1, 2, '0', STR_PAD_LEFT) . "-01";
+            $dateFrom = "{$year}-01-01";
             $lastMonth = $quarter * 3;
+            $dateTo = \Carbon\Carbon::parse("{$year}-{$lastMonth}-01")->endOfMonth()->format('Y-m-d');
+        } elseif ($semester) {
+            $dateFrom = "{$year}-01-01";
+            $lastMonth = $semester * 6;
             $dateTo = \Carbon\Carbon::parse("{$year}-{$lastMonth}-01")->endOfMonth()->format('Y-m-d');
         }
 
@@ -306,10 +320,16 @@ class ExpenseExecutionReport extends Component
     public function getPeriodLabelProperty(): string
     {
         if ($this->filterQuarter) {
-            $labels = [1 => 'PRIMER', 2 => 'SEGUNDO', 3 => 'TERCER', 4 => 'CUARTO'];
-            return "{$labels[(int)$this->filterQuarter]} TRIMESTRE DE {$this->filterYear}";
-        }
-        return "A DICIEMBRE 31 DE {$this->filterYear} CONSOLIDADO";
+            $q = (int) $this->filterQuarter;
+            $endMonths = [1 => 'MARZO', 2 => 'JUNIO', 3 => 'SEPTIEMBRE', 4 => 'DICIEMBRE'];
+            $endDays   = [1 => '31', 2 => '30', 3 => '30', 4 => '31'];
+            return "DE ENERO 01 AL {$endDays[$q]} DE {$endMonths[$q]} DE {$this->filterYear} (ACUMULADO AL {$q}° TRIMESTRE)";
+        }        if ($this->filterSemester) {
+            $s = (int) $this->filterSemester;
+            $label = $s === 1 ? 'DE ENERO 01 AL 30 DE JUNIO' : 'DE ENERO 01 AL 31 DE DICIEMBRE';
+            $sem   = $s === 1 ? 'PRIMER' : 'SEGUNDO';
+            return "{$label} DE {$this->filterYear} (ACUMULADO AL {$sem} SEMESTRE)";
+        }        return "A DICIEMBRE 31 DE {$this->filterYear} CONSOLIDADO";
     }
 
     #[Layout('layouts.app')]

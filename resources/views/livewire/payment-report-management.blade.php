@@ -40,19 +40,51 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Mes</label>
-                    <select wire:model.live="filterMonth" class="w-full rounded-xl border-gray-300">
-                        <option value="">Todos (Consolidado)</option>
-                        @foreach(['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] as $i => $m)
-                            <option value="{{ $i + 1 }}">{{ $m }}</option>
-                        @endforeach
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Período</label>
+                    <select wire:model.live="filterPeriodType" class="w-full rounded-xl border-gray-300">
+                        <option value="annual">Anual</option>
+                        <option value="semiannual">Semestral</option>
+                        <option value="quarterly">Trimestral</option>
+                        <option value="monthly">Mensual</option>
                     </select>
+                </div>
+                <div>
+                    @if($filterPeriodType === 'monthly')
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Mes</label>
+                        <select wire:model.live="filterMonth" class="w-full rounded-xl border-gray-300">
+                            <option value="">— Seleccionar mes —</option>
+                            @foreach(['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] as $i => $m)
+                                <option value="{{ $i + 1 }}">{{ $m }}</option>
+                            @endforeach
+                        </select>
+                    @elseif($filterPeriodType === 'quarterly')
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Trimestre</label>
+                        <select wire:model.live="filterQuarter" class="w-full rounded-xl border-gray-300">
+                            <option value="">— Seleccionar trimestre —</option>
+                            <option value="1">1° Trimestre (Ene – Mar)</option>
+                            <option value="2">2° Trimestre (Abr – Jun)</option>
+                            <option value="3">3° Trimestre (Jul – Sep)</option>
+                            <option value="4">4° Trimestre (Oct – Dic)</option>
+                        </select>
+                    @elseif($filterPeriodType === 'semiannual')
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Semestre</label>
+                        <select wire:model.live="filterSemester" class="w-full rounded-xl border-gray-300">
+                            <option value="">— Seleccionar semestre —</option>
+                            <option value="1">1° Semestre (Ene – Jun)</option>
+                            <option value="2">2° Semestre (Jul – Dic)</option>
+                        </select>
+                    @else
+                        <label class="block text-sm font-medium text-gray-700 mb-1">&nbsp;</label>
+                        <div class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">Todos los meses del año</div>
+                    @endif
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
                     <input type="text" wire:model.live.debounce.400ms="filterSupplier" class="w-full rounded-xl border-gray-300" placeholder="Nombre o documento...">
                 </div>
-                <div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3">
+                <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Fuente de Ingreso</label>
                     <input type="text" wire:model.live.debounce.400ms="filterFundingSource" class="w-full rounded-xl border-gray-300" placeholder="SGP, RP...">
                 </div>

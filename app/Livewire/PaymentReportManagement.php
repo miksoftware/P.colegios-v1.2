@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Contract;
 use App\Models\PaymentOrder;
 use App\Models\School;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 
@@ -15,7 +16,10 @@ class PaymentReportManagement extends Component
 
     // Filtros
     public $filterYear;
+    public $filterPeriodType = 'annual'; // monthly | quarterly | semiannual | annual
     public $filterMonth = '';
+    public $filterQuarter = '';
+    public $filterSemester = '';
     public $filterSupplier = '';
     public $filterFundingSource = '';
 
@@ -44,7 +48,26 @@ class PaymentReportManagement extends Component
         $this->loadReport();
     }
 
+    public function updatedFilterPeriodType()
+    {
+        // Reset sub-filters when period type changes
+        $this->filterMonth   = '';
+        $this->filterQuarter = '';
+        $this->filterSemester = '';
+        $this->loadReport();
+    }
+
     public function updatedFilterMonth()
+    {
+        $this->loadReport();
+    }
+
+    public function updatedFilterQuarter()
+    {
+        $this->loadReport();
+    }
+
+    public function updatedFilterSemester()
     {
         $this->loadReport();
     }
@@ -77,9 +100,24 @@ class PaymentReportManagement extends Component
                 'expenseLines.expenseCode',
             ]);
 
-        if ($this->filterMonth) {
+        if ($this->filterPeriodType === 'monthly' && $this->filterMonth) {
             $query->whereMonth('payment_date', (int) $this->filterMonth);
+        } elseif ($this->filterPeriodType === 'quarterly' && $this->filterQuarter) {
+            $months = match ((int) $this->filterQuarter) {
+                1 => [1, 2, 3],
+                2 => [4, 5, 6],
+                3 => [7, 8, 9],
+                4 => [10, 11, 12],
+                default => [],
+            };
+            if ($months) {
+                $query->whereIn(DB::raw('MONTH(payment_date)'), $months);
+            }
+        } elseif ($this->filterPeriodType === 'semiannual' && $this->filterSemester) {
+            $months = (int) $this->filterSemester === 1 ? [1, 2, 3, 4, 5, 6] : [7, 8, 9, 10, 11, 12];
+            $query->whereIn(DB::raw('MONTH(payment_date)'), $months);
         }
+        // annual: no month filter needed
 
         if ($this->filterSupplier) {
             $query->where(function ($q) {
@@ -191,13 +229,29 @@ class PaymentReportManagement extends Component
             9 => 'SEPTIEMBRE', 10 => 'OCTUBRE', 11 => 'NOVIEMBRE', 12 => 'DICIEMBRE',
         ];
 
-        if ($this->filterMonth) {
-            $m = $months[(int) $this->filterMonth] ?? '';
-            $lastDay = \Carbon\Carbon::create((int) $this->filterYear, (int) $this->filterMonth)->endOfMonth()->day;
-            return "DE {$m} 01 AL {$lastDay} DE {$m} DE {$this->filterYear}";
+        $y = $this->filterYear;
+
+        if ($this->filterPeriodType === 'monthly' && $this->filterMonth) {
+            $m   = $months[(int) $this->filterMonth] ?? '';
+            $last = \Carbon\Carbon::create((int) $y, (int) $this->filterMonth)->endOfMonth()->day;
+            return "DE {$m} 01 AL {$last} DE {$m} DE {$y}";
         }
 
-        return "DE ENERO 01 AL 31 DE DICIEMBRE DE {$this->filterYear} CONSOLIDADO";
+        if ($this->filterPeriodType === 'quarterly' && $this->filterQuarter) {
+            $q = (int) $this->filterQuarter;
+            $starts = [1 => ['ENERO',    '01'], 2 => ['ABRIL',  '01'], 3 => ['JULIO',  '01'], 4 => ['OCTUBRE', '01']];
+            $ends   = [1 => ['MARZO',    '31'], 2 => ['JUNIO',  '30'], 3 => ['SEPTIEMBRE', '30'], 4 => ['DICIEMBRE', '31']];
+            return "DE {$starts[$q][0]} {$starts[$q][1]} AL {$ends[$q][1]} DE {$ends[$q][0]} DE {$y} (TRIMESTRE {$q})";
+        }
+
+        if ($this->filterPeriodType === 'semiannual' && $this->filterSemester) {
+            if ((int) $this->filterSemester === 1) {
+                return "DE ENERO 01 AL 30 DE JUNIO DE {$y} (PRIMER SEMESTRE)";
+            }
+            return "DE JULIO 01 AL 31 DE DICIEMBRE DE {$y} (SEGUNDO SEMESTRE)";
+        }
+
+        return "DE ENERO 01 AL 31 DE DICIEMBRE DE {$y} CONSOLIDADO";
     }
 
     public function exportExcel()

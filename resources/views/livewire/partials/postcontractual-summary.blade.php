@@ -5,16 +5,16 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div class="bg-gray-50 rounded-xl p-3 text-center">
             <p class="text-xs text-gray-500">Total Factura</p>
-            <p class="text-lg font-bold text-gray-900">${{ number_format($payTotal, 2, ',', '.') }}</p>
+            <p class="text-lg font-bold text-gray-900">${{ number_format((float) $payTotal, 2, ',', '.') }}</p>
         </div>
         <div class="bg-red-50 rounded-xl p-3 text-center">
             <p class="text-xs text-red-500">Total Descuentos</p>
-            <p class="text-lg font-bold text-red-700">- ${{ number_format($totalRetentions, 2, ',', '.') }}</p>
-            <p class="text-[10px] text-red-400">DIAN: ${{ number_format($totalRetentionsDian, 2, ',', '.') }} + Otros: ${{ number_format($otherTaxesTotal, 2, ',', '.') }}</p>
+            <p class="text-lg font-bold text-red-700">- ${{ number_format((float) $totalRetentions, 2, ',', '.') }}</p>
+            <p class="text-[10px] text-red-400">DIAN: ${{ number_format((float) $totalRetentionsDian, 2, ',', '.') }} + Otros: ${{ number_format((float) $otherTaxesTotal, 2, ',', '.') }}</p>
         </div>
         <div class="bg-emerald-100 rounded-xl p-4 text-center">
             <p class="text-sm text-emerald-700 font-medium">VALOR NETO A PAGAR</p>
-            <p class="text-3xl font-bold text-emerald-800">${{ number_format($netPayment, 2, ',', '.') }}</p>
+            <p class="text-3xl font-bold text-emerald-800">${{ number_format((float) $netPayment, 2, ',', '.') }}</p>
         </div>
     </div>
 

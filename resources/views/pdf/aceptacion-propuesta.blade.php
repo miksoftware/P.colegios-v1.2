@@ -38,7 +38,7 @@
             <div style="font-size: 9px;">
                 <span class="bold">{{ $school->municipality ?? '' }}</span>
                 &nbsp;&nbsp;
-                {{ $convocatoria->start_date?->format('d/m/Y') ?? now()->format('d/m/Y') }}
+                {{ ($convocatoria->evaluation_date ?? $convocatoria->start_date)?->format('d/m/Y') ?? now()->format('d/m/Y') }}
             </div>
         </div>
 
@@ -115,7 +115,7 @@
                 </tr>
                 <tr>
                     <td class="label">Plazo de Ejecución:</td>
-                    <td colspan="3">{{ $durationDays ?? 'N/A' }} DÍAS</td>
+                    <td colspan="3">A CONVENIR</td>
                 </tr>
                 <tr>
                     <td class="label">Supervisor:</td>

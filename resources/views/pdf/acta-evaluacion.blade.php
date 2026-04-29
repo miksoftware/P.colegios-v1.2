@@ -47,14 +47,14 @@
             <div class="school-name">{{ $school->name }}</div>
             <div style="font-size: 8px; color: #444;">{{ $school->nit ?? '' }}</div>
             <div class="school-muni">{{ $school->municipality ?? '' }}</div>
-            <div class="school-date">{{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}</div>
+            <div class="school-date">{{ ($convocatoria->evaluation_date ?? $convocatoria->start_date)?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}</div>
             <div class="doc-title">Acta de Evaluación</div>
             <div class="doc-subtitle">De la Invitación a Cotizar y/o a Presentar Propuesta N. {{ $convocatoria->formatted_number }}</div>
         </div>
 
         {{-- FECHA Y OBJETO --}}
         <div class="info-line separator">
-            <span class="bold">FECHA:</span> {{ $convocatoria->start_date?->format('d/m/Y') ?? '' }}
+            <span class="bold">FECHA:</span> {{ ($convocatoria->evaluation_date ?? $convocatoria->start_date)?->format('d/m/Y') ?? '' }}
         </div>
         <div class="info-line separator" style="padding-bottom: 6px;">
             <span class="bold">OBJETO:</span> CONVOCATORIA ABIERTA PARA LA RECEPCIÓN DE COTIZACIONES CON EL FIN DE CONTRATAR
@@ -211,7 +211,7 @@
         {{-- CONSTANCIA --}}
         <div class="text-block separator" style="padding-top: 8px;">
             En constancia se firma en <span class="bold">{{ $school->municipality ?? '' }}</span>
-            el día <span class="bold">{{ $convocatoria->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}</span>
+            el día <span class="bold">{{ ($convocatoria->evaluation_date ?? $convocatoria->start_date)?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}</span>
         </div>
 
         {{-- FIRMA --}}

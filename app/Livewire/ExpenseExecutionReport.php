@@ -77,7 +77,7 @@ class ExpenseExecutionReport extends Component
 
         // Pre-load commitments per expense_distribution:
         // 1) Compromisos base = convocatoria_distributions.amount (convocatorias no canceladas, contratos no anulados)
-        // 2) Adiciones de recursos = rp_funding_sources.amount donde el RP es is_addition=true del contrato
+        // 2) Adiciones = RP is_addition=true, atribuidos a la distribución específica via contract→convocatoria→convocatoria_distributions
         $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
 
         // Mapa dist_id → budget_id (necesario para cruzar adiciones de RP)
@@ -87,7 +87,7 @@ class ExpenseExecutionReport extends Component
 
         $commitmentsByDist = [];
         if (!empty($distIds)) {
-            // Compromisos base desde convocatorias
+            // --- Compromisos base desde convocatorias ---
             $baseQuery = \Illuminate\Support\Facades\DB::table('convocatoria_distributions')
                 ->join('convocatorias', 'convocatorias.id', '=', 'convocatoria_distributions.convocatoria_id')
                 ->leftJoin('contracts', 'contracts.convocatoria_id', '=', 'convocatorias.id')
@@ -106,38 +106,34 @@ class ExpenseExecutionReport extends Component
                 ->pluck('total', 'expense_distribution_id')
                 ->toArray();
 
-            // Adiciones de recursos (otrosí): RPs con is_addition=true agrupados por budget_id
-            $budgetIds = array_values(array_unique($distBudgetMap));
-            $additionByBudget = [];
-            if (!empty($budgetIds)) {
-                $addQuery = \Illuminate\Support\Facades\DB::table('rp_funding_sources')
-                    ->join('contract_rps', 'contract_rps.id', '=', 'rp_funding_sources.contract_rp_id')
-                    ->join('contracts as c2', 'c2.id', '=', 'contract_rps.contract_id')
-                    ->whereIn('rp_funding_sources.budget_id', $budgetIds)
-                    ->where('contract_rps.is_addition', true)
-                    ->where('contract_rps.status', '!=', 'cancelled')
-                    ->where('c2.status', '!=', 'annulled');
-                if ($dateFrom && $dateTo) {
-                    $addQuery->whereBetween('contract_rps.created_at', [$dateFrom, $dateTo . ' 23:59:59']);
-                }
-                $additionByBudget = $addQuery
-                    ->selectRaw('rp_funding_sources.budget_id, SUM(rp_funding_sources.amount) as total')
-                    ->groupBy('rp_funding_sources.budget_id')
-                    ->pluck('total', 'budget_id')
-                    ->toArray();
+            // --- Adiciones de recursos (otrosí): atribuidas a la distribución exacta ---
+            // Cadena: rp_funding_sources → contract_rps (is_addition) → contracts → convocatoria_distributions
+            // El JOIN adicional a expense_distributions garantiza que el budget_id del RP coincida
+            // con el de la distribución, evitando duplicados cuando hay varias distribuciones por convocatoria.
+            $addQuery = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
+                ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
+                ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
+                ->join('convocatoria_distributions as cd', 'cd.convocatoria_id', '=', 'c.convocatoria_id')
+                ->join('expense_distributions as ed', function ($join) {
+                    $join->on('ed.id', '=', 'cd.expense_distribution_id')
+                         ->on('ed.budget_id', '=', 'rfs.budget_id');
+                })
+                ->whereIn('cd.expense_distribution_id', $distIds)
+                ->where('cr.is_addition', true)
+                ->where('cr.status', '!=', 'cancelled')
+                ->where('c.status', '!=', 'annulled');
+            if ($dateFrom && $dateTo) {
+                $addQuery->whereBetween('cr.created_at', [$dateFrom, $dateTo . ' 23:59:59']);
             }
+            $additionByDist = $addQuery
+                ->selectRaw('cd.expense_distribution_id, SUM(rfs.amount) as total')
+                ->groupBy('cd.expense_distribution_id')
+                ->pluck('total', 'expense_distribution_id')
+                ->toArray();
 
-            // Combinar: base + adiciones prorrateadas por distribución dentro del mismo budget
+            // Combinar base + adiciones para cada distribución
             foreach ($distIds as $dId) {
-                $base = (float) ($baseCommitments[$dId] ?? 0);
-                $bId  = $distBudgetMap[$dId] ?? null;
-                $addition = $bId ? (float) ($additionByBudget[$bId] ?? 0) : 0;
-                // Las adiciones se distribuyen igualmente entre todas las distribuciones del mismo budget
-                if ($addition > 0 && $bId) {
-                    $distsInBudget = array_keys(array_filter($distBudgetMap, fn($b) => $b === $bId));
-                    $addition = count($distsInBudget) > 0 ? $addition / count($distsInBudget) : $addition;
-                }
-                $commitmentsByDist[$dId] = $base + $addition;
+                $commitmentsByDist[$dId] = (float) ($baseCommitments[$dId] ?? 0) + (float) ($additionByDist[$dId] ?? 0);
             }
         }
 

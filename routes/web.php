@@ -257,6 +257,10 @@ Route::get('contraloria/resumen-contratacion', App\Livewire\ContraloriaContracti
     ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contraloria.contracting');
 
+Route::get('contraloria/acuerdos-gastos', App\Livewire\ContraloriaAgreementsReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contraloria.agreements');
+
 Route::get('dashboard', App\Livewire\Dashboard::class)
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

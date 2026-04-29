@@ -1501,7 +1501,7 @@ class PostcontractualManagement extends Component
                 }
             }
 
-            // Validar que no exceda el saldo pendiente
+            // Validar que no exceda el saldo pendiente del contrato
             $remaining = $this->contractData['remaining'] ?? 0;
             if ((float) $this->payTotal > $remaining) {
                 $formattedTotal = number_format($this->payTotal, 2, ',', '.');
@@ -1509,6 +1509,75 @@ class PostcontractualManagement extends Component
                 $this->dispatch('toast', message: "El monto (\${$formattedTotal}) excede el saldo pendiente (\${$formattedRemaining}).", type: 'error');
                 return;
             }
+
+            // ─── Validar saldo disponible en el presupuesto (apropiación) ───
+            // Evita que los pagos acumulados superen el Budget.current_amount del rubro.
+            $fmt = fn($v) => number_format((float) $v, 2, ',', '.');
+
+            $distIdsToCheck = [];  // [expense_distribution_id => amount_to_pay]
+
+            if ($this->paymentMode === 'single' && $this->selectedExpenseDistributionId) {
+                $distIdsToCheck[(int) $this->selectedExpenseDistributionId] = (float) $this->payTotal;
+            } elseif ($this->paymentMode === 'split') {
+                foreach ($this->expenseLines as $line) {
+                    $lineTotal = (float) ($line['total'] ?? 0);
+                    if ($lineTotal <= 0 || empty($line['expense_distribution_id'])) continue;
+                    $dId = (int) $line['expense_distribution_id'];
+                    $distIdsToCheck[$dId] = ($distIdsToCheck[$dId] ?? 0) + $lineTotal;
+                }
+            }
+
+            if (!empty($distIdsToCheck)) {
+                $distributions = \App\Models\ExpenseDistribution::with('budget')
+                    ->whereIn('id', array_keys($distIdsToCheck))
+                    ->get()
+                    ->keyBy('id');
+
+                $budgetPaymentCache = []; // budget_id → total_ya_pagado
+
+                foreach ($distIdsToCheck as $distId => $newAmount) {
+                    $dist = $distributions[$distId] ?? null;
+                    if (!$dist || !$dist->budget) continue;
+
+                    $budget = $dist->budget;
+
+                    // 1) Saldo restante del código de gasto (convocatoria − ya pagado en esa distribución)
+                    $convAmt = (float) (collect($this->expenseDistributions)->firstWhere('id', $distId)['convocatoria_amount'] ?? $dist->amount);
+                    $alreadyPaidOnDist = \App\Models\PaymentOrderExpenseLine::where('expense_distribution_id', $distId)
+                        ->whereHas('paymentOrder', fn($q) => $q->whereIn('status', ['approved', 'paid']))
+                        ->sum('total');
+                    $remainingOnDist = $convAmt - (float) $alreadyPaidOnDist;
+
+                    if ($newAmount > $remainingOnDist + 0.01) {
+                        $codeName = $dist->expenseCode?->name ?? "distribución #{$distId}";
+                        $this->dispatch('toast', message: "El pago para '{$codeName}' (\${$fmt($newAmount)}) excede el saldo pendiente del código de gasto (\${$fmt(max(0, $remainingOnDist))}).", type: 'error');
+                        return;
+                    }
+
+                    // 2) Saldo disponible en el presupuesto (apropiación definitiva)
+                    if (!isset($budgetPaymentCache[$budget->id])) {
+                        $paidViaLines = (float) \App\Models\PaymentOrderExpenseLine::whereHas('expenseDistribution', fn($q) => $q->where('budget_id', $budget->id))
+                            ->whereHas('paymentOrder', fn($q) => $q->whereIn('status', ['approved', 'paid']))
+                            ->sum('total');
+                        $paidDirect = (float) \App\Models\PaymentOrder::where('school_id', $this->schoolId)
+                            ->where('payment_type', 'direct')
+                            ->where('budget_item_id', $budget->budget_item_id)
+                            ->whereIn('status', ['approved', 'paid'])
+                            ->sum('total');
+                        $budgetPaymentCache[$budget->id] = $paidViaLines + $paidDirect;
+                    }
+
+                    // Agregar el nuevo pago al acumulado del presupuesto para este ciclo
+                    $budgetPaymentCache[$budget->id] += $newAmount;
+                    $remainingBudget = (float) $budget->current_amount - ($budgetPaymentCache[$budget->id] - $newAmount);
+
+                    if ($newAmount > $remainingBudget + 0.01) {
+                        $this->dispatch('toast', message: "El pago (\${$fmt($newAmount)}) excede el saldo disponible del presupuesto (\${$fmt(max(0, $remainingBudget))}).", type: 'error');
+                        return;
+                    }
+                }
+            }
+            // ────────────────────────────────────────────────────────────────
         }
 
         // Validaciones específicas para pago directo sin CDP/RP

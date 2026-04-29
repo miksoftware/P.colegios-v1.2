@@ -268,6 +268,9 @@ class PostcontractualManagement extends Component
             $this->loadContracts();
         } else {
             $this->loadSuppliers();
+            if ($this->paymentType === 'accounts_payable') {
+                $this->loadSkipBanks();
+            }
         }
     }
 
@@ -411,14 +414,15 @@ class PostcontractualManagement extends Component
             ->findOrFail($this->selectedSupplierId);
 
         $this->supplierData = [
-            'name'            => $supplier->full_name,
-            'document'        => $supplier->full_document,
-            'address'         => $supplier->address ?? 'No registrada',
-            'municipality'    => $supplier->municipality?->name ?? 'No registrado',
-            'phone'           => $supplier->phone ?? $supplier->mobile ?? 'No registrado',
-            'tax_regime'      => $supplier->tax_regime ?? '',
-            'tax_regime_name' => $supplier->tax_regime ? (Supplier::TAX_REGIMES[$supplier->tax_regime] ?? $supplier->tax_regime) : 'No registrado',
-            'person_type'     => $supplier->person_type ?? '',
+            'name'                => $supplier->full_name,
+            'document'            => $supplier->full_document,
+            'address'             => $supplier->address ?? 'No registrada',
+            'municipality'        => $supplier->municipality?->name ?? 'No registrado',
+            'phone'               => $supplier->phone ?? $supplier->mobile ?? 'No registrado',
+            'tax_regime'          => $supplier->tax_regime ?? '',
+            'tax_regime_name'     => $supplier->tax_regime ? (Supplier::TAX_REGIMES[$supplier->tax_regime] ?? $supplier->tax_regime) : 'No registrado',
+            'person_type'         => $supplier->person_type ?? '',
+            'electronic_invoicing'=> $supplier->electronic_invoicing,
         ];
 
         // Cargar cuentas bancarias del proveedor
@@ -432,8 +436,14 @@ class PostcontractualManagement extends Component
             $this->selectedBankAccountId = $this->supplierBankAccounts[0]['id'];
         }
 
-        // Cargar CDPs disponibles y rubros presupuestales de gasto
-        $this->loadDirectBudgetItems();
+        // Para cuentas por pagar, cargar bancos de egreso; para pago directo, cargar rubros
+        if ($this->paymentType === 'accounts_payable') {
+            if (empty($this->skipBanks)) {
+                $this->loadSkipBanks();
+            }
+        } else {
+            $this->loadDirectBudgetItems();
+        }
 
         $this->calculateRetentions();
     }
@@ -1366,7 +1376,7 @@ class PostcontractualManagement extends Component
 
         // Obtener el proveedor según el tipo de pago
         $supplier = null;
-        if ($this->paymentType === 'direct' && $this->selectedSupplierId) {
+        if (in_array($this->paymentType, ['direct', 'accounts_payable']) && $this->selectedSupplierId) {
             $supplier = Supplier::find($this->selectedSupplierId);
         } elseif ($this->selectedContractId) {
             $contract = Contract::with('supplier')->find($this->selectedContractId);
@@ -1618,6 +1628,31 @@ class PostcontractualManagement extends Component
             }
         }
 
+        // Validaciones específicas para Cuentas por Pagar
+        if ($this->paymentType === 'accounts_payable') {
+            if (empty($this->skipBankLines)) {
+                $this->dispatch('toast', message: 'Debe agregar al menos una cuenta bancaria de egreso.', type: 'error');
+                return;
+            }
+
+            foreach ($this->skipBankLines as $bl) {
+                if (empty($bl['bank_account_id'])) {
+                    $this->dispatch('toast', message: 'Todas las líneas bancarias deben tener una cuenta seleccionada.', type: 'error');
+                    return;
+                }
+                if ((float) ($bl['amount'] ?? 0) <= 0) {
+                    $this->dispatch('toast', message: 'Todos los montos bancarios deben ser mayores a 0.', type: 'error');
+                    return;
+                }
+            }
+
+            $this->recalculateSkipTotals();
+            if (abs($this->skipBankTotal - (float) $this->netPayment) > 0.01) {
+                $this->dispatch('toast', message: 'El total de cuentas bancarias ($' . number_format($this->skipBankTotal, 2, ',', '.') . ') debe ser igual al Neto a Pagar ($' . number_format($this->netPayment, 2, ',', '.') . ').', type: 'error');
+                return;
+            }
+        }
+
         DB::beginTransaction();
         try {
             $year = (int) $this->filterYear;
@@ -1634,7 +1669,7 @@ class PostcontractualManagement extends Component
                 'document_support_number'    => null,
                 'invoice_date'               => $this->invoiceDate ?: null,
                 'payment_date'               => $this->paymentDate,
-                'is_full_payment'            => $this->paymentType === 'direct' ? true : $this->isFullPayment,
+                'is_full_payment'            => in_array($this->paymentType, ['direct', 'accounts_payable']) ? true : $this->isFullPayment,
                 'subtotal'                   => $this->skipCdpRp ? $skipTotal : (float) $this->paySubtotal,
                 'iva'                        => $this->skipCdpRp ? 0 : (float) ($this->payIva ?? 0),
                 'total'                      => $this->skipCdpRp ? $skipTotal : (float) $this->payTotal,
@@ -1659,6 +1694,10 @@ class PostcontractualManagement extends Component
 
             if ($this->paymentType === 'contract') {
                 $paymentData['contract_id'] = $this->selectedContractId;
+            } elseif ($this->paymentType === 'accounts_payable') {
+                // Cuentas por Pagar: proveedor con retenciones, sin CDP/RP
+                $paymentData['supplier_id'] = $this->selectedSupplierId;
+                $paymentData['description'] = $this->directDescription;
             } elseif ($this->skipCdpRp) {
                 // Pago directo sin CDP/RP (retenciones, impuestos)
                 $paymentData['supplier_id'] = $this->selectedSupplierId;
@@ -1827,6 +1866,17 @@ class PostcontractualManagement extends Component
                         'amount'           => (float) $tl['amount'],
                     ]);
                 }
+                foreach ($this->skipBankLines as $bl) {
+                    \App\Models\PaymentOrderBankLine::create([
+                        'payment_order_id' => $paymentOrder->id,
+                        'bank_account_id'  => (int) $bl['bank_account_id'],
+                        'amount'           => (float) $bl['amount'],
+                    ]);
+                }
+            }
+
+            // Guardar líneas bancarias de egreso para Cuentas por Pagar
+            if ($this->paymentType === 'accounts_payable') {
                 foreach ($this->skipBankLines as $bl) {
                     \App\Models\PaymentOrderBankLine::create([
                         'payment_order_id' => $paymentOrder->id,

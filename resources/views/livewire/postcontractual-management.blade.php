@@ -101,6 +101,8 @@
                                     <td class="px-6 py-4">
                                         @if($po->payment_type === 'direct')
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">Directo</span>
+                                        @elseif($po->payment_type === 'accounts_payable')
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Ctas x Pagar</span>
                                         @else
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Contrato</span>
                                         @endif
@@ -108,6 +110,9 @@
                                     <td class="px-6 py-4">
                                         @if($po->payment_type === 'direct')
                                             <p class="text-sm font-medium text-gray-900">Pago Directo</p>
+                                            <p class="text-xs text-gray-500 truncate max-w-[200px]">{{ Str::limit($po->description, 40) }}</p>
+                                        @elseif($po->payment_type === 'accounts_payable')
+                                            <p class="text-sm font-medium text-gray-900">Cuenta por Pagar</p>
                                             <p class="text-xs text-gray-500 truncate max-w-[200px]">{{ Str::limit($po->description, 40) }}</p>
                                         @else
                                             <p class="text-sm font-medium text-gray-900">N° {{ $po->contract?->formatted_number }}</p>
@@ -188,6 +193,13 @@
                                 <p class="text-xs text-gray-500">Servicios públicos, retenciones DIAN, etc.</p>
                             </div>
                         </label>
+                        <label class="inline-flex items-center gap-2 cursor-pointer p-3 rounded-xl border-2 transition-colors {{ $paymentType === 'accounts_payable' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300' }}">
+                            <input type="radio" wire:model.live="paymentType" value="accounts_payable" class="text-orange-600 focus:ring-orange-500">
+                            <div>
+                                <span class="text-sm font-medium text-gray-900">Cuentas por Pagar</span>
+                                <p class="text-xs text-gray-500">Pago a proveedor sin CDP/RP, con retenciones</p>
+                            </div>
+                        </label>
                     </div>
                 </div>
 
@@ -248,7 +260,7 @@
                 </div>
                 @endif {{-- end if contractData --}}
 
-                @else
+                @elseif($paymentType === 'direct')
                 {{-- ═══════════════════════════════════════════════════ --}}
                 {{-- FLUJO PAGO DIRECTO (sin contrato) --}}
                 {{-- ═══════════════════════════════════════════════════ --}}
@@ -601,6 +613,175 @@
                 </div>
                 @endif {{-- end if supplierData --}}
 
+                @elseif($paymentType === 'accounts_payable')
+                {{-- ═══════════════════════════════════════════════════ --}}
+                {{-- FLUJO CUENTAS POR PAGAR (sin CDP/RP, con retenciones) --}}
+                {{-- ═══════════════════════════════════════════════════ --}}
+
+                {{-- Seleccionar Proveedor --}}
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        Seleccione el Proveedor
+                    </h2>
+                    <div class="max-w-lg">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor *</label>
+                        <select wire:model.live="selectedSupplierId" wire:change="onSupplierSelected" class="w-full rounded-xl border-gray-300 focus:border-orange-500 focus:ring-orange-500">
+                            <option value="">-- Seleccione un proveedor --</option>
+                            @foreach($availableSuppliers as $as)
+                                <option value="{{ $as['id'] }}">{{ $as['name'] }} ({{ $as['document'] }})</option>
+                            @endforeach
+                        </select>
+                        @if(empty($availableSuppliers))
+                            <p class="text-xs text-amber-600 mt-1">No hay proveedores registrados para este colegio.</p>
+                        @endif
+                        @error('selectedSupplierId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+
+                @if(!empty($supplierData))
+                @include('livewire.partials.postcontractual-supplier-info')
+
+                {{-- Concepto del Pago --}}
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                        Concepto del Pago
+                    </h2>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripción del pago *</label>
+                        <textarea wire:model="directDescription" rows="3" class="w-full rounded-xl border-gray-300 focus:border-orange-500 focus:ring-orange-500" placeholder="Ej: Pago de factura N° 001 por prestación de servicios de mantenimiento..."></textarea>
+                        @error('directDescription') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+
+                {{-- Datos de Factura y Pago --}}
+                @include('livewire.partials.postcontractual-invoice-payment', ['showFullPaymentToggle' => false])
+
+                {{-- Retenciones DIAN --}}
+                @include('livewire.partials.postcontractual-retentions-single')
+
+                {{-- Resumen de Descuentos y Cuenta Bancaria del Proveedor --}}
+                @include('livewire.partials.postcontractual-summary')
+
+                {{-- Cuentas Bancarias de Egreso --}}
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                        Cuentas Bancarias de Egreso
+                    </h2>
+                    <p class="text-xs text-gray-500 mb-4">Indique desde qué cuenta(s) del colegio se realizará el pago. El total debe coincidir con el Neto a Pagar.</p>
+
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-medium text-gray-700">Líneas de egreso</span>
+                        <button type="button" wire:click="addSkipBankLine"
+                                class="px-3 py-1.5 bg-orange-100 text-orange-700 text-xs font-medium rounded-lg hover:bg-orange-200 flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                            Agregar cuenta
+                        </button>
+                    </div>
+
+                    @if(empty($skipBankLines))
+                        <p class="text-xs text-gray-400 italic mb-3">Haga clic en "Agregar cuenta" para indicar desde qué cuenta(s) se realiza el egreso.</p>
+                    @endif
+
+                    <div class="space-y-3">
+                        @foreach($skipBankLines as $blIdx => $bl)
+                            <div wire:key="apbl-{{ $blIdx }}" class="border border-orange-200 rounded-xl p-3 bg-white">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-semibold text-orange-700">Cuenta {{ $blIdx + 1 }}</span>
+                                    <button type="button" wire:click="removeSkipBankLine({{ $blIdx }})"
+                                            class="text-red-400 hover:text-red-600">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    {{-- Banco --}}
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Banco *</label>
+                                        <select wire:model.live="skipBankLines.{{ $blIdx }}.bank_id"
+                                                class="w-full rounded-lg border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
+                                            <option value="">-- Banco --</option>
+                                            @foreach($skipBanks as $bank)
+                                                <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    {{-- Cuenta --}}
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Cuenta *</label>
+                                        <select wire:model.live="skipBankLines.{{ $blIdx }}.bank_account_id"
+                                                class="w-full rounded-lg border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
+                                            <option value="">-- Cuenta --</option>
+                                            @if(!empty($bl['bank_id']))
+                                                @php $selBank = collect($skipBanks)->firstWhere('id', (int)$bl['bank_id']); @endphp
+                                                @foreach(($selBank['accounts'] ?? []) as $acct)
+                                                    <option value="{{ $acct['id'] }}">{{ $acct['label'] }}</option>
+                                                @endforeach
+                                            @endif
+                                        </select>
+                                    </div>
+                                    {{-- Monto --}}
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1">Monto *</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 text-xs pointer-events-none">$</span>
+                                            <input type="number"
+                                                   wire:model.live.debounce.300ms="skipBankLines.{{ $blIdx }}.amount"
+                                                   step="0.01" min="0.01"
+                                                   class="w-full rounded-lg border-gray-300 pl-5 text-sm focus:border-orange-500 focus:ring-orange-500"
+                                                   placeholder="0.00">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    @if(count($skipBankLines) > 0)
+                        <div class="mt-3 bg-orange-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-orange-600 font-medium">Total Cuentas Bancarias</p>
+                            <p class="text-xl font-bold text-orange-800">${{ number_format($skipBankTotal, 2, ',', '.') }}</p>
+                        </div>
+
+                        {{-- Balance indicator vs netPayment --}}
+                        @php $apDiff = abs($skipBankTotal - (float) $netPayment); @endphp
+                        @if($netPayment > 0)
+                            @if($apDiff <= 0.01)
+                                <div class="mt-3 bg-green-100 border border-green-300 rounded-xl p-3 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    <p class="text-sm font-medium text-green-800">El total de cuentas coincide con el Neto a Pagar. Puede guardar.</p>
+                                </div>
+                            @else
+                                <div class="mt-3 bg-red-100 border border-red-300 rounded-xl p-3 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    <div>
+                                        <p class="text-sm font-medium text-red-800">Los totales no coinciden.</p>
+                                        <p class="text-xs text-red-600">
+                                            Cuentas bancarias: ${{ number_format($skipBankTotal, 2, ',', '.') }} —
+                                            Neto a Pagar: ${{ number_format($netPayment, 2, ',', '.') }} —
+                                            Diferencia: ${{ number_format($apDiff, 2, ',', '.') }}
+                                        </p>
+                                    </div>
+                                </div>
+                            @endif
+                        @endif
+                    @endif
+                </div>
+
+                {{-- Observaciones --}}
+                @include('livewire.partials.postcontractual-observations')
+
+                {{-- Botones --}}
+                <div class="flex justify-end gap-3">
+                    <button type="button" wire:click="backToList" class="px-6 py-2.5 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
+                    <button type="submit" class="px-6 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors flex items-center gap-2" wire:loading.attr="disabled">
+                        <svg wire:loading wire:target="savePaymentOrder" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        Crear Cuenta por Pagar
+                    </button>
+                </div>
+                @endif {{-- end if supplierData (accounts_payable) --}}
+
                 @endif {{-- end paymentType --}}
             </form>
 
@@ -623,9 +804,11 @@
                                 <h1 class="text-2xl font-bold text-gray-900">Orden de Pago N° {{ $paymentOrder->formatted_number }}</h1>
                                 @if($paymentOrder->payment_type === 'direct')
                                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">Pago Directo</span>
+                                @elseif($paymentOrder->payment_type === 'accounts_payable')
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Cuenta por Pagar</span>
                                 @endif
                             </div>
-                            @if($paymentOrder->payment_type === 'direct')
+                            @if(in_array($paymentOrder->payment_type, ['direct', 'accounts_payable']))
                                 <p class="text-gray-500 mt-1">{{ Str::limit($paymentOrder->description, 80) }}</p>
                             @else
                                 <p class="text-gray-500 mt-1">Contrato N° {{ $paymentOrder->contract?->formatted_number }} - {{ Str::limit($paymentOrder->contract?->object, 60) }}</p>
@@ -690,8 +873,8 @@
                     </div>
                 </div>
 
-                {{-- Descripción del pago directo --}}
-                @if($paymentOrder->payment_type === 'direct' && $paymentOrder->description)
+                {{-- Descripción del pago directo / cuenta por pagar --}}
+                @if(in_array($paymentOrder->payment_type, ['direct', 'accounts_payable']) && $paymentOrder->description)
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-2">Concepto del Pago</h2>
                     <p class="text-sm text-gray-700">{{ $paymentOrder->description }}</p>
@@ -999,8 +1182,8 @@
                 </div>
                 @endif
 
-                {{-- Egresos bancarios (solo pago directo sin CDP/RP) --}}
-                @if($paymentOrder->payment_type === 'direct' && $paymentOrder->bankLines->isNotEmpty())
+                {{-- Egresos bancarios (pago directo sin CDP/RP o cuentas por pagar) --}}
+                @if(in_array($paymentOrder->payment_type, ['direct', 'accounts_payable']) && $paymentOrder->bankLines->isNotEmpty())
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>

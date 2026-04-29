@@ -86,8 +86,9 @@ class PaymentOrder extends Model
     ];
 
     const PAYMENT_TYPES = [
-        'contract' => 'Con Contrato',
-        'direct'   => 'Pago Directo',
+        'contract'         => 'Con Contrato',
+        'direct'           => 'Pago Directo',
+        'accounts_payable' => 'Cuentas por Pagar',
     ];
 
     const RETENTION_CONCEPTS = [

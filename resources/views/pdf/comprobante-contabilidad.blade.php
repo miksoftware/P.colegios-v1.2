@@ -240,7 +240,7 @@
                     </td>
                     <td>
                         <div class="sig-line">
-                            <div class="sig-name">{{ $supplier->full_name ?? '' }}</div>
+                            <div class="sig-name">&nbsp;</div>
                         </div>
                     </td>
                 </tr>

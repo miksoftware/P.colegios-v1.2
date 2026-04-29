@@ -120,10 +120,10 @@ class PostcontractualPdfController extends Controller
                 $retentionRows[] = ['code' => '24072202', 'name' => 'OTROS IMP. MUNICIPALES (2% Procultura)', 'amount' => (float) $po->estampilla_procultura, 'is_parent' => false];
             }
             if ((float) $po->estampilla_produlto_mayor > 0) {
-                $retentionRows[] = ['code' => '24408004', 'name' => 'OTROS IMP. MUNICIPALES (2% Produlto may)', 'amount' => (float) $po->estampilla_produlto_mayor, 'is_parent' => false];
+                $retentionRows[] = ['code' => '24072204', 'name' => 'OTROS IMP. MUNICIPALES (2% Produlto may)', 'amount' => (float) $po->estampilla_produlto_mayor, 'is_parent' => false];
             }
             if ((float) $po->retencion_ica > 0) {
-                $retentionRows[] = ['code' => '244004', 'name' => 'OTROS IMPUESTOS MUNICIPALES (ReteICA)', 'amount' => (float) $po->retencion_ica, 'is_parent' => false];
+                $retentionRows[] = ['code' => '24072209', 'name' => 'OTROS IMPUESTOS MUNICIPALES (ReteICA)', 'amount' => (float) $po->retencion_ica, 'is_parent' => false];
             }
         }
 

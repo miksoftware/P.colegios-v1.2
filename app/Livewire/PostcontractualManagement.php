@@ -555,9 +555,9 @@ class PostcontractualManagement extends Component
         foreach ($distributions as $dist) {
             $budget = $dist->budget;
             if (!$budget || !$budget->budgetItem || !$budget->fundingSource) continue;
-            $reserved = Cdp::getTotalReservedForFundingSource($budget->fundingSource->id, $year, $this->schoolId);
-            $realAvailable = max(0, (float) $budget->current_amount - $reserved);
-            if ($realAvailable <= 0) continue;
+            // Usar el saldo disponible del rubro (código de gasto), no de la fuente de financiación
+            $distAvailable = max(0, $dist->available_balance);
+            if ($distAvailable <= 0) continue;
 
             $sources[] = [
                 'budget_item_id' => $budget->budget_item_id,
@@ -565,7 +565,7 @@ class PostcontractualManagement extends Component
                 'funding_source_id' => $budget->fundingSource->id,
                 'funding_source_name' => $budget->fundingSource->code . ' - ' . $budget->fundingSource->name,
                 'budget_id' => $budget->id,
-                'available' => round($realAvailable, 2),
+                'available' => round($distAvailable, 2),
             ];
         }
 
@@ -1237,6 +1237,20 @@ class PostcontractualManagement extends Component
      */
     public function calculateRetentions()
     {
+        // Los pagos directos sin CDP/RP no generan descuentos automáticos de retención
+        if ($this->skipCdpRp) {
+            $this->retefuente            = 0;
+            $this->reteiva               = 0;
+            $this->totalRetentionsDian   = 0;
+            $this->estampillaProdultoMayor = 0;
+            $this->estampillaProcultura  = 0;
+            $this->retencionIca          = 0;
+            $this->otherTaxesTotal       = 0;
+            $this->totalRetentions       = 0;
+            $this->netPayment            = (float) ($this->paySubtotal ?? 0);
+            return;
+        }
+
         // In split mode, retentions are calculated per-line
         if ($this->paymentMode === 'split' && !empty($this->expenseLines)) {
             $this->recalculateFromLines();
@@ -1630,8 +1644,21 @@ class PostcontractualManagement extends Component
                 ]);
 
                 foreach ($allocations as $alloc) {
-                    $source = FundingSource::find($alloc['funding_source_id']);
-                    $balance = $source ? $source->getAvailableBalanceForYear($year, $this->schoolId) : 0;
+                    // Para pagos directos, guardar el saldo disponible del RUBRO (código de gasto)
+                    // en lugar del saldo de la fuente de financiación, para que el CDP sea correcto.
+                    // En este punto PaymentOrderExpenseLine aún no existe → saldo pre-pago.
+                    $balance = 0;
+                    if (!empty($alloc['budget_id']) && !empty($alloc['expense_code_id'])) {
+                        $dist = \App\Models\ExpenseDistribution::where('school_id', $this->schoolId)
+                            ->where('budget_id', $alloc['budget_id'])
+                            ->where('expense_code_id', $alloc['expense_code_id'])
+                            ->first();
+                        $balance = $dist ? (float) $dist->available_balance : 0;
+                    }
+                    if ($balance <= 0) {
+                        $source = FundingSource::find($alloc['funding_source_id']);
+                        $balance = $source ? $source->getAvailableBalanceForYear($year, $this->schoolId) : 0;
+                    }
 
                     CdpFundingSource::create([
                         'cdp_id'                      => $cdp->id,

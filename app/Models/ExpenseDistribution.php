@@ -192,13 +192,30 @@ class ExpenseDistribution extends Model
 
     /**
      * Saldo disponible para nuevas convocatorias.
-     * = monto distribuido - ejecutado directo - monto realmente bloqueado
-     * Cuando una convocatoria tiene pagos, solo se bloquea lo pagado (no el compromiso original),
-     * liberando la diferencia para nuevas convocatorias.
+     * = monto distribuido - ejecutado directo - monto realmente bloqueado - pagos directos
+     * Los pagos directos (payment_type = 'direct') no pasan por convocatoria/contrato,
+     * por lo que deben descontarse aquí explícitamente.
      */
     public function getAvailableBalanceAttribute(): float
     {
-        return (float) $this->amount - $this->total_executed - $this->total_locked;
+        // Pagos directos sobre este rubro (no anulados), sin convocatoria de por medio
+        if ($this->relationLoaded('paymentOrderLines')) {
+            $directPaid = (float) $this->paymentOrderLines
+                ->filter(fn($line) => $line->paymentOrder
+                    && $line->paymentOrder->payment_type === 'direct'
+                    && in_array($line->paymentOrder->status, ['draft', 'approved', 'paid'])
+                )
+                ->sum('total');
+        } else {
+            $directPaid = (float) $this->paymentOrderLines()
+                ->whereHas('paymentOrder', fn($q) => $q
+                    ->where('payment_type', 'direct')
+                    ->whereIn('status', ['draft', 'approved', 'paid'])
+                )
+                ->sum('total');
+        }
+
+        return (float) $this->amount - $this->total_executed - $this->total_locked - $directPaid;
     }
 
     // Porcentaje ejecutado

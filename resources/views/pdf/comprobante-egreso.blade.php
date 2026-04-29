@@ -267,11 +267,7 @@
                     </td>
                     <td style="width: 34%;">
                         <div class="sig-line" style="margin-top: 20px;">
-                            <div class="sig-name">{{ $supplier->full_name ?? '' }}</div>
-                            @if($supplier)
-                                <div style="font-size: 7px; color: #444;">{{ $supplier->document_number ?? '' }}</div>
-                            @endif
-                            <div style="font-size: 7px; color: #444;">DV: {{ $supplier->dv ?? '' }}</div>
+                            <div class="sig-name">&nbsp;</div>
                         </div>
                     </td>
                 </tr>

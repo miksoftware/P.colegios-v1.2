@@ -41,8 +41,10 @@ class BudgetAdditionReductionManagement extends Component
 
     // Info de distribuciones afectadas
     public $affectedDistributions = [];
-    // Montos a reducir por distribución (solo en reducción con distribuciones)
+    // Montos a reducir/adicionar por distribución
     public $distributionReductions = [];
+    // Modo de adición cuando hay distribuciones: 'general' | 'distributions'
+    public $additionMode = 'general';
 
     // Modal de adición principal (crear nueva fuente)
     public $showPrincipalAdditionModal = false;
@@ -61,11 +63,13 @@ class BudgetAdditionReductionManagement extends Component
 
     protected function rules()
     {
-        // Reducción con distribuciones: el monto viene de las líneas, no del campo único
-        $isDistReduction = $this->operationType === 'reduction' && count($this->affectedDistributions) > 0;
+        // El monto único no se usa cuando operamos por líneas de distribución
+        $byDistributions = count($this->affectedDistributions) > 0
+            && ($this->operationType === 'reduction'
+                || ($this->operationType === 'addition' && $this->additionMode === 'distributions'));
 
         return [
-            'amount'          => $isDistReduction ? 'nullable' : 'required|numeric|min:0.01',
+            'amount'          => $byDistributions ? 'nullable' : 'required|numeric|min:0.01',
             'reason'          => 'required|string|min:10',
             'document_number' => 'nullable|string|max:50',
         ];
@@ -256,6 +260,7 @@ class BudgetAdditionReductionManagement extends Component
         $this->reason = '';
         $this->document_number = '';
         $this->distributionReductions = [];
+        $this->additionMode = 'general';
         $this->resetValidation();
 
         // Cargar distribuciones de gasto afectadas (con relaciones para calcular saldos)
@@ -403,6 +408,25 @@ class BudgetAdditionReductionManagement extends Component
 
         DB::beginTransaction();
         try {
+            // ── Adición por distribución ──
+            if ($this->operationType === 'addition' && count($this->affectedDistributions) > 0 && $this->additionMode === 'distributions') {
+                $lines = [];
+                foreach ($this->distributionReductions as $distId => $rawAmt) {
+                    $amt = (float) str_replace(',', '.', (string) $rawAmt);
+                    if ($amt <= 0) continue;
+                    $lines[] = ['id' => (int) $distId, 'amount' => $amt];
+                }
+                if (empty($lines)) {
+                    DB::rollBack();
+                    $this->addError('amount', 'Ingrese al menos un monto a adicionar en alguna distribución.');
+                    return;
+                }
+                $amount = array_sum(array_column($lines, 'amount'));
+                foreach ($lines as $line) {
+                    ExpenseDistribution::where('id', $line['id'])->increment('amount', $line['amount']);
+                }
+            }
+
             // Aplicar modificación al presupuesto de INGRESO
             $incomePrevious = $incomeBudget->current_amount;
             $incomeNew = $this->operationType === 'addition'
@@ -656,6 +680,7 @@ class BudgetAdditionReductionManagement extends Component
         $this->selectedBudgetInfo = [];
         $this->affectedDistributions = [];
         $this->distributionReductions = [];
+        $this->additionMode = 'general';
         $this->amount = '';
         $this->reason = '';
         $this->document_number = '';

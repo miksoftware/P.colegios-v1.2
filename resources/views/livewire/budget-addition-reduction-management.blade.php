@@ -335,36 +335,89 @@
                     @error('amount') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
 
                     @else
-                    {{-- ADICIÓN: lista informativa --}}
-                    <div class="p-4 bg-amber-50 rounded-xl border border-amber-200">
-                        <div class="flex items-start gap-3">
-                            <svg class="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                            </svg>
-                            <div class="flex-1">
-                                <h4 class="text-sm font-semibold text-amber-800">Distribuciones de gasto asociadas</h4>
-                                <p class="text-xs text-amber-700 mt-1">Este presupuesto tiene <strong>{{ count($affectedDistributions) }}</strong> distribución(es). La adición incrementará el saldo disponible del presupuesto.</p>
-                                <div class="mt-2 space-y-1">
-                                    @foreach($affectedDistributions as $dist)
-                                    <div class="flex justify-between text-xs">
-                                        <span class="text-gray-600">{{ $dist['expense_code_code'] }} - {{ $dist['expense_code'] }}</span>
-                                        <span class="font-medium text-gray-900">${{ number_format($dist['amount'], 0, ',', '.') }}</span>
+                    {{-- ADICIÓN: toggle para elegir modo --}}
+                    @if(count($affectedDistributions) > 0)
+                    <div class="rounded-xl border border-amber-200 overflow-hidden">
+                        <div class="bg-amber-50 px-4 py-3">
+                            <p class="text-xs font-semibold text-amber-800 mb-2">Este presupuesto tiene <strong>{{ count($affectedDistributions) }}</strong> distribución(es). ¿Cómo deseas adicionar?</p>
+                            <div class="flex gap-2">
+                                <button type="button"
+                                    wire:click="$set('additionMode', 'general')"
+                                    class="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold border transition {{ $additionMode === 'general' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:border-green-400' }}">
+                                    General (distribuir después)
+                                </button>
+                                <button type="button"
+                                    wire:click="$set('additionMode', 'distributions')"
+                                    class="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold border transition {{ $additionMode === 'distributions' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:border-green-400' }}">
+                                    Por distribución
+                                </button>
+                            </div>
+                        </div>
+
+                        @if($additionMode === 'general')
+                        {{-- Lista informativa --}}
+                        <div class="px-4 py-3 bg-white space-y-1">
+                            <p class="text-xs text-gray-500 mb-2">El monto se añade al presupuesto general. Podrás distribuirlo luego desde el módulo de distribuciones.</p>
+                            @foreach($affectedDistributions as $dist)
+                            <div class="flex justify-between text-xs">
+                                <span class="text-gray-600">{{ $dist['expense_code_code'] }} - {{ $dist['expense_code'] }}</span>
+                                <span class="font-medium text-gray-900">${{ number_format($dist['amount'], 0, ',', '.') }}</span>
+                            </div>
+                            @endforeach
+                            <div class="flex justify-between text-xs font-bold pt-1 border-t border-amber-200">
+                                <span class="text-amber-800">Total Distribuido</span>
+                                <span class="text-amber-800">${{ number_format(collect($affectedDistributions)->sum('amount'), 0, ',', '.') }}</span>
+                            </div>
+                        </div>
+                        @else
+                        {{-- Inputs por distribución para adición --}}
+                        <div class="divide-y divide-gray-100">
+                            @foreach($affectedDistributions as $dist)
+                            <div class="px-4 py-3 bg-white">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-xs font-semibold text-gray-800 truncate">{{ $dist['expense_code_code'] }} — {{ $dist['expense_code'] }}</p>
+                                        <div class="flex gap-3 mt-1 text-xs text-gray-500">
+                                            <span>Actual: <strong class="text-gray-700">${{ number_format($dist['amount'], 0, ',', '.') }}</strong></span>
+                                            <span>Disponible: <strong class="text-green-600">${{ number_format($dist['available_balance'], 0, ',', '.') }}</strong></span>
+                                        </div>
                                     </div>
-                                    @endforeach
-                                    <div class="flex justify-between text-xs font-bold pt-1 border-t border-amber-200">
-                                        <span class="text-amber-800">Total Distribuido</span>
-                                        <span class="text-amber-800">${{ number_format(collect($affectedDistributions)->sum('amount'), 0, ',', '.') }}</span>
+                                    <div class="w-36 flex-shrink-0">
+                                        <div class="flex">
+                                            <span class="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-xs">$</span>
+                                            <input
+                                                type="number"
+                                                wire:model.live="distributionReductions.{{ $dist['id'] }}"
+                                                step="1"
+                                                min="0"
+                                                class="w-full text-xs rounded-r-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 py-1.5"
+                                                placeholder="0"
+                                            >
+                                        </div>
+                                        @error('distributionReductions.' . $dist['id'])
+                                            <span class="text-red-500 text-xs">{{ $message }}</span>
+                                        @enderror
                                     </div>
                                 </div>
                             </div>
+                            @endforeach
                         </div>
+                        {{-- Total a adicionar --}}
+                        @php $totalToAdd = collect($distributionReductions)->sum(fn($v) => max(0, (float) $v)); @endphp
+                        @if($totalToAdd > 0)
+                        <div class="bg-green-50 px-4 py-2 flex justify-between items-center border-t border-green-200">
+                            <span class="text-xs font-semibold text-green-800">Total a adicionar:</span>
+                            <span class="text-sm font-bold text-green-700">${{ number_format($totalToAdd, 0, ',', '.') }}</span>
+                        </div>
+                        @endif
+                        @error('amount') <span class="text-red-500 text-xs px-4 pb-2 block">{{ $message }}</span> @enderror
+                        @endif
                     </div>
                     @endif
-
                     @endif
 
-                    <!-- Monto (solo para adición o reducción SIN distribuciones) -->
-                    @if($operationType === 'addition' || count($affectedDistributions) === 0)
+                    <!-- Monto (solo para adición general o reducción SIN distribuciones) -->
+                    @if(($operationType === 'addition' && ($additionMode === 'general' || count($affectedDistributions) === 0)) || ($operationType === 'reduction' && count($affectedDistributions) === 0))
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             Monto a {{ $operationType === 'addition' ? 'Adicionar' : 'Reducir' }} *
@@ -392,9 +445,14 @@
 
                     <!-- Preview del resultado -->
                     @php
-                        $previewAmount = ($operationType === 'reduction' && count($affectedDistributions) > 0)
-                            ? collect($distributionReductions)->sum(fn($v) => max(0, (float) $v))
-                            : (is_numeric($amount) ? (float) $amount : 0);
+                        $previewAmount = 0;
+                        if ($operationType === 'reduction' && count($affectedDistributions) > 0) {
+                            $previewAmount = collect($distributionReductions)->sum(fn($v) => max(0, (float) $v));
+                        } elseif ($operationType === 'addition' && count($affectedDistributions) > 0 && $additionMode === 'distributions') {
+                            $previewAmount = collect($distributionReductions)->sum(fn($v) => max(0, (float) $v));
+                        } else {
+                            $previewAmount = is_numeric($amount) ? (float) $amount : 0;
+                        }
                     @endphp
                     @if(count($selectedBudgetInfo) > 0 && $previewAmount > 0)
                     <div class="p-4 {{ $operationType === 'addition' ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-100' }} rounded-xl border">

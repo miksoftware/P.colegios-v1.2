@@ -70,6 +70,10 @@ class PostcontractualManagement extends Component
     public $retencionIca = 0;
     public $otherTaxesTotal = 0;
 
+    // Flags manuales para estampillas
+    public $applyEstampillaProdulto = false;
+    public $applyEstampillaProcultura = false;
+
     // Totales
     public $totalRetentions = 0;
     public $netPayment = 0;
@@ -779,7 +783,8 @@ class PostcontractualManagement extends Component
         $this->totalRetentions = 0;
         $this->netPayment = 0;
         $this->observations = '';
-        $this->supplierBankAccounts = [];
+        $this->applyEstampillaProdulto = false;
+        $this->applyEstampillaProcultura = false;
         $this->selectedBankAccountId = '';
         $this->showNewBankAccountForm = false;
         $this->newBankName = '';
@@ -981,6 +986,16 @@ class PostcontractualManagement extends Component
         $this->calculateRetentions();
     }
 
+    public function updatedApplyEstampillaProdulto()
+    {
+        $this->calculateRetentions();
+    }
+
+    public function updatedApplyEstampillaProcultura()
+    {
+        $this->calculateRetentions();
+    }
+
     // ══════════════════════════════════════════════════════════
     // DISTRIBUCIÓN POR CÓDIGO DE GASTO
     // ══════════════════════════════════════════════════════════
@@ -1162,7 +1177,7 @@ class PostcontractualManagement extends Component
             }
         }
 
-        // Otros impuestos
+        // Otros impuestos (modo split solo aplica a contratos — cálculo automático)
         $line['estampilla_produlto_mayor'] = 0;
         $line['estampilla_procultura'] = 0;
         $line['retencion_ica'] = 0;
@@ -1315,18 +1330,23 @@ class PostcontractualManagement extends Component
 
         $municipality = $this->schoolMunicipality;
 
-        // Estampilla Produlto Mayor: 2% si subtotal >= $1 (solo Bucaramanga)
-        if (str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
-            $this->estampillaProdultoMayor = $this->roundRetention($subtotal * 0.02);
+        if ($this->paymentType === 'accounts_payable') {
+            // Cuentas por pagar: activación manual mediante checkbox
+            if ($this->applyEstampillaProdulto && str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
+                $this->estampillaProdultoMayor = $this->roundRetention($subtotal * 0.02);
+            }
+            if ($this->applyEstampillaProcultura && str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
+                $this->estampillaProcultura = $this->roundRetention($subtotal * 0.02);
+            }
+        } else {
+            // Contrato: cálculo automático (comportamiento original)
+            if (str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
+                $this->estampillaProdultoMayor = $this->roundRetention($subtotal * 0.02);
+            }
+            if (str_contains($municipality, 'bucaramanga') && $subtotal >= 35018010) {
+                $this->estampillaProcultura = $this->roundRetention($subtotal * 0.02);
+            }
         }
-
-        // Estampilla Procultura: 2% si subtotal >= $35,018,010 (solo Bucaramanga)
-        if (str_contains($municipality, 'bucaramanga') && $subtotal >= 35018010) {
-            $this->estampillaProcultura = $this->roundRetention($subtotal * 0.02);
-        }
-
-        // Retención ICA: solo Piedecuesta y Villanueva (placeholder - tasa configurable)
-        // Por ahora no se aplica automáticamente, se deja en 0
 
         $this->otherTaxesTotal = $this->estampillaProdultoMayor + $this->estampillaProcultura + $this->retencionIca;
 

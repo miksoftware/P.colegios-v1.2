@@ -91,6 +91,30 @@
         <span class="text-xs font-normal text-gray-400">(según municipio del colegio)</span>
     </h2>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        @if($paymentType === 'accounts_payable')
+        <div class="bg-gray-50 rounded-xl p-3">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-xs text-gray-500">Estampilla Produlto Mayor</p>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" wire:model.live="applyEstampillaProdulto" class="rounded border-gray-300 text-orange-500 focus:ring-orange-400">
+                    <span class="text-xs font-medium text-gray-600">Aplicar</span>
+                </label>
+            </div>
+            <p class="text-lg font-bold text-center {{ $estampillaProdultoMayor > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProdultoMayor, 2, ',', '.') }}</p>
+            <p class="text-[10px] text-gray-400 text-center">2% del subtotal (solo Bucaramanga)</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-3">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-xs text-gray-500">Estampilla Procultura</p>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" wire:model.live="applyEstampillaProcultura" class="rounded border-gray-300 text-orange-500 focus:ring-orange-400">
+                    <span class="text-xs font-medium text-gray-600">Aplicar</span>
+                </label>
+            </div>
+            <p class="text-lg font-bold text-center {{ $estampillaProcultura > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProcultura, 2, ',', '.') }}</p>
+            <p class="text-[10px] text-gray-400 text-center">2% del subtotal (solo Bucaramanga)</p>
+        </div>
+        @else
         <div class="bg-gray-50 rounded-xl p-3 text-center">
             <p class="text-xs text-gray-500">Estampilla Produlto Mayor</p>
             <p class="text-lg font-bold {{ $estampillaProdultoMayor > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProdultoMayor, 2, ',', '.') }}</p>
@@ -101,6 +125,7 @@
             <p class="text-lg font-bold {{ $estampillaProcultura > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProcultura, 2, ',', '.') }}</p>
             <p class="text-[10px] text-gray-400">2% del subtotal (solo Bucaramanga, ≥ $35.018.010)</p>
         </div>
+        @endif
         <div class="bg-gray-50 rounded-xl p-3 text-center">
             <p class="text-xs text-gray-500">Retención ICA</p>
             <p class="text-lg font-bold text-gray-400">${{ number_format($retencionIca, 2, ',', '.') }}</p>

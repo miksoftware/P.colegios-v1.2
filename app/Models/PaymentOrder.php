@@ -239,7 +239,7 @@ class PaymentOrder extends Model
      */
     public function getResolvedSupplierAttribute(): ?Supplier
     {
-        if ($this->payment_type === 'direct') {
+        if (in_array($this->payment_type, ['direct', 'accounts_payable'])) {
             return $this->supplier;
         }
         return $this->contract?->supplier;

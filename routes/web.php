@@ -261,6 +261,30 @@ Route::get('contraloria/acuerdos-gastos', App\Livewire\ContraloriaAgreementsRepo
     ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('contraloria.agreements');
 
+Route::get('contraloria/acuerdos-ingresos', App\Livewire\ContraloriaIncomeAgreementsReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contraloria.income-agreements');
+
+Route::get('contraloria/pago-impuestos', App\Livewire\ContraloriaTaxPaymentsReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contraloria.tax-payments');
+
+Route::get('contraloria/pago-proveedores', App\Livewire\ContraloriaSuppliersPaymentsReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contraloria.suppliers-payments');
+
+Route::get('contraloria/contratos', App\Livewire\ContraloriaContractsReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contraloria.contracts');
+
+Route::get('contraloria/ingresos', App\Livewire\ContraloriaIncomeReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contraloria.income');
+
+Route::get('contraloria/gastos', App\Livewire\ContraloriaExpenseReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contraloria.expense');
+
 Route::get('dashboard', App\Livewire\Dashboard::class)
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

@@ -190,7 +190,7 @@
                         <td class="center">{{ $row['budget_item_code'] }}</td>
                         <td>{{ $row['budget_item_name'] }}</td>
                         <td class="center">{{ $row['cdp_number'] }}</td>
-                        <td class="center">{{ $contract->start_date?->format('d/m/Y') ?? '' }}</td>
+                        <td class="center">{{ isset($row['cdp_date']) ? \Carbon\Carbon::parse($row['cdp_date'])->format('d/m/Y') : '' }}</td>
                     </tr>
                     @endforeach
                 </tbody>

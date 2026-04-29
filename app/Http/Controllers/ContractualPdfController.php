@@ -483,7 +483,7 @@ class ContractualPdfController extends Controller
         abort_if(!auth()->user()->can('contractual.view'), 403);
 
         $contract = Contract::forSchool($schoolId)
-            ->with(['school', 'supplier', 'supervisor', 'rps'])
+            ->with(['school', 'supplier', 'supervisor.roles', 'rps'])
             ->findOrFail($contractId);
 
         $school = School::findOrFail($schoolId);
@@ -556,6 +556,7 @@ class ContractualPdfController extends Controller
             foreach ($cdp->fundingSources as $cdpFs) {
                 $cdpRows[] = [
                     'cdp_number' => $cdp->formatted_number,
+                    'cdp_date'   => $cdp->created_at,
                     'budget_item_code' => $ecData['code'] ?? $cdp->budgetItem?->code ?? '',
                     'budget_item_name' => $ecData['name'] ?? $cdp->budgetItem?->name ?? '',
                     'funding_source' => $cdpFs->fundingSource?->name ?? '',

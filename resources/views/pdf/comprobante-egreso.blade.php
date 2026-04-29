@@ -259,15 +259,10 @@
             </table>
             <table class="firma-table" style="margin-top: 15px;">
                 <tr>
-                    <td style="width: 33%;">
+                    <td colspan="2" style="text-align:center;">
                         <div style="font-size: 7px; font-weight: bold; color: #1e3a5f;">Ordenador del Pago</div>
-                        <div class="sig-line" style="margin-top: 20px;">
+                        <div class="sig-line" style="margin-top: 20px; margin-left:auto; margin-right:auto;">
                             <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
-                        </div>
-                    </td>
-                    <td style="width: 34%;">
-                        <div class="sig-line" style="margin-top: 20px;">
-                            <div class="sig-name">&nbsp;</div>
                         </div>
                     </td>
                 </tr>

@@ -232,15 +232,10 @@
             </table>
             <table class="firma-table" style="margin-top: 20px;">
                 <tr>
-                    <td>
+                    <td colspan="2" style="text-align:center;">
                         <div style="font-size: 8px; font-weight: bold; color: #1e3a5f; margin-bottom: 25px;">Ordenador del Gasto</div>
-                        <div class="sig-line">
+                        <div class="sig-line" style="margin:0 auto;">
                             <div class="sig-name">{{ $school->ordenador_gasto_display_name }}</div>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="sig-line">
-                            <div class="sig-name">&nbsp;</div>
                         </div>
                     </td>
                 </tr>

@@ -252,6 +252,11 @@ Route::get('reports/bank-book', App\Livewire\BankBookReport::class)
     ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('reports.bank-book');
 
+// Reportes Contraloría
+Route::get('contraloria/resumen-contratacion', App\Livewire\ContraloriaContractingReport::class)
+    ->middleware(['auth', 'verified', 'can:reports.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('contraloria.contracting');
+
 Route::get('dashboard', App\Livewire\Dashboard::class)
     ->middleware(['auth', 'verified', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('dashboard');

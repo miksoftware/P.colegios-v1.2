@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Budget;
 use App\Models\BudgetItem;
 use App\Models\BudgetModification;
+use App\Models\ExpenseDistribution;
 use App\Models\FundingSource;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
@@ -40,6 +41,8 @@ class BudgetAdditionReductionManagement extends Component
 
     // Info de distribuciones afectadas
     public $affectedDistributions = [];
+    // Montos a reducir por distribución (solo en reducción con distribuciones)
+    public $distributionReductions = [];
 
     // Modal de adición principal (crear nueva fuente)
     public $showPrincipalAdditionModal = false;
@@ -58,9 +61,12 @@ class BudgetAdditionReductionManagement extends Component
 
     protected function rules()
     {
+        // Reducción con distribuciones: el monto viene de las líneas, no del campo único
+        $isDistReduction = $this->operationType === 'reduction' && count($this->affectedDistributions) > 0;
+
         return [
-            'amount' => 'required|numeric|min:0.01',
-            'reason' => 'required|string|min:10',
+            'amount'          => $isDistReduction ? 'nullable' : 'required|numeric|min:0.01',
+            'reason'          => 'required|string|min:10',
             'document_number' => 'nullable|string|max:50',
         ];
     }
@@ -249,18 +255,33 @@ class BudgetAdditionReductionManagement extends Component
         $this->amount = '';
         $this->reason = '';
         $this->document_number = '';
+        $this->distributionReductions = [];
         $this->resetValidation();
 
-        // Cargar distribuciones de gasto afectadas
-        $this->affectedDistributions = $expenseBudget->distributions
+        // Cargar distribuciones de gasto afectadas (con relaciones para calcular saldos)
+        $expenseBudgetFull = Budget::forSchool($this->schoolId)
+            ->with([
+                'distributions.expenseCode',
+                'distributions.convocatoriaDistributions.convocatoria.contract.rps.fundingSources',
+                'distributions.paymentOrderLines.paymentOrder.contract',
+            ])
+            ->findOrFail($expenseBudgetId);
+
+        $this->affectedDistributions = $expenseBudgetFull->distributions
             ->map(fn($d) => [
-                'id' => $d->id,
-                'expense_code' => $d->expenseCode->name ?? 'N/A',
+                'id'                => $d->id,
+                'expense_code'      => $d->expenseCode->name ?? 'N/A',
                 'expense_code_code' => $d->expenseCode->code ?? '',
-                'amount' => (float) $d->amount,
-                'available_balance' => $d->available_balance,
+                'amount'            => (float) $d->amount,
+                'total_locked'      => round((float) $d->total_locked, 2),
+                'available_balance' => round(max(0, (float) $d->available_balance), 2),
             ])
             ->toArray();
+
+        // Inicializar los inputs de reducción por distribución
+        foreach ($this->affectedDistributions as $dist) {
+            $this->distributionReductions[$dist['id']] = '';
+        }
 
         $this->showModal = true;
     }
@@ -274,8 +295,94 @@ class BudgetAdditionReductionManagement extends Component
 
         $this->validate();
 
-        $incomeBudget = Budget::forSchool($this->schoolId)->findOrFail($this->selectedIncomeBudgetId);
+        $incomeBudget  = Budget::forSchool($this->schoolId)->findOrFail($this->selectedIncomeBudgetId);
         $expenseBudget = Budget::forSchool($this->schoolId)->findOrFail($this->selectedExpenseBudgetId);
+
+        // ── Reducción con distribuciones: usar líneas por distribución ──
+        if ($this->operationType === 'reduction' && count($this->affectedDistributions) > 0) {
+
+            $lines = [];
+            foreach ($this->distributionReductions as $distId => $rawAmt) {
+                $amt = (float) str_replace(',', '.', (string) $rawAmt);
+                if ($amt <= 0) continue;
+
+                $distInfo = collect($this->affectedDistributions)->firstWhere('id', (int) $distId);
+                if (!$distInfo) continue;
+
+                if ($amt > $distInfo['available_balance'] + 0.01) {
+                    $this->addError(
+                        'distributionReductions.' . $distId,
+                        'Excede el disponible ($' . number_format($distInfo['available_balance'], 0, ',', '.') . ')'
+                    );
+                    return;
+                }
+                $lines[] = ['id' => (int) $distId, 'amount' => min($amt, $distInfo['available_balance'])];
+            }
+
+            if (empty($lines)) {
+                $this->addError('amount', 'Ingrese al menos un monto a reducir en alguna distribución.');
+                return;
+            }
+
+            $amount = array_sum(array_column($lines, 'amount'));
+
+            if ($amount > $incomeBudget->current_amount) {
+                $this->addError('amount', 'La reducción total ($' . number_format($amount, 0, ',', '.') . ') supera el saldo del presupuesto ($' . number_format($incomeBudget->current_amount, 0, ',', '.') . ').');
+                return;
+            }
+
+            DB::beginTransaction();
+            try {
+                // Reducir cada distribución
+                foreach ($lines as $line) {
+                    ExpenseDistribution::where('id', $line['id'])->decrement('amount', $line['amount']);
+                }
+
+                // Registrar modificación en INGRESO
+                $incomePrev = $incomeBudget->current_amount;
+                $incomeNew  = $incomePrev - $amount;
+                BudgetModification::create([
+                    'budget_id'           => $incomeBudget->id,
+                    'modification_number' => $incomeBudget->getNextModificationNumber(),
+                    'type'                => 'reduction',
+                    'amount'              => $amount,
+                    'previous_amount'     => $incomePrev,
+                    'new_amount'          => $incomeNew,
+                    'reason'              => $this->reason,
+                    'document_number'     => $this->document_number ?: null,
+                    'document_date'       => now(),
+                    'created_by'          => auth()->id(),
+                ]);
+                $incomeBudget->update(['current_amount' => $incomeNew]);
+
+                // Registrar modificación en GASTO
+                $expensePrev = $expenseBudget->current_amount;
+                $expenseNew  = $expensePrev - $amount;
+                BudgetModification::create([
+                    'budget_id'           => $expenseBudget->id,
+                    'modification_number' => $expenseBudget->getNextModificationNumber(),
+                    'type'                => 'reduction',
+                    'amount'              => $amount,
+                    'previous_amount'     => $expensePrev,
+                    'new_amount'          => $expenseNew,
+                    'reason'              => $this->reason,
+                    'document_number'     => $this->document_number ?: null,
+                    'document_date'       => now(),
+                    'created_by'          => auth()->id(),
+                ]);
+                $expenseBudget->update(['current_amount' => $expenseNew]);
+
+                DB::commit();
+                $this->dispatch('toast', message: 'Reducción registrada exitosamente en ingreso, gasto y distribuciones.', type: 'success');
+                $this->closeModal();
+            } catch (\Exception $e) {
+                DB::rollBack();
+                $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+            }
+            return;
+        }
+
+        // ── Flujo normal (adición O reducción sin distribuciones) ──
         $amount = (float) $this->amount;
 
         // Validaciones para reducción
@@ -285,7 +392,7 @@ class BudgetAdditionReductionManagement extends Component
                 return;
             }
 
-            // Verificar que la reducción no deje el gasto por debajo de lo distribuido
+            // Sin distribuciones: validar que no baje del total distribuido
             $totalDistributed = $expenseBudget->distributions()->sum('amount');
             $newExpenseAmount = $expenseBudget->current_amount - $amount;
             if ($newExpenseAmount < $totalDistributed) {
@@ -548,6 +655,7 @@ class BudgetAdditionReductionManagement extends Component
         $this->selectedExpenseBudgetId = null;
         $this->selectedBudgetInfo = [];
         $this->affectedDistributions = [];
+        $this->distributionReductions = [];
         $this->amount = '';
         $this->reason = '';
         $this->document_number = '';

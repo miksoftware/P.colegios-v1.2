@@ -1237,8 +1237,8 @@ class PostcontractualManagement extends Component
      */
     public function calculateRetentions()
     {
-        // Los pagos directos sin CDP/RP no generan descuentos automáticos de retención
-        if ($this->skipCdpRp) {
+        // Los pagos directos (con o sin CDP/RP) no generan descuentos automáticos de retención
+        if ($this->paymentType === 'direct') {
             $this->retefuente            = 0;
             $this->reteiva               = 0;
             $this->totalRetentionsDian   = 0;

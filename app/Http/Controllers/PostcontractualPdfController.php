@@ -193,10 +193,13 @@ class PostcontractualPdfController extends Controller
                     'account' => $rpFs->bankAccount?->account_number ?? '',
                 ];
             }
+            // Código y rubro: usar el código de gasto (expenseLines) si existe,
+            // de lo contrario caer al budgetItem del CDP
+            $directEc = $po->expenseLines->first()?->expenseCode;
             $rpData[] = [
                 'rp_number' => $rp->formatted_number,
-                'expense_code' => $po->cdp?->budgetItem?->code ?? '',
-                'expense_name' => $po->cdp?->budgetItem?->name ?? '',
+                'expense_code' => $directEc?->code ?? $po->cdp?->budgetItem?->code ?? '',
+                'expense_name' => $directEc?->name ?? $po->cdp?->budgetItem?->name ?? '',
                 'total_amount' => (float) $po->total,
             ];
         }
@@ -246,6 +249,7 @@ class PostcontractualPdfController extends Controller
                 'supplier',
                 'cdp.budgetItem',
                 'budgetItem',
+                'expenseLines.expenseCode',
             ])
             ->findOrFail($paymentOrderId);
 
@@ -259,6 +263,11 @@ class PostcontractualPdfController extends Controller
             $rp = $po->contract->rps->where('status', 'active')->first();
             $budgetItemCode = $rp?->cdp?->budgetItem?->code ?? '';
             $budgetItemName = $rp?->cdp?->budgetItem?->name ?? '';
+        } elseif ($po->expenseLines->isNotEmpty()) {
+            // Pago directo: usar el código de gasto (expenseLines)
+            $directEc = $po->expenseLines->first()?->expenseCode;
+            $budgetItemCode = $directEc?->code ?? $po->cdp?->budgetItem?->code ?? '';
+            $budgetItemName = $directEc?->name ?? $po->cdp?->budgetItem?->name ?? '';
         } elseif ($po->cdp?->budgetItem) {
             $budgetItemCode = $po->cdp->budgetItem->code;
             $budgetItemName = $po->cdp->budgetItem->name;

@@ -131,9 +131,28 @@ class ExpenseExecutionReport extends Component
                 ->pluck('total', 'expense_distribution_id')
                 ->toArray();
 
-            // Combinar base + adiciones para cada distribución
+            // --- Pagos directos CON expense_lines por distribución ---
+            // Estos pagos ya pasaron por CDP/RP (son compromisos reales) pero no
+            // generan entrada en convocatoria_distributions porque no vienen de contrato.
+            $directWithLinesByDist = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
+                ->join('payment_orders as po', 'po.id', '=', 'pol.payment_order_id')
+                ->whereIn('pol.expense_distribution_id', $distIds)
+                ->where('po.payment_type', 'direct')
+                ->whereIn('po.status', ['approved', 'paid']);
+            if ($dateFrom && $dateTo) {
+                $directWithLinesByDist->whereBetween('po.payment_date', [$dateFrom, $dateTo]);
+            }
+            $directWithLinesByDist = $directWithLinesByDist
+                ->selectRaw('pol.expense_distribution_id, SUM(pol.total) as total')
+                ->groupBy('pol.expense_distribution_id')
+                ->pluck('total', 'expense_distribution_id')
+                ->toArray();
+
+            // Combinar base + adiciones + directos con línea para cada distribución
             foreach ($distIds as $dId) {
-                $commitmentsByDist[$dId] = (float) ($baseCommitments[$dId] ?? 0) + (float) ($additionByDist[$dId] ?? 0);
+                $commitmentsByDist[$dId] = (float) ($baseCommitments[$dId] ?? 0)
+                    + (float) ($additionByDist[$dId] ?? 0)
+                    + (float) ($directWithLinesByDist[$dId] ?? 0);
             }
         }
 
@@ -170,18 +189,23 @@ class ExpenseExecutionReport extends Component
                 ->toArray();
         }
 
-        // Pre-load direct payments (pagos sin contrato) per budget_item
-        // SOLO los que NO tienen expense_lines: los que sí las tienen ya están
-        // capturados en $paymentsByDist y prorrateados causaría doble conteo.
+        // Pre-load direct payments para presupuestos SIN distribuciones.
+        // Excluimos:
+        //   - Pagos con expense_lines: ya están en $paymentsByDist
+        //   - Pagos de impuestos (con taxLines / skipCdpRp): no pertenecen a ningún rubro
+        //   - Pagos sin expense_lines de presupuestos CON distribuciones: son pagos viejos
+        //     o de impuestos que no deben prorratearse entre rubros.
         $directPaymentsByBudgetItem = [];
-        $budgetItemIds = $budgets->pluck('budget_item_id')->unique()->toArray();
-        if (!empty($budgetItemIds)) {
+        $budgetsWithoutDistIds = $budgets->filter(fn($b) => $b->distributions->isEmpty())
+            ->pluck('budget_item_id')->unique()->filter()->toArray();
+        if (!empty($budgetsWithoutDistIds)) {
             $query = \App\Models\PaymentOrder::where('school_id', $this->schoolId)
                 ->where('fiscal_year', $year)
                 ->where('payment_type', 'direct')
-                ->whereIn('budget_item_id', $budgetItemIds)
+                ->whereIn('budget_item_id', $budgetsWithoutDistIds)
                 ->whereIn('status', ['approved', 'paid'])
-                ->whereDoesntHave('expenseLines');
+                ->whereDoesntHave('expenseLines')
+                ->whereDoesntHave('taxLines');
             if ($dateFrom && $dateTo) {
                 $query->whereBetween('payment_date', [$dateFrom, $dateTo]);
             }
@@ -232,13 +256,13 @@ class ExpenseExecutionReport extends Component
                 foreach ($distributions as $dist) {
                     $expCode = $dist->expenseCode;
                     $distPayments = (float) ($paymentsByDist[$dist->id] ?? 0);
-                    // Compromisos reales de esta distribución (via RPs de sus contratos)
+                    // Compromisos reales de esta distribución (convocatoria + adiciones RP + directos con línea)
                     $distCommitments = (float) ($commitmentsByDist[$dist->id] ?? 0);
-                    // Los pagos directos se siguen prorrateando porque no tienen distribución específica
+                    // Pagos directos sin expense_lines NO se prorratean: son pagos viejos
+                    // sin código de gasto asignado o pagos de impuestos — no pertenecen aquí.
                     $ratio = $totalDistAmount > 0 ? (float) $dist->amount / $totalDistAmount : 0;
-                    $directProrated = round($directPayments * $ratio, 2);
-                    $totalObligations = $distPayments + $directProrated;
-                    $totalCommitmentsRow = $distCommitments + $directProrated;
+                    $totalObligations = $distPayments;
+                    $totalCommitmentsRow = $distCommitments;
 
                     $this->rows[] = [
                         'budget_id' => $budget->id,

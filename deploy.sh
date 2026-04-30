@@ -110,6 +110,11 @@ echo -e "${GREEN}✓ Assets publicados${NC}"
 
 echo ""
 echo -e "${YELLOW}[7/8] ⚡ Limpiando y recacheando...${NC}"
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan cache:clear 2>/dev/null || true
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan view:clear 2>/dev/null || true
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan route:clear 2>/dev/null || true
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan config:clear 2>/dev/null || true
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan event:clear 2>/dev/null || true
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan config:cache
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan route:cache
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan view:cache

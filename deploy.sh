@@ -70,6 +70,11 @@ PERMISSION_SEEDERS=(
     "BankPermissionSeeder"
     "ReportPermissionSeeder"
     "NewsPermissionSeeder"
+    "InventoryAccountingAccountPermissionSeeder"
+    "InventoryItemPermissionSeeder"
+    "InventoryEntryPermissionSeeder"
+    "InventoryDischargePermissionSeeder"
+    "InventoryAccountingAccountSeeder"
 )
 for SEEDER in "${PERMISSION_SEEDERS[@]}"; do
     docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed-once --reset="$SEEDER" 2>&1 | grep -v "^$"

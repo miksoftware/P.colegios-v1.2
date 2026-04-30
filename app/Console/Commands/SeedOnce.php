@@ -44,11 +44,20 @@ class SeedOnce extends Command
         \Database\Seeders\ReportPermissionSeeder::class,
         \Database\Seeders\NewsPermissionSeeder::class,
 
+        // 3.5 Permisos de inventario
+        \Database\Seeders\InventoryAccountingAccountPermissionSeeder::class,
+        \Database\Seeders\InventoryItemPermissionSeeder::class,
+        \Database\Seeders\InventoryEntryPermissionSeeder::class,
+        \Database\Seeders\InventoryDischargePermissionSeeder::class,
+
         // 4. Datos contables y presupuestales
         \Database\Seeders\AccountingAccountSeeder::class,
         \Database\Seeders\ExpenseAccountingAccountSeeder::class,
         \Database\Seeders\RubrosFuentesSeeder::class,
         \Database\Seeders\RefreshExpenseCodesSeeder::class,
+
+        // 4.5 Catálogo contable de inventario
+        \Database\Seeders\InventoryAccountingAccountSeeder::class,
 
         // 5. Usuario administrador de producción
         \Database\Seeders\ProductionUserSeeder::class,

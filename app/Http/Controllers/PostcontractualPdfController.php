@@ -45,51 +45,60 @@ class PostcontractualPdfController extends Controller
         $netPayment = (float) $po->net_payment;
         $amountInWords = PrecontractualPdfController::amountToWords($netPayment);
 
-        // Imputación contable - Débito (cuenta contable del código de gasto)
+        // Imputación contable - Débito (cuenta contable 2401 a petición del cliente)
         $debitEntries = [];
-        if ($po->payment_type === 'contract' && $po->contract) {
-            // Buscar cuenta contable desde el ExpenseCode de la convocatoria
-            $account = null;
-            if ($po->contract->convocatoria) {
-                foreach ($po->contract->convocatoria->distributionDetails as $dd) {
-                    $ec = $dd->expenseDistribution?->expenseCode;
-                    if ($ec && $ec->accountingAccount) {
-                        $account = $ec->accountingAccount;
-                        break;
-                    }
-                }
-            }
-            // Fallback: cuenta del rubro presupuestal del CDP
-            if (!$account) {
-                foreach ($po->contract->rps->where('status', 'active') as $rp) {
-                    $acct = $rp->cdp?->budgetItem?->accountingAccount;
-                    if ($acct) {
-                        $account = $acct;
-                        break;
-                    }
-                }
-            }
-            if ($account) {
-                $debitEntries[] = [
-                    'hierarchy' => $this->buildAccountHierarchy($account),
-                    'amount' => (float) $po->total,
-                ];
-            }
-        } elseif ($po->expenseLines->isNotEmpty()) {
-            // Buscar desde las líneas de gasto de la orden de pago
-            $ec = $po->expenseLines->first()?->expenseCode;
-            $account = $ec?->accountingAccount;
-            if ($account) {
-                $debitEntries[] = [
-                    'hierarchy' => $this->buildAccountHierarchy($account),
-                    'amount' => (float) $po->total,
-                ];
-            }
-        } elseif ($po->budgetItem?->accountingAccount) {
+        $debitAccount = AccountingAccount::where('code', 'like', '2401%')->where('allows_movement', true)->first();
+
+        if ($debitAccount) {
             $debitEntries[] = [
-                'hierarchy' => $this->buildAccountHierarchy($po->budgetItem->accountingAccount),
+                'hierarchy' => $this->buildAccountHierarchy($debitAccount),
                 'amount' => (float) $po->total,
             ];
+        } else {
+            if ($po->payment_type === 'contract' && $po->contract) {
+                // Buscar cuenta contable desde el ExpenseCode de la convocatoria
+                $account = null;
+                if ($po->contract->convocatoria) {
+                    foreach ($po->contract->convocatoria->distributionDetails as $dd) {
+                        $ec = $dd->expenseDistribution?->expenseCode;
+                        if ($ec && $ec->accountingAccount) {
+                            $account = $ec->accountingAccount;
+                            break;
+                        }
+                    }
+                }
+                // Fallback: cuenta del rubro presupuestal del CDP
+                if (!$account) {
+                    foreach ($po->contract->rps->where('status', 'active') as $rp) {
+                        $acct = $rp->cdp?->budgetItem?->accountingAccount;
+                        if ($acct) {
+                            $account = $acct;
+                            break;
+                        }
+                    }
+                }
+                if ($account) {
+                    $debitEntries[] = [
+                        'hierarchy' => $this->buildAccountHierarchy($account),
+                        'amount' => (float) $po->total,
+                    ];
+                }
+            } elseif ($po->expenseLines->isNotEmpty()) {
+                // Buscar desde las líneas de gasto de la orden de pago
+                $ec = $po->expenseLines->first()?->expenseCode;
+                $account = $ec?->accountingAccount;
+                if ($account) {
+                    $debitEntries[] = [
+                        'hierarchy' => $this->buildAccountHierarchy($account),
+                        'amount' => (float) $po->total,
+                    ];
+                }
+            } elseif ($po->budgetItem?->accountingAccount) {
+                $debitEntries[] = [
+                    'hierarchy' => $this->buildAccountHierarchy($po->budgetItem->accountingAccount),
+                    'amount' => (float) $po->total,
+                ];
+            }
         }
 
         // Crédito: Bancos (1110/111005)

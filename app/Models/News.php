@@ -77,7 +77,7 @@ class News extends Model
      * Scope news visible to a given school:
      * either for_all_schools = true OR the school is in the pivot.
      */
-    public function scopeForSchool($query, int $schoolId)
+    public function scopeForSchool($query, $schoolId)
     {
         return $query->where(function ($q) use ($schoolId) {
             $q->where('for_all_schools', true)

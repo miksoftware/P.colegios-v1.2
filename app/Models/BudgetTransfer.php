@@ -103,7 +103,7 @@ class BudgetTransfer extends Model
         return str_pad($this->transfer_number, 3, '0', STR_PAD_LEFT);
     }
 
-    public function scopeForSchool($query, int $schoolId)
+    public function scopeForSchool($query, $schoolId)
     {
         return $query->where('school_id', $schoolId);
     }

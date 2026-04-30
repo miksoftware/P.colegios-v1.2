@@ -62,7 +62,7 @@ class ExpenseExecution extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function scopeForSchool($query, int $schoolId)
+    public function scopeForSchool($query, $schoolId)
     {
         return $query->where('school_id', $schoolId);
     }

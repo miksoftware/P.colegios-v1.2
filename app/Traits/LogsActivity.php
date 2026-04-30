@@ -81,7 +81,7 @@ trait LogsActivity
             'model_type' => get_class($this),
             'model_id' => $this->id,
             'module' => static::getActivityModule(),
-            'description' => $descriptions[$action] ?? null,
+            'description' => isset($descriptions[$action]) ? mb_substr($descriptions[$action], 0, 250) : null,
             'old_values' => $oldValues,
             'new_values' => $newValues,
             'ip_address' => request()->ip(),

@@ -476,6 +476,94 @@
                         </div>
                         @endcan
 
+                        <!-- Inventarios - Expandable -->
+                        <div x-data="{ inventariosOpen: {{ request()->routeIs('inventory.*') ? 'true' : 'false' }} }">
+                            <button 
+                                @click="inventariosOpen = !inventariosOpen"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('inventory.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                    </svg>
+                                    <span>Inventarios</span>
+                                </div>
+                                <svg 
+                                    class="w-4 h-4 transition-transform duration-200"
+                                    :class="{'rotate-180': inventariosOpen}"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            <div 
+                                x-show="inventariosOpen" 
+                                x-transition:enter="transition ease-out duration-200"
+                                x-transition:enter-start="opacity-0 transform -translate-y-2"
+                                x-transition:enter-end="opacity-100 transform translate-y-0"
+                                x-transition:leave="transition ease-in duration-150"
+                                x-transition:leave-start="opacity-100 transform translate-y-0"
+                                x-transition:leave-end="opacity-0 transform -translate-y-2"
+                                class="mt-1 ml-4 space-y-1"
+                            >
+                                @can('inventory_accounting_accounts.view')
+                                    <a href="{{ route('inventory.accounting-accounts') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('inventory.accounting-accounts') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                        </svg>
+                                        Cuentas Contables
+                                    </a>
+                                @endcan
+                                @can('inventory_items.view')
+                                    <a href="{{ route('inventory.items') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('inventory.items') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                        </svg>
+                                        Artículos / Bienes
+                                    </a>
+                                @endcan
+                                @can('inventory_entries.view')
+                                    <a href="{{ route('inventory.entries') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('inventory.entries*') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                        </svg>
+                                        Entradas de Almacén
+                                    </a>
+                                @endcan
+                                @can('inventory_discharges.view')
+                                    <a href="{{ route('inventory.discharges') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors {{ request()->routeIs('inventory.discharges*') ? 'bg-red-50 text-red-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                        Salidas / Bajas
+                                    </a>
+                                @endcan
+                                @can('inventory_items.view')
+                                    <div class="border-t border-gray-100 my-2"></div>
+                                    <a href="{{ route('inventory.transfers') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors {{ request()->routeIs('inventory.transfers*') ? 'bg-orange-50 text-orange-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                                        </svg>
+                                        Traslados / Reintegros
+                                    </a>
+                                    <a href="{{ route('inventory.general-report') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 rounded-lg transition-colors {{ request()->routeIs('inventory.general-report') ? 'bg-green-50 text-green-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                        </svg>
+                                        Reporte General (Excel)
+                                    </a>
+                                @endcan
+                                @can('inventory_items.create')
+                                    <a href="{{ route('inventory.initial-upload') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-colors {{ request()->routeIs('inventory.initial-upload') ? 'bg-purple-50 text-purple-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                        </svg>
+                                        Carga Inicial (Excel)
+                                    </a>
+                                @endcan
+                            </div>
+                        </div>
+
                         {{-- Noticias --}}
                         @can('news.view')
                             @role('Admin')

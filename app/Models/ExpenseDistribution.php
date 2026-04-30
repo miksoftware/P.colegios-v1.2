@@ -227,7 +227,7 @@ class ExpenseDistribution extends Model
         return round(($this->total_executed / $this->amount) * 100, 2);
     }
 
-    public function scopeForSchool($query, int $schoolId)
+    public function scopeForSchool($query, $schoolId)
     {
         return $query->where('school_id', $schoolId);
     }

@@ -105,7 +105,7 @@ class Cdp extends Model
 
     // Scopes
 
-    public function scopeForSchool($query, int $schoolId)
+    public function scopeForSchool($query, $schoolId)
     {
         return $query->where('school_id', $schoolId);
     }

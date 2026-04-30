@@ -201,7 +201,7 @@ class Supplier extends Model
     /**
      * Scope para filtrar por colegio
      */
-    public function scopeForSchool($query, int $schoolId)
+    public function scopeForSchool($query, $schoolId)
     {
         return $query->where('school_id', $schoolId);
     }

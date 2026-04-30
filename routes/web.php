@@ -302,4 +302,52 @@ Route::view('profile', 'profile')
     ->middleware(['auth'])
     ->name('profile');
 
+Route::get('inventories/accounting-accounts', App\Livewire\InventoryAccountingAccountManagement::class)
+    ->middleware(['auth', 'verified', 'can:inventory_accounting_accounts.view'])
+    ->name('inventory.accounting-accounts');
+
+Route::get('inventories/items', App\Livewire\InventoryItemManagement::class)
+    ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.items');
+
+Route::get('inventories/entries', App\Livewire\InventoryEntryManagement::class)
+    ->middleware(['auth', 'verified', 'can:inventory_entries.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.entries');
+
+Route::get('inventories/entries/{entry}/details', App\Livewire\InventoryEntryDetail::class)
+    ->middleware(['auth', 'verified', 'can:inventory_entries.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.entries.details');
+
+Route::get('inventories/entries/{entry}/pdf', [App\Http\Controllers\InventoryEntryPdfController::class, 'downloadPdf'])
+    ->middleware(['auth', 'verified', 'can:inventory_entries.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.entries.pdf');
+
+Route::get('inventories/discharges', App\Livewire\InventoryDischargeManagement::class)
+    ->middleware(['auth', 'verified', 'can:inventory_discharges.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.discharges');
+
+Route::get('inventories/discharges/{discharge}/details', App\Livewire\InventoryDischargeDetail::class)
+    ->middleware(['auth', 'verified', 'can:inventory_discharges.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.discharges.details');
+
+Route::get('inventories/discharges/{discharge}/pdf', [App\Http\Controllers\InventoryDischargePdfController::class, 'downloadPdf'])
+    ->middleware(['auth', 'verified', 'can:inventory_discharges.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.discharges.pdf');
+
+Route::get('inventories/general-report', App\Livewire\GeneralInventoryReport::class)
+    ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.general-report');
+
+Route::get('inventories/transfers', App\Livewire\InventoryTransferManagement::class)
+    ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.transfers');
+
+Route::get('inventories/transfers/{transfer}/pdf', [App\Http\Controllers\InventoryTransferController::class, 'downloadPdf'])
+    ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.transfers.pdf');
+
+Route::get('inventories/initial-upload', App\Livewire\InventoryInitialUpload::class)
+    ->middleware(['auth', 'verified', 'can:inventory_items.create', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.initial-upload');
+
 require __DIR__.'/auth.php';

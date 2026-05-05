@@ -285,9 +285,15 @@
                                 @foreach($convocatoria->cdps as $cdp)
                                     <div class="border rounded-xl overflow-hidden {{ $cdp->status === 'cancelled' ? 'opacity-50' : '' }}">
                                         <div class="bg-gray-50 px-4 py-3 flex justify-between items-center">
-                                            <div class="flex items-center gap-3">
+                                            <div class="flex items-center gap-3 flex-wrap">
                                                 <span class="font-mono font-bold text-blue-600">CDP #{{ $cdp->formatted_number }}</span>
                                                 <span class="text-sm text-gray-600">{{ $cdp->budgetItem?->code }} - {{ $cdp->budgetItem?->name }}</span>
+                                                @if($cdp->convocatoriaDistribution)
+                                                    @php $expCode = $cdp->convocatoriaDistribution->expenseDistribution?->expenseCode; @endphp
+                                                    @if($expCode)
+                                                        <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{{ $expCode->code }}</span>
+                                                    @endif
+                                                @endif
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $cdp->status_color }}">
                                                     {{ $cdp->status_name }}
                                                 </span>
@@ -725,38 +731,35 @@
                     </div>
                     
                     <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                        {{-- Resumen de CDPs requeridos por rubro --}}
+                        {{-- Resumen de CDPs requeridos por distribución --}}
                         @if($convocatoria)
                             @php
                                 $distDetails = $convocatoria->distributionDetails ?? collect();
-                                $rubroTotals = $distDetails->groupBy(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id)->map(function($group) {
-                                    $item = $group->first()->expenseDistribution?->budget?->budgetItem;
-                                    return ['name' => ($item?->code ?? '') . ' - ' . ($item?->name ?? ''), 'amount' => $group->sum('amount')];
-                                })->filter(fn($r) => $r['amount'] > 0);
-                                $activeCdps = $convocatoria->cdps->where('status', 'active');
-                                $cdpByItem = $activeCdps->groupBy('budget_item_id');
+                                $activeCdps  = $convocatoria->cdps->where('status', 'active');
+                                $coveredIds  = $activeCdps->whereNotNull('convocatoria_distribution_id')
+                                                          ->pluck('convocatoria_distribution_id')
+                                                          ->toArray();
                             @endphp
-                            @if($rubroTotals->count() > 0)
+                            @if($distDetails->count() > 0)
                                 <div class="bg-indigo-50 rounded-xl p-3">
-                                    <p class="text-xs font-semibold text-indigo-700 mb-2">CDPs requeridos por rubro</p>
+                                    <p class="text-xs font-semibold text-indigo-700 mb-2">Estado CDPs por código de gasto</p>
                                     <div class="space-y-1">
-                                        @foreach($rubroTotals as $itemId => $info)
+                                        @foreach($distDetails as $dd)
                                             @php
-                                                $cdpAmount = ($cdpByItem[$itemId] ?? collect())->sum('total_amount');
-                                                $pending = max(0, $info['amount'] - $cdpAmount);
-                                                $complete = $pending <= 0;
+                                                $covered = in_array($dd->id, $coveredIds);
+                                                $expCode = $dd->expenseDistribution?->expenseCode;
                                             @endphp
                                             <div class="flex justify-between text-xs">
-                                                <span class="text-gray-700 truncate mr-2">{{ $info['name'] }}</span>
-                                                <span class="whitespace-nowrap {{ $complete ? 'text-green-600 font-semibold' : 'text-orange-600 font-semibold' }}">
-                                                    ${{ number_format($cdpAmount, 2, ',', '.') }} / ${{ number_format($info['amount'], 2, ',', '.') }}
-                                                    @if($complete) ✓ @endif
+                                                <span class="text-gray-700 truncate mr-2">{{ $expCode?->code }} - {{ $expCode?->name }}</span>
+                                                <span class="whitespace-nowrap {{ $covered ? 'text-green-600 font-semibold' : 'text-orange-600 font-semibold' }}">
+                                                    ${{ number_format($dd->amount, 2, ',', '.') }}
+                                                    @if($covered) ✓ CDP @else Pendiente @endif
                                                 </span>
                                             </div>
                                         @endforeach
                                     </div>
                                     <div class="mt-2 pt-2 border-t border-indigo-200 flex justify-between text-sm font-semibold">
-                                        <span class="text-indigo-800">Total</span>
+                                        <span class="text-indigo-800">Total CDPs activos</span>
                                         <span class="text-indigo-800">${{ number_format($activeCdps->sum('total_amount'), 2, ',', '.') }} / ${{ number_format($convocatoria->assigned_budget, 2, ',', '.') }}</span>
                                     </div>
                                 </div>
@@ -764,14 +767,20 @@
                         @endif
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Rubro Presupuestal <span class="text-red-500">*</span></label>
-                            <select wire:model.live="cdpBudgetItemId" class="w-full rounded-xl border-gray-300">
-                                <option value="">Seleccionar rubro...</option>
-                                @foreach($budgetItems as $item)
-                                    <option value="{{ $item['id'] }}">{{ $item['name'] }}</option>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Código de Gasto (Distribución) <span class="text-red-500">*</span></label>
+                            <select wire:model.live="cdpDistributionId" class="w-full rounded-xl border-gray-300">
+                                <option value="">Seleccionar distribución...</option>
+                                @foreach($availableDistributions as $dist)
+                                    <option value="{{ $dist['id'] }}">{{ $dist['expense_code'] }} — ${{ number_format($dist['amount'], 2, ',', '.') }}</option>
                                 @endforeach
                             </select>
-                            @error('cdpBudgetItemId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            @error('cdpDistributionId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            @if($cdpDistributionId)
+                                @php $selDist = collect($availableDistributions)->firstWhere('id', (int)$cdpDistributionId); @endphp
+                                @if($selDist)
+                                    <p class="mt-1 text-xs text-gray-500">Rubro: {{ $selDist['budget_item'] }} · Fuente: {{ $selDist['funding_source'] }}</p>
+                                @endif
+                            @endif
                         </div>
 
                         {{-- Fuentes disponibles --}}
@@ -800,9 +809,9 @@
                                     @endforeach
                                 </div>
                             </div>
-                        @elseif($cdpBudgetItemId)
+                        @elseif($cdpDistributionId)
                             <div class="bg-yellow-50 rounded-lg p-3 text-sm text-yellow-700">
-                                No hay fuentes con saldo disponible para este rubro. El presupuesto de gasto puede estar completamente comprometido por otros CDPs.
+                                No hay saldo disponible para esta distribución. El presupuesto puede estar completamente comprometido por otros CDPs.
                             </div>
                         @endif
 

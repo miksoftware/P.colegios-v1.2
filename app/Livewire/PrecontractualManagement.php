@@ -55,10 +55,12 @@ class PrecontractualManagement extends Component
 
     // Modal CDP
     public $showCdpModal = false;
-    public $cdpBudgetItemId = '';
+    public $cdpDistributionId = '';   // ConvocatoriaDistribution seleccionada
+    public $cdpBudgetItemId = '';     // se llena automáticamente desde la distribución
     public $cdpFundingSources = [];
     public $availableFundingSources = [];
     public $budgetItems = [];
+    public $availableDistributions = []; // distribuciones sin CDP activo
 
     // Modal Propuesta
     public $showProposalModal = false;
@@ -188,6 +190,7 @@ class PrecontractualManagement extends Component
             'cdps.budgetItem',
             'cdps.fundingSources.fundingSource',
             'cdps.fundingSources.budget',
+            'cdps.convocatoriaDistribution.expenseDistribution.expenseCode',
             'proposals.supplier',
             'creator',
         ])->forSchool($this->schoolId)->findOrFail($id);
@@ -519,23 +522,32 @@ class PrecontractualManagement extends Component
                 return;
             }
 
-            // Validar que los CDPs cubran todos los rubros de la convocatoria
-            $this->convocatoria->loadMissing('distributionDetails.expenseDistribution.budget');
-            $requiredBudgetItemIds = $this->convocatoria->distributionDetails
-                ->map(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id)
-                ->filter()
-                ->unique()
-                ->values();
+            // Validar que cada distribución de la convocatoria tenga un CDP activo vinculado
+            $this->convocatoria->loadMissing([
+                'distributionDetails.expenseDistribution.expenseCode',
+                'cdps',
+            ]);
 
-            $coveredBudgetItemIds = $this->convocatoria->cdps
+            $requiredDistIds = $this->convocatoria->distributionDetails->pluck('id');
+            $coveredDistIds  = $this->convocatoria->cdps
                 ->where('status', 'active')
-                ->pluck('budget_item_id')
-                ->unique();
+                ->whereNotNull('convocatoria_distribution_id')
+                ->pluck('convocatoria_distribution_id');
 
-            $missingItems = $requiredBudgetItemIds->diff($coveredBudgetItemIds);
-            if ($missingItems->isNotEmpty()) {
-                $missingNames = BudgetItem::whereIn('id', $missingItems)->pluck('name')->implode(', ');
-                $this->dispatch('toast', message: 'Faltan CDPs para los rubros: ' . $missingNames, type: 'error');
+            $missingDistIds = $requiredDistIds->diff($coveredDistIds);
+
+            // Si hay distribuciones sin CDP vinculado pero hay CDPs legacy (sin dist_id), permitir
+            $hasLegacyCdps = $this->convocatoria->cdps
+                ->where('status', 'active')
+                ->whereNull('convocatoria_distribution_id')
+                ->count() > 0;
+
+            if ($missingDistIds->isNotEmpty() && !$hasLegacyCdps) {
+                $missingCodes = $this->convocatoria->distributionDetails
+                    ->whereIn('id', $missingDistIds)
+                    ->map(fn($dd) => $dd->expenseDistribution?->expenseCode?->code ?? '?')
+                    ->implode(', ');
+                $this->dispatch('toast', message: 'Faltan CDPs para las distribuciones: ' . $missingCodes, type: 'error');
                 $this->showStatusModal = false;
                 return;
             }
@@ -674,127 +686,123 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        // Cargar distribuciones con relaciones si no están cargadas
+        // Cargar distribuciones con relaciones necesarias
         $this->convocatoria->loadMissing([
             'distributionDetails.expenseDistribution.budget.budgetItem',
+            'distributionDetails.expenseDistribution.budget.fundingSource',
+            'distributionDetails.expenseDistribution.expenseCode',
             'cdps',
         ]);
 
-        // Rubros que ya tienen CDP activo en esta convocatoria
-        $usedBudgetItemIds = $this->convocatoria->cdps
+        // IDs de ConvocatoriaDistribution que ya tienen CDP activo vinculado
+        $coveredDistributionIds = $this->convocatoria->cdps
             ->where('status', 'active')
-            ->pluck('budget_item_id')
-            ->unique()
+            ->whereNotNull('convocatoria_distribution_id')
+            ->pluck('convocatoria_distribution_id')
             ->toArray();
 
-        // Cargar solo rubros vinculados a las distribuciones de esta convocatoria
-        // excluyendo los que ya tienen CDP activo
-        $budgetItemIds = $this->convocatoria->distributionDetails
-            ->map(fn($dd) => $dd->expenseDistribution?->budget?->budget_item_id)
-            ->filter()
-            ->unique()
-            ->reject(fn($id) => in_array($id, $usedBudgetItemIds))
+        // Para CDPs legacy (sin convocatoria_distribution_id), calcular qué distribuciones
+        // están cubiertas por monto (retrocompatibilidad)
+        $legacyCdps = $this->convocatoria->cdps
+            ->where('status', 'active')
+            ->whereNull('convocatoria_distribution_id');
+
+        // Distribuciones pendientes (sin CDP vinculado)
+        $pendingDistributions = $this->convocatoria->distributionDetails
+            ->filter(fn($dd) => !in_array($dd->id, $coveredDistributionIds))
             ->values();
 
-        // Si no hay distributionDetails, usar la distribución principal (legacy)
-        if ($budgetItemIds->isEmpty() && !count($usedBudgetItemIds) && $this->convocatoria->expenseDistribution) {
-            $itemId = $this->convocatoria->expenseDistribution->budget?->budget_item_id;
-            if ($itemId && !in_array($itemId, $usedBudgetItemIds)) {
-                $budgetItemIds = collect([$itemId]);
-            }
-        }
-
-        if ($budgetItemIds->isEmpty()) {
-            $this->dispatch('toast', message: 'Todos los rubros de esta convocatoria ya tienen CDP activo.', type: 'info');
+        if ($pendingDistributions->isEmpty()) {
+            $this->dispatch('toast', message: 'Todas las distribuciones de esta convocatoria ya tienen CDP activo.', type: 'info');
             return;
         }
 
-        $this->budgetItems = BudgetItem::active()
-            ->whereIn('id', $budgetItemIds)
-            ->orderBy('code')
-            ->get()
-            ->map(fn($item) => ['id' => $item->id, 'name' => "{$item->code} - {$item->name}"])
-            ->toArray();
+        // Construir lista de distribuciones disponibles para seleccionar
+        $this->availableDistributions = $pendingDistributions->map(function ($dd) {
+            $expDist = $dd->expenseDistribution;
+            $budget  = $expDist?->budget;
+            $item    = $budget?->budgetItem;
+            $source  = $budget?->fundingSource;
+            $expCode = $expDist?->expenseCode;
+            return [
+                'id'              => $dd->id,
+                'amount'          => (float) $dd->amount,
+                'expense_code'    => ($expCode?->code ?? '') . ' - ' . ($expCode?->name ?? ''),
+                'budget_item_id'  => $item?->id,
+                'budget_item'     => ($item?->code ?? '') . ' - ' . ($item?->name ?? ''),
+                'funding_source_id' => $source?->id,
+                'funding_source'  => ($source?->code ?? '') . ' - ' . ($source?->name ?? ''),
+                'budget_id'       => $budget?->id,
+            ];
+        })->toArray();
 
-        $this->cdpBudgetItemId = '';
-        $this->cdpFundingSources = [];
+        $this->cdpDistributionId  = '';
+        $this->cdpBudgetItemId    = '';
+        $this->cdpFundingSources  = [];
         $this->availableFundingSources = [];
 
-        // Si solo hay un rubro, auto-seleccionarlo
-        if (count($this->budgetItems) === 1) {
-            $this->cdpBudgetItemId = $this->budgetItems[0]['id'];
-            $this->updatedCdpBudgetItemId($this->cdpBudgetItemId);
+        // Si solo hay una distribución, auto-seleccionarla
+        if (count($this->availableDistributions) === 1) {
+            $this->cdpDistributionId = $this->availableDistributions[0]['id'];
+            $this->updatedCdpDistributionId($this->cdpDistributionId);
         }
 
         $this->showCdpModal = true;
     }
 
-    public function updatedCdpBudgetItemId($value)
+    public function updatedCdpDistributionId($value)
     {
-        $this->cdpFundingSources = [];
+        $this->cdpFundingSources       = [];
         $this->availableFundingSources = [];
+        $this->cdpBudgetItemId         = '';
 
         if (empty($value)) return;
 
-        // Obtener las distribuciones de ESTA convocatoria que pertenecen al rubro seleccionado
-        // Cada ConvocatoriaDistribution → ExpenseDistribution → Budget (rubro + fuente)
-        $convDistributions = $this->convocatoria->distributionDetails()
-            ->with([
-                'expenseDistribution.budget.fundingSource',
-                'expenseDistribution.convocatoriaDistributions.convocatoria.contract.paymentOrders',
-                'expenseDistribution.paymentOrderLines.paymentOrder.contract',
-            ])
-            ->whereHas('expenseDistribution.budget', function ($q) use ($value) {
-                $q->where('budget_item_id', $value)
-                  ->where('school_id', $this->schoolId)
-                  ->where('fiscal_year', $this->filterYear)
-                  ->where('type', 'expense');
-            })
-            ->get();
+        $dist = collect($this->availableDistributions)->firstWhere('id', (int) $value);
+        if (!$dist) return;
 
-        // Agrupar por funding_source_id del budget → sumar montos comprometidos
-        $byFundingSource = $convDistributions->groupBy(function ($cd) {
-            return $cd->expenseDistribution->budget->funding_source_id;
-        });
+        $this->cdpBudgetItemId = $dist['budget_item_id'];
 
-        // CDPs activos de ESTA convocatoria para el rubro seleccionado
-        $existingCdpAmounts = CdpFundingSource::whereHas('cdp', function ($q) use ($value) {
-            $q->where('convocatoria_id', $this->convocatoria->id)
-              ->where('budget_item_id', $value)
-              ->where('status', 'active');
-        })->get()->groupBy('funding_source_id')->map(fn($g) => (float) $g->sum('amount'));
+        // Saldo disponible de la fuente de financiación para este presupuesto
+        $budget = \App\Models\Budget::find($dist['budget_id']);
+        if (!$budget || !$dist['funding_source_id']) {
+            $this->availableFundingSources = [];
+            return;
+        }
 
-        $this->availableFundingSources = $byFundingSource->map(function ($group, $fundingSourceId) use ($existingCdpAmounts) {
-            $source = $group->first()->expenseDistribution->budget->fundingSource;
-            $budget = $group->first()->expenseDistribution->budget;
+        $source = \App\Models\FundingSource::find($dist['funding_source_id']);
+        if (!$source) return;
 
-            // Total comprometido en esta convocatoria para esta fuente/rubro
-            $committedInConvocatoria = (float) $group->sum('amount');
+        // Monto ya cubierto por CDPs activos de ESTA convocatoria para esta distribución
+        // (CDPs con convocatoria_distribution_id = $value)
+        $alreadyCoveredThisDist = (float) \App\Models\Cdp::where('convocatoria_id', $this->convocatoria->id)
+            ->where('convocatoria_distribution_id', $value)
+            ->where('status', 'active')
+            ->sum('total_amount');
 
-            // Saldo disponible de las distribuciones de gasto vinculadas (lo que aún no se compromete)
-            $freeInDistributions = $group->sum(function ($cd) {
-                return max(0, (float) $cd->expenseDistribution->available_balance);
-            });
+        // Saldo disponible en la fuente = monto de la distribución - ya cubierto
+        $availableForDist = max(0, (float) $dist['amount'] - $alreadyCoveredThisDist);
 
-            // Total del gasto = comprometido en esta convocatoria + disponible en distribuciones
-            $totalForCdp = $committedInConvocatoria + $freeInDistributions;
+        if ($availableForDist <= 0) {
+            $this->availableFundingSources = [];
+            return;
+        }
 
-            // Ya cubierto por CDPs activos de esta convocatoria
-            $alreadyCovered = $existingCdpAmounts->get($fundingSourceId, 0);
+        $this->availableFundingSources = [[
+            'id'            => $source->id,
+            'name'          => $source->code . ' - ' . $source->name,
+            'type'          => $source->type_name ?? '',
+            'available'     => $availableForDist,
+            'budget_id'     => $budget->id,
+            'budget_amount' => (float) $dist['amount'],
+            'reserved'      => $alreadyCoveredThisDist,
+        ]];
+    }
 
-            // Disponible = total del gasto - ya cubierto por CDPs
-            $available = max(0, $totalForCdp - $alreadyCovered);
-
-            return [
-                'id' => $source->id,
-                'name' => $source->code . ' - ' . $source->name,
-                'type' => $source->type_name,
-                'available' => $available,
-                'budget_id' => $budget->id,
-                'budget_amount' => $totalForCdp,
-                'reserved' => $alreadyCovered,
-            ];
-        })->filter(fn($s) => $s['available'] > 0)->values()->toArray();
+    // Mantener compatibilidad legacy si algo invoca updatedCdpBudgetItemId
+    public function updatedCdpBudgetItemId($value)
+    {
+        // ya no se usa directamente; la selección es por distribución
     }
 
 
@@ -832,11 +840,11 @@ class PrecontractualManagement extends Component
         }
 
         $this->validate([
-            'cdpBudgetItemId' => 'required|exists:budget_items,id',
+            'cdpDistributionId' => 'required|exists:convocatoria_distributions,id',
             'cdpFundingSources' => 'required|array|min:1',
             'cdpFundingSources.*.amount' => 'required|numeric|min:0.01',
         ], [
-            'cdpBudgetItemId.required' => 'Seleccione un rubro.',
+            'cdpDistributionId.required' => 'Seleccione una distribución/código de gasto.',
             'cdpFundingSources.required' => 'Agregue al menos una fuente.',
             'cdpFundingSources.min' => 'Agregue al menos una fuente.',
             'cdpFundingSources.*.amount.required' => 'Ingrese un monto.',
@@ -855,14 +863,15 @@ class PrecontractualManagement extends Component
 
         DB::transaction(function () use ($totalAmount) {
             $cdp = Cdp::create([
-                'school_id' => $this->schoolId,
-                'convocatoria_id' => $this->convocatoria->id,
-                'cdp_number' => Cdp::getNextCdpNumber($this->schoolId, $this->filterYear),
-                'fiscal_year' => $this->filterYear,
-                'budget_item_id' => $this->cdpBudgetItemId,
-                'total_amount' => $totalAmount,
-                'status' => 'active',
-                'created_by' => auth()->id(),
+                'school_id'                    => $this->schoolId,
+                'convocatoria_id'              => $this->convocatoria->id,
+                'convocatoria_distribution_id' => $this->cdpDistributionId,
+                'cdp_number'                   => Cdp::getNextCdpNumber($this->schoolId, $this->filterYear),
+                'fiscal_year'                  => $this->filterYear,
+                'budget_item_id'               => $this->cdpBudgetItemId,
+                'total_amount'                 => $totalAmount,
+                'status'                       => 'active',
+                'created_by'                   => auth()->id(),
             ]);
 
             foreach ($this->cdpFundingSources as $fs) {
@@ -870,10 +879,10 @@ class PrecontractualManagement extends Component
                 $balance = $source ? $source->getAvailableBalanceForYear($this->filterYear, $this->schoolId) : 0;
 
                 CdpFundingSource::create([
-                    'cdp_id' => $cdp->id,
-                    'funding_source_id' => $fs['id'],
-                    'budget_id' => $fs['budget_id'],
-                    'amount' => $fs['amount'],
+                    'cdp_id'                       => $cdp->id,
+                    'funding_source_id'            => $fs['id'],
+                    'budget_id'                    => $fs['budget_id'],
+                    'amount'                       => $fs['amount'],
                     'available_balance_at_creation' => $balance,
                 ]);
             }
@@ -887,9 +896,11 @@ class PrecontractualManagement extends Component
     public function closeCdpModal()
     {
         $this->showCdpModal = false;
-        $this->cdpBudgetItemId = '';
-        $this->cdpFundingSources = [];
+        $this->cdpDistributionId       = '';
+        $this->cdpBudgetItemId         = '';
+        $this->cdpFundingSources       = [];
         $this->availableFundingSources = [];
+        $this->availableDistributions  = [];
         $this->resetValidation();
     }
 

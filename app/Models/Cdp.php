@@ -18,6 +18,7 @@ class Cdp extends Model
     protected $fillable = [
         'school_id',
         'convocatoria_id',
+        'convocatoria_distribution_id',
         'cdp_number',
         'fiscal_year',
         'budget_item_id',
@@ -64,6 +65,11 @@ class Cdp extends Model
     public function convocatoria(): BelongsTo
     {
         return $this->belongsTo(Convocatoria::class);
+    }
+
+    public function convocatoriaDistribution(): BelongsTo
+    {
+        return $this->belongsTo(ConvocatoriaDistribution::class);
     }
 
     public function budgetItem(): BelongsTo

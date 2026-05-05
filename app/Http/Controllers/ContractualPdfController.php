@@ -24,6 +24,7 @@ class ContractualPdfController extends Controller
                 'supplier',
                 'convocatoria.distributionDetails.expenseDistribution.expenseCode',
                 'rps.cdp.budgetItem',
+                'rps.cdp.convocatoriaDistribution.expenseDistribution.expenseCode',
                 'rps.fundingSources.fundingSource',
                 'creator',
             ])
@@ -38,15 +39,21 @@ class ContractualPdfController extends Controller
 
         $rpNumber = $rp->formatted_number;
 
-        // Obtener código de gasto desde la convocatoria
+        // Obtener código de gasto desde el CDP vinculado al RP (distribución específica)
         $expenseCode = '';
         $expenseName = '';
-        if ($contract->convocatoria) {
+        $ec = $rp->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
+        if ($ec) {
+            $expenseCode = $ec->code ?? '';
+            $expenseName = $ec->name ?? '';
+        }
+        // Fallback: primer código de gasto de la convocatoria
+        if (!$expenseCode && $contract->convocatoria) {
             foreach ($contract->convocatoria->distributionDetails as $dd) {
-                $ec = $dd->expenseDistribution?->expenseCode;
-                if ($ec) {
-                    $expenseCode = $ec->code ?? '';
-                    $expenseName = $ec->name ?? '';
+                $ecFb = $dd->expenseDistribution?->expenseCode;
+                if ($ecFb) {
+                    $expenseCode = $ecFb->code ?? '';
+                    $expenseName = $ecFb->name ?? '';
                     break;
                 }
             }
@@ -104,6 +111,7 @@ class ContractualPdfController extends Controller
                 'supplier',
                 'convocatoria.distributionDetails.expenseDistribution.expenseCode.accountingAccount.parent.parent.parent.parent',
                 'rps.cdp.budgetItem',
+                'rps.cdp.convocatoriaDistribution.expenseDistribution.expenseCode.accountingAccount.parent.parent.parent.parent',
                 'rps.fundingSources.fundingSource',
                 'creator',
             ])
@@ -119,12 +127,18 @@ class ContractualPdfController extends Controller
         $amount = (float) $rp->total_amount;
         $amountInWords = self::amountToWords($amount);
 
-        // Imputación contable (débito: cuenta contable del código de gasto)
+        // Imputación contable (débito: cuenta contable del código de gasto del CDP vinculado)
         $debitEntries = [];
         $account = null;
 
-        // Buscar la cuenta contable desde el ExpenseCode de la convocatoria
-        if ($contract->convocatoria) {
+        // Primero buscar desde el CDP del RP (distribución específica)
+        $ecFromCdp = $rp->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
+        if ($ecFromCdp && $ecFromCdp->accountingAccount) {
+            $account = $ecFromCdp->accountingAccount;
+        }
+
+        // Fallback: primer código de gasto de la convocatoria con cuenta contable
+        if (!$account && $contract->convocatoria) {
             foreach ($contract->convocatoria->distributionDetails as $dd) {
                 $ec = $dd->expenseDistribution?->expenseCode;
                 if ($ec && $ec->accountingAccount) {
@@ -153,15 +167,20 @@ class ContractualPdfController extends Controller
             ->first();
         $creditHierarchy = $creditAccount ? $this->buildAccountHierarchy($creditAccount) : [];
 
-        // Código de gasto desde la convocatoria
+        // Código de gasto desde el CDP vinculado al RP
         $expenseCode = '';
         $expenseName = '';
-        if ($contract->convocatoria) {
+        if ($ecFromCdp) {
+            $expenseCode = $ecFromCdp->code ?? '';
+            $expenseName = $ecFromCdp->name ?? '';
+        }
+        // Fallback: primer código de gasto de la convocatoria
+        if (!$expenseCode && $contract->convocatoria) {
             foreach ($contract->convocatoria->distributionDetails as $dd) {
-                $ec = $dd->expenseDistribution?->expenseCode;
-                if ($ec) {
-                    $expenseCode = $ec->code ?? '';
-                    $expenseName = $ec->name ?? '';
+                $ecFb = $dd->expenseDistribution?->expenseCode;
+                if ($ecFb) {
+                    $expenseCode = $ecFb->code ?? '';
+                    $expenseName = $ecFb->name ?? '';
                     break;
                 }
             }
@@ -217,6 +236,7 @@ class ContractualPdfController extends Controller
                 'supplier',
                 'convocatoria.distributionDetails.expenseDistribution.expenseCode',
                 'rps.cdp.budgetItem',
+                'rps.cdp.convocatoriaDistribution.expenseDistribution.expenseCode',
                 'rps.fundingSources.fundingSource',
                 'rps.fundingSources.bank',
                 'rps.fundingSources.bankAccount',
@@ -259,14 +279,21 @@ class ContractualPdfController extends Controller
             }
         }
 
+        // Obtener código de gasto desde el CDP vinculado al RP (distribución específica)
         $expenseCode = '';
         $expenseName = '';
-        if ($contract->convocatoria) {
+        $ecFromCdp = $rp->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
+        if ($ecFromCdp) {
+            $expenseCode = $ecFromCdp->code ?? '';
+            $expenseName = $ecFromCdp->name ?? '';
+        }
+        // Fallback: primer código de gasto de la convocatoria
+        if (!$expenseCode && $contract->convocatoria) {
             foreach ($contract->convocatoria->distributionDetails as $dd) {
-                $ec = $dd->expenseDistribution?->expenseCode;
-                if ($ec) {
-                    $expenseCode = $ec->code ?? '';
-                    $expenseName = $ec->name ?? '';
+                $ecFb = $dd->expenseDistribution?->expenseCode;
+                if ($ecFb) {
+                    $expenseCode = $ecFb->code ?? '';
+                    $expenseName = $ecFb->name ?? '';
                     break;
                 }
             }
@@ -522,9 +549,11 @@ class ContractualPdfController extends Controller
                 'supplier.municipality',
                 'supervisor',
                 'convocatoria.cdps.budgetItem',
+                'convocatoria.cdps.convocatoriaDistribution.expenseDistribution.expenseCode',
                 'convocatoria.cdps.fundingSources.fundingSource',
                 'convocatoria.distributionDetails.expenseDistribution.expenseCode',
                 'rps.cdp.budgetItem',
+                'rps.cdp.convocatoriaDistribution.expenseDistribution.expenseCode',
                 'rps.fundingSources.fundingSource',
                 'creator',
             ])
@@ -540,25 +569,15 @@ class ContractualPdfController extends Controller
         $cdpRows = [];
         $activeCdps = $contract->convocatoria?->cdps?->where('status', '!=', 'cancelled') ?? collect();
 
-        // Obtener códigos de gasto desde las distribuciones
-        $ecMap = [];
-        if ($contract->convocatoria) {
-            foreach ($contract->convocatoria->distributionDetails as $dd) {
-                $ec = $dd->expenseDistribution?->expenseCode;
-                if ($ec) {
-                    $ecMap[] = ['code' => $ec->code ?? '', 'name' => $ec->name ?? ''];
-                }
-            }
-        }
-
-        foreach ($activeCdps as $cdpIndex => $cdp) {
-            $ecData = $ecMap[$cdpIndex] ?? null;
+        foreach ($activeCdps as $cdp) {
+            // Preferir el código de gasto de la distribución vinculada al CDP
+            $ecFromDist = $cdp->convocatoriaDistribution?->expenseDistribution?->expenseCode;
             foreach ($cdp->fundingSources as $cdpFs) {
                 $cdpRows[] = [
                     'cdp_number' => $cdp->formatted_number,
                     'cdp_date'   => $cdp->created_at,
-                    'budget_item_code' => $ecData['code'] ?? $cdp->budgetItem?->code ?? '',
-                    'budget_item_name' => $ecData['name'] ?? $cdp->budgetItem?->name ?? '',
+                    'budget_item_code' => $ecFromDist?->code ?? $cdp->budgetItem?->code ?? '',
+                    'budget_item_name' => $ecFromDist?->name ?? $cdp->budgetItem?->name ?? '',
                     'funding_source' => $cdpFs->fundingSource?->name ?? '',
                     'amount' => (float) $cdpFs->amount,
                 ];

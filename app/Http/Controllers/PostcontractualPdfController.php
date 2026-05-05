@@ -24,6 +24,7 @@ class PostcontractualPdfController extends Controller
                 'contract.supplier',
                 'contract.convocatoria.distributionDetails.expenseDistribution.expenseCode.accountingAccount.parent.parent.parent.parent',
                 'contract.rps.cdp.budgetItem',
+                'contract.rps.cdp.convocatoriaDistribution.expenseDistribution.expenseCode',
                 'contract.rps.fundingSources.fundingSource',
                 'contract.rps.fundingSources.bank',
                 'contract.rps.fundingSources.bankAccount',
@@ -117,22 +118,7 @@ class PostcontractualPdfController extends Controller
         $fundingSourceName = '';
         $fundingSourceDetails = []; // Detalle por fuente [{name, amount, bank, account}]
 
-        // Obtener códigos de gasto desde la convocatoria del contrato
-        $expenseCodeMap = [];
-        if ($po->payment_type === 'contract' && $po->contract?->convocatoria) {
-            foreach ($po->contract->convocatoria->distributionDetails as $dd) {
-                $ec = $dd->expenseDistribution?->expenseCode;
-                if ($ec) {
-                    $expenseCodeMap[] = [
-                        'code' => $ec->code ?? '',
-                        'name' => $ec->name ?? '',
-                    ];
-                }
-            }
-        }
-
         if ($po->payment_type === 'contract' && $po->contract) {
-            $rpIndex = 0;
             $allSources = [];
             foreach ($po->contract->rps->where('status', 'active') as $rp) {
                 foreach ($rp->fundingSources as $rpFs) {
@@ -150,15 +136,14 @@ class PostcontractualPdfController extends Controller
                     ];
                 }
 
-                $ecData = $expenseCodeMap[$rpIndex] ?? null;
-
+                // Obtener código de gasto desde el CDP vinculado al RP (distribución específica)
+                $ecFromCdp = $rp->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
                 $rpData[] = [
                     'rp_number' => $rp->formatted_number,
-                    'expense_code' => $ecData['code'] ?? $rp->cdp?->budgetItem?->code ?? '',
-                    'expense_name' => $ecData['name'] ?? $rp->cdp?->budgetItem?->name ?? '',
+                    'expense_code' => $ecFromCdp?->code ?? $rp->cdp?->budgetItem?->code ?? '',
+                    'expense_name' => $ecFromCdp?->name ?? $rp->cdp?->budgetItem?->name ?? '',
                     'total_amount' => (float) $rp->total_amount,
                 ];
-                $rpIndex++;
             }
             $fundingSourceName = implode(' Y ', array_unique(array_filter($allSources)));
         } elseif ($po->contractRp) {
@@ -229,6 +214,7 @@ class PostcontractualPdfController extends Controller
             ->with([
                 'contract.supplier',
                 'contract.rps.cdp.budgetItem',
+                'contract.rps.cdp.convocatoriaDistribution.expenseDistribution.expenseCode',
                 'supplier',
                 'cdp.budgetItem',
                 'budgetItem',
@@ -244,8 +230,9 @@ class PostcontractualPdfController extends Controller
         $budgetItemName = '';
         if ($po->payment_type === 'contract' && $po->contract) {
             $rp = $po->contract->rps->where('status', 'active')->first();
-            $budgetItemCode = $rp?->cdp?->budgetItem?->code ?? '';
-            $budgetItemName = $rp?->cdp?->budgetItem?->name ?? '';
+            $ecFromCdp = $rp?->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
+            $budgetItemCode = $ecFromCdp?->code ?? $rp?->cdp?->budgetItem?->code ?? '';
+            $budgetItemName = $ecFromCdp?->name ?? $rp?->cdp?->budgetItem?->name ?? '';
         } elseif ($po->expenseLines->isNotEmpty()) {
             // Pago directo: usar el código de gasto (expenseLines)
             $directEc = $po->expenseLines->first()?->expenseCode;

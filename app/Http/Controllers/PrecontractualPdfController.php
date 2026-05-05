@@ -449,6 +449,7 @@ class PrecontractualPdfController extends Controller
             ->with([
                 'school',
                 'cdps.budgetItem',
+                'cdps.convocatoriaDistribution.expenseDistribution.expenseCode',
                 'cdps.fundingSources.fundingSource',
                 'cdps.fundingSources.budget',
                 'distributionDetails.expenseDistribution.expenseCode',
@@ -469,15 +470,23 @@ class PrecontractualPdfController extends Controller
 
         $school = School::findOrFail($schoolId);
 
-        // Código de gasto desde la convocatoria
+        // Código de gasto desde el CDP específico (distribución vinculada)
         $expenseCode = '';
         $expenseName = '';
-        foreach ($convocatoria->distributionDetails as $dd) {
-            $ec = $dd->expenseDistribution?->expenseCode;
-            if ($ec) {
-                $expenseCode = $ec->code ?? '';
-                $expenseName = $ec->name ?? '';
-                break;
+        $ecFromCdp = $cdp->convocatoriaDistribution?->expenseDistribution?->expenseCode;
+        if ($ecFromCdp) {
+            $expenseCode = $ecFromCdp->code ?? '';
+            $expenseName = $ecFromCdp->name ?? '';
+        }
+        // Fallback: primer código de gasto de la convocatoria
+        if (!$expenseCode) {
+            foreach ($convocatoria->distributionDetails as $dd) {
+                $ec = $dd->expenseDistribution?->expenseCode;
+                if ($ec) {
+                    $expenseCode = $ec->code ?? '';
+                    $expenseName = $ec->name ?? '';
+                    break;
+                }
             }
         }
 

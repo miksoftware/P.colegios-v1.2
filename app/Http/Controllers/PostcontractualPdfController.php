@@ -33,6 +33,7 @@ class PostcontractualPdfController extends Controller
                 'contractRp.fundingSources.fundingSource',
                 'contractRp.fundingSources.bank',
                 'contractRp.fundingSources.bankAccount',
+                'bankLines.bankAccount.bank',
                 'budgetItem',
                 'expenseLines.expenseCode.accountingAccount.parent.parent.parent.parent',
                 'creator',
@@ -76,10 +77,24 @@ class PostcontractualPdfController extends Controller
             ];
         }
 
-        // Crédito: Bancos (1110/111005)
-        $creditBankAccount = AccountingAccount::where('code', 'like', '1110%')
-            ->where('allows_movement', true)->first();
-        $creditBankHierarchy = $creditBankAccount ? $this->buildAccountHierarchy($creditBankAccount) : [];
+        // Crédito: Bancos (1110/111005) — buscar por nombre del banco real si está disponible
+        // Se resuelve luego de determinar $bankName, por eso se inicializa como closure
+        $resolveCreditBankHierarchy = function (string $bankName) {
+            // Intentar encontrar la cuenta contable cuyo nombre coincida con el banco real
+            if ($bankName) {
+                $matched = \App\Models\AccountingAccount::where('code', 'like', '1110%')
+                    ->where('allows_movement', true)
+                    ->whereRaw('UPPER(name) LIKE ?', ['%' . strtoupper($bankName) . '%'])
+                    ->first();
+                if ($matched) {
+                    return $this->buildAccountHierarchy($matched);
+                }
+            }
+            $first = \App\Models\AccountingAccount::where('code', 'like', '1110%')
+                ->where('allows_movement', true)
+                ->first();
+            return $first ? $this->buildAccountHierarchy($first) : [];
+        };
 
         // Retenciones (créditos adicionales)
         $retentionRows = [];
@@ -120,6 +135,9 @@ class PostcontractualPdfController extends Controller
 
         if ($po->payment_type === 'contract' && $po->contract) {
             $allSources = [];
+            // Ratio para convertir montos brutos a neto (descuenta retenciones proporcionalmente)
+            $netRatio = $amount > 0 ? $netPayment / $amount : 1.0;
+
             foreach ($po->contract->rps->where('status', 'active') as $rp) {
                 foreach ($rp->fundingSources as $rpFs) {
                     $fsName = $rpFs->fundingSource?->name ?? '';
@@ -130,7 +148,7 @@ class PostcontractualPdfController extends Controller
                     }
                     $fundingSourceDetails[] = [
                         'name' => $fsName,
-                        'amount' => (float) $rpFs->amount,
+                        'amount' => round((float) $rpFs->amount * $netRatio),
                         'bank' => $rpFs->bank?->name ?? '',
                         'account' => $rpFs->bankAccount?->account_number ?? '',
                     ];
@@ -172,11 +190,15 @@ class PostcontractualPdfController extends Controller
             ];
         }
 
-        // Banco del proveedor (si no se encontró del RP)
-        if (!$bankName && $po->supplier_bank_name) {
-            $bankName = $po->supplier_bank_name;
-            $accountNumber = $po->supplier_account_number ?? '';
+        // Banco del colegio desde bankLines (pagos directos / cuentas por pagar)
+        if (!$bankName && $po->bankLines->isNotEmpty()) {
+            $firstLine = $po->bankLines->first();
+            $bankName = $firstLine->bankAccount?->bank?->name ?? '';
+            $accountNumber = $firstLine->bankAccount?->account_number ?? '';
         }
+
+        // Resolver jerarquía contable de crédito usando el banco real ya conocido
+        $creditBankHierarchy = $resolveCreditBankHierarchy($bankName);
 
         $pdf = Pdf::loadView('pdf.comprobante-egreso', [
             'po' => $po,

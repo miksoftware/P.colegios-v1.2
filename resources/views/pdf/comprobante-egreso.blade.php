@@ -172,7 +172,7 @@
                 <td class="pres-label">Registro No.:</td>
                 <td>{{ $rp['rp_number'] }}</td>
                 <td class="pres-label">Valor:</td>
-                <td class="bold">${{ number_format($po->total, 2, ',', '.') }}</td>
+                <td class="bold">${{ number_format($rp['total_amount'], 2, ',', '.') }}</td>
             </tr>
             <tr>
                 <td class="pres-label">Código:</td>

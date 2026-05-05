@@ -170,13 +170,34 @@ class ExpenseDistribution extends Model
             // Esto libera la diferencia si el contrato se firmó por menos del estimado.
             $committedAmount = (float) $cd->amount; // fallback: estimado convocatoria
             if ($contract && $contract->status !== 'annulled') {
-                $rpsForDist = collect($contract->rps ?? [])
+                $nonAdditionRps = collect($contract->rps ?? [])
                     ->where('status', 'active')
-                    ->where('is_addition', false)
-                    ->filter(fn($rp) => $rp->cdp && $rp->cdp->convocatoria_distribution_id == $cd->id);
+                    ->where('is_addition', false);
 
-                if ($rpsForDist->isNotEmpty()) {
-                    $committedAmount = (float) $rpsForDist->sum('total_amount');
+                if ($nonAdditionRps->isNotEmpty()) {
+                    // Sistema nuevo: CDP tiene convocatoria_distribution_id → coincidencia exacta
+                    $rpsForDist = $nonAdditionRps->filter(
+                        fn($rp) => $rp->cdp && (int) $rp->cdp->convocatoria_distribution_id === (int) $cd->id
+                    );
+
+                    if ($rpsForDist->isNotEmpty()) {
+                        $committedAmount = (float) $rpsForDist->sum('total_amount');
+                    } else {
+                        // Sistema legacy: CDP sin convocatoria_distribution_id
+                        // Coincide por convocatoria_id y distribuye el monto del RP proporcionalmente
+                        $rpsForConv = $nonAdditionRps->filter(
+                            fn($rp) => $rp->cdp
+                                && (int) $rp->cdp->convocatoria_id === (int) $cd->convocatoria_id
+                                && is_null($rp->cdp->convocatoria_distribution_id)
+                        );
+
+                        if ($rpsForConv->isNotEmpty()) {
+                            // Proporción: monto de esta distribución vs total de la convocatoria
+                            $totalConvAmt = (float) \App\Models\ConvocatoriaDistribution::where('convocatoria_id', $cd->convocatoria_id)->sum('amount');
+                            $proportion = $totalConvAmt > 0 ? (float) $cd->amount / $totalConvAmt : 1.0;
+                            $committedAmount = (float) $rpsForConv->sum('total_amount') * $proportion;
+                        }
+                    }
                 }
             }
 

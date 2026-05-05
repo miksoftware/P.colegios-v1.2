@@ -267,6 +267,7 @@ class BudgetAdditionReductionManagement extends Component
         $expenseBudgetFull = Budget::forSchool($this->schoolId)
             ->with([
                 'distributions.expenseCode',
+                'distributions.convocatoriaDistributions.convocatoria.contract.rps.cdp',
                 'distributions.convocatoriaDistributions.convocatoria.contract.rps.fundingSources',
                 'distributions.paymentOrderLines.paymentOrder.contract',
             ])

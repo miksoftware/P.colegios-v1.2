@@ -136,7 +136,7 @@ class ExpenseDistribution extends Model
         // Usar relaciones cargadas si están disponibles
         $convDistributions = $this->relationLoaded('convocatoriaDistributions')
             ? $this->convocatoriaDistributions
-            : $this->convocatoriaDistributions()->with('convocatoria.contract.rps.fundingSources')->get();
+            : $this->convocatoriaDistributions()->with('convocatoria.contract.rps.cdp', 'convocatoria.contract.rps.fundingSources')->get();
 
         $paymentLines = $this->relationLoaded('paymentOrderLines')
             ? $this->paymentOrderLines
@@ -165,8 +165,23 @@ class ExpenseDistribution extends Model
                 ->filter(fn($line) => $line->paymentOrder->contract && $line->paymentOrder->contract->convocatoria_id == $cd->convocatoria_id)
                 ->sum('total');
 
-            // Bloqueo base = el mayor entre lo pagado y el compromiso original
-            $baseLocked = max((float) $paidForThis, (float) $cd->amount);
+            // Si el contrato tiene RPs activos (no de adición) vinculados a esta distribución,
+            // usar el monto del RP en lugar del estimado de la convocatoria.
+            // Esto libera la diferencia si el contrato se firmó por menos del estimado.
+            $committedAmount = (float) $cd->amount; // fallback: estimado convocatoria
+            if ($contract && $contract->status !== 'annulled') {
+                $rpsForDist = collect($contract->rps ?? [])
+                    ->where('status', 'active')
+                    ->where('is_addition', false)
+                    ->filter(fn($rp) => $rp->cdp && $rp->cdp->convocatoria_distribution_id == $cd->id);
+
+                if ($rpsForDist->isNotEmpty()) {
+                    $committedAmount = (float) $rpsForDist->sum('total_amount');
+                }
+            }
+
+            // Bloqueo base = el mayor entre lo pagado y el monto comprometido (RP o estimado)
+            $baseLocked = max((float) $paidForThis, $committedAmount);
             $locked += $baseLocked;
 
             // Sumar adiciones de recursos del contrato (RPs de adición activos)

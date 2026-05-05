@@ -81,6 +81,8 @@ class ExpenseManagement extends Component
             'distributions.expenseCode',
             'distributions.convocatoriaDistributions.convocatoria.contract.paymentOrders',
             'distributions.convocatoriaDistributions.convocatoria.contract.supplier',
+            'distributions.convocatoriaDistributions.convocatoria.contract.rps.cdp',
+            'distributions.convocatoriaDistributions.convocatoria.contract.rps.fundingSources',
             'distributions.paymentOrderLines.paymentOrder.contract',
         ])
             ->forSchool($this->schoolId)
@@ -241,6 +243,8 @@ class ExpenseManagement extends Component
             'distributions.expenseCode',
             'distributions.convocatoriaDistributions.convocatoria.contract.paymentOrders',
             'distributions.convocatoriaDistributions.convocatoria.contract.supplier',
+            'distributions.convocatoriaDistributions.convocatoria.contract.rps.cdp',
+            'distributions.convocatoriaDistributions.convocatoria.contract.rps.fundingSources',
             'distributions.paymentOrderLines.paymentOrder.contract',
         ])->find($budgetId);
         

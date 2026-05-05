@@ -30,6 +30,7 @@ class PrecontractualPermissionSeeder extends Seeder
             'precontractual.edit' => 'Editar convocatorias y CDPs',
             'precontractual.delete' => 'Eliminar convocatorias y CDPs',
             'precontractual.evaluate' => 'Evaluar propuestas',
+            'precontractual.reschedule' => 'Cambiar fechas de convocatoria',
         ];
 
         // Crear permisos
@@ -52,6 +53,7 @@ class PrecontractualPermissionSeeder extends Seeder
                 'precontractual.create',
                 'precontractual.edit',
                 'precontractual.evaluate',
+                'precontractual.reschedule',
             ]);
         }
 

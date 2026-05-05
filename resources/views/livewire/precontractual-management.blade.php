@@ -218,6 +218,16 @@
                                     Imprimir
                                 </button>
 
+                                {{-- Botón Cambiar Fechas --}}
+                                @if(!in_array($convocatoria->status, ['awarded', 'cancelled']))
+                                    @can('precontractual.reschedule')
+                                        <button wire:click="openChangeDatesModal" class="px-3 py-1.5 bg-amber-500 text-white text-sm rounded-lg hover:bg-amber-600 inline-flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                            Cambiar Fechas
+                                        </button>
+                                    @endcan
+                                @endif
+
                                 @can('precontractual.edit')
                                     @if($convocatoria->status === 'draft')
                                         <button wire:click="openStatusModal('open')" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
@@ -970,6 +980,80 @@
                         <button type="submit" class="px-4 py-2 bg-yellow-500 text-white rounded-xl hover:bg-yellow-600">Guardar Evaluación</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    {{-- Modal Cambiar Fechas de Convocatoria --}}
+    @if($showChangeDatesModal)
+    <div class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeChangeDatesModal"></div>
+            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-lg">
+                <div class="px-6 py-4 border-b border-gray-200 bg-amber-50">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center justify-center w-10 h-10 bg-amber-100 rounded-full">
+                            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-amber-900">Cambiar Fechas de Convocatoria</h3>
+                            <p class="text-sm text-amber-700">Convocatoria #{{ $convocatoria->formatted_number }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        {{-- Fecha Inicio --}}
+                        <div x-data="{
+                            init() {
+                                flatpickr(this.$refs.changeDateStart, {
+                                    dateFormat: 'Y-m-d',
+                                    defaultDate: $wire.changeDatesStartDate || null,
+                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                    onChange: (selectedDates, dateStr) => { $wire.set('changeDatesStartDate', dateStr); }
+                                });
+                            }
+                        }">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio <span class="text-red-500">*</span></label>
+                            <input type="text" x-ref="changeDateStart" value="{{ $changeDatesStartDate }}" class="w-full rounded-xl border-gray-300 bg-white" placeholder="Seleccionar fecha..." readonly>
+                            @error('changeDatesStartDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        {{-- Hora Inicio --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Hora Inicio</label>
+                            <input type="time" wire:model="changeDatesStartTime" class="w-full rounded-xl border-gray-300">
+                            @error('changeDatesStartTime') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        {{-- Fecha Cierre --}}
+                        <div x-data="{
+                            init() {
+                                flatpickr(this.$refs.changeDateEnd, {
+                                    dateFormat: 'Y-m-d',
+                                    defaultDate: $wire.changeDatesEndDate || null,
+                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
+                                    onChange: (selectedDates, dateStr) => { $wire.set('changeDatesEndDate', dateStr); }
+                                });
+                            }
+                        }">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Cierre <span class="text-red-500">*</span></label>
+                            <input type="text" x-ref="changeDateEnd" value="{{ $changeDatesEndDate }}" class="w-full rounded-xl border-gray-300 bg-white" placeholder="Seleccionar fecha..." readonly>
+                            @error('changeDatesEndDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        {{-- Hora Cierre --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Hora Cierre</label>
+                            <input type="time" wire:model="changeDatesEndTime" class="w-full rounded-xl border-gray-300">
+                            @error('changeDatesEndTime') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                </div>
+                <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                    <button type="button" wire:click="closeChangeDatesModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
+                    <button type="button" wire:click="saveChangedDates" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl">Guardar Fechas</button>
+                </div>
             </div>
         </div>
     </div>

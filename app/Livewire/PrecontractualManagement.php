@@ -78,6 +78,13 @@ class PrecontractualManagement extends Component
 
     // Modal Eliminar
     public $showDeleteModal = false;
+
+    // Modal Cambiar Fechas de Convocatoria
+    public $showChangeDatesModal = false;
+    public $changeDatesStartDate = '';
+    public $changeDatesStartTime = '';
+    public $changeDatesEndDate = '';
+    public $changeDatesEndTime = '';
     public $itemToDelete = null;
     public $deleteType = '';
 
@@ -583,6 +590,74 @@ class PrecontractualManagement extends Component
     {
         $this->showStatusModal = false;
         $this->newStatus = '';
+    }
+
+    // === CAMBIAR FECHAS DE CONVOCATORIA ===
+
+    public function openChangeDatesModal()
+    {
+        if (!auth()->user()->can('precontractual.reschedule')) {
+            $this->dispatch('toast', message: 'No tienes permisos para cambiar las fechas.', type: 'error');
+            return;
+        }
+
+        if (!$this->convocatoria) return;
+
+        if (in_array($this->convocatoria->status, ['awarded', 'cancelled'])) {
+            $this->dispatch('toast', message: 'No se pueden cambiar las fechas de una convocatoria en estado ' . $this->convocatoria->status_name . '.', type: 'error');
+            return;
+        }
+
+        $this->changeDatesStartDate = $this->convocatoria->start_date?->format('Y-m-d') ?? '';
+        $this->changeDatesStartTime = $this->convocatoria->start_time ?? '';
+        $this->changeDatesEndDate   = $this->convocatoria->end_date?->format('Y-m-d') ?? '';
+        $this->changeDatesEndTime   = $this->convocatoria->end_time ?? '';
+        $this->resetErrorBag(['changeDatesStartDate', 'changeDatesEndDate']);
+        $this->showChangeDatesModal = true;
+    }
+
+    public function saveChangedDates()
+    {
+        if (!auth()->user()->can('precontractual.reschedule')) {
+            $this->dispatch('toast', message: 'No tienes permisos para cambiar las fechas.', type: 'error');
+            return;
+        }
+
+        $this->validate([
+            'changeDatesStartDate' => 'required|date',
+            'changeDatesStartTime' => 'nullable|date_format:H:i',
+            'changeDatesEndDate'   => 'required|date|after_or_equal:changeDatesStartDate',
+            'changeDatesEndTime'   => 'nullable|date_format:H:i',
+        ], [
+            'changeDatesStartDate.required'    => 'La fecha de inicio es obligatoria.',
+            'changeDatesStartDate.date'        => 'La fecha de inicio no es válida.',
+            'changeDatesEndDate.required'      => 'La fecha de cierre es obligatoria.',
+            'changeDatesEndDate.date'          => 'La fecha de cierre no es válida.',
+            'changeDatesEndDate.after_or_equal'=> 'La fecha de cierre debe ser igual o posterior a la de inicio.',
+            'changeDatesStartTime.date_format' => 'La hora de inicio no es válida (formato HH:MM).',
+            'changeDatesEndTime.date_format'   => 'La hora de cierre no es válida (formato HH:MM).',
+        ]);
+
+        $this->convocatoria->update([
+            'start_date' => $this->changeDatesStartDate,
+            'start_time' => $this->changeDatesStartTime ?: null,
+            'end_date'   => $this->changeDatesEndDate,
+            'end_time'   => $this->changeDatesEndTime ?: null,
+        ]);
+
+        $this->dispatch('toast', message: 'Fechas de la convocatoria actualizadas correctamente.', type: 'success');
+        $this->showChangeDatesModal = false;
+        $this->viewDetail($this->convocatoria->id);
+    }
+
+    public function closeChangeDatesModal()
+    {
+        $this->showChangeDatesModal = false;
+        $this->changeDatesStartDate = '';
+        $this->changeDatesStartTime = '';
+        $this->changeDatesEndDate   = '';
+        $this->changeDatesEndTime   = '';
+        $this->resetErrorBag(['changeDatesStartDate', 'changeDatesEndDate']);
     }
 
     // === CDP ===

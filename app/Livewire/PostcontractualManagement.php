@@ -1571,17 +1571,23 @@ class PostcontractualManagement extends Component
 
                     $budget = $dist->budget;
 
-                    // 1) Saldo restante del código de gasto (convocatoria − ya pagado en esa distribución)
-                    $convAmt = (float) (collect($this->expenseDistributions)->firstWhere('id', $distId)['convocatoria_amount'] ?? $dist->amount);
-                    $alreadyPaidOnDist = \App\Models\PaymentOrderExpenseLine::where('expense_distribution_id', $distId)
-                        ->whereHas('paymentOrder', fn($q) => $q->whereIn('status', ['approved', 'paid']))
-                        ->sum('total');
-                    $remainingOnDist = $convAmt - (float) $alreadyPaidOnDist;
+                    // 1) Saldo restante del código de gasto (solo para pagos directos).
+                    // Para pagos de contratos, el saldo del RP ya fue validado arriba
+                    // ($this->contractData['remaining']). Aplicar aquí daría falsos negativos
+                    // porque $convAmt usa el valor estimado de la convocatoria (no el RP real)
+                    // y $alreadyPaidOnDist acumula pagos de todos los contratos de la misma distribución.
+                    if ($this->paymentType !== 'contract') {
+                        $convAmt = (float) (collect($this->expenseDistributions)->firstWhere('id', $distId)['convocatoria_amount'] ?? $dist->amount);
+                        $alreadyPaidOnDist = \App\Models\PaymentOrderExpenseLine::where('expense_distribution_id', $distId)
+                            ->whereHas('paymentOrder', fn($q) => $q->whereIn('status', ['approved', 'paid']))
+                            ->sum('total');
+                        $remainingOnDist = $convAmt - (float) $alreadyPaidOnDist;
 
-                    if ($newAmount > $remainingOnDist + 0.01) {
-                        $codeName = $dist->expenseCode?->name ?? "distribución #{$distId}";
-                        $this->dispatch('toast', message: "El pago para '{$codeName}' (\${$fmt($newAmount)}) excede el saldo pendiente del código de gasto (\${$fmt(max(0, $remainingOnDist))}).", type: 'error');
-                        return;
+                        if ($newAmount > $remainingOnDist + 0.01) {
+                            $codeName = $dist->expenseCode?->name ?? "distribución #{$distId}";
+                            $this->dispatch('toast', message: "El pago para '{$codeName}' (\${$fmt($newAmount)}) excede el saldo pendiente del código de gasto (\${$fmt(max(0, $remainingOnDist))}).", type: 'error');
+                            return;
+                        }
                     }
 
                     // 2) Saldo disponible en el presupuesto (apropiación definitiva)

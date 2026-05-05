@@ -516,12 +516,6 @@ class PrecontractualManagement extends Component
 
         // Validaciones por estado
         if ($this->newStatus === 'open') {
-            if ($this->convocatoria->cdps->where('status', 'active')->count() === 0) {
-                $this->dispatch('toast', message: 'Debe registrar al menos un CDP antes de abrir la convocatoria.', type: 'error');
-                $this->showStatusModal = false;
-                return;
-            }
-
             // Validar que cada distribución de la convocatoria tenga un CDP activo vinculado
             $this->convocatoria->loadMissing([
                 'distributionDetails.expenseDistribution.expenseCode',
@@ -536,18 +530,19 @@ class PrecontractualManagement extends Component
 
             $missingDistIds = $requiredDistIds->diff($coveredDistIds);
 
-            // Si hay distribuciones sin CDP vinculado pero hay CDPs legacy (sin dist_id), permitir
-            $hasLegacyCdps = $this->convocatoria->cdps
-                ->where('status', 'active')
-                ->whereNull('convocatoria_distribution_id')
-                ->count() > 0;
-
-            if ($missingDistIds->isNotEmpty() && !$hasLegacyCdps) {
+            if ($requiredDistIds->isEmpty()) {
+                // Convocatoria sin distribuciones detalladas (legacy) — exigir al menos 1 CDP activo
+                if ($this->convocatoria->cdps->where('status', 'active')->count() === 0) {
+                    $this->dispatch('toast', message: 'Debe registrar al menos un CDP antes de abrir la convocatoria.', type: 'error');
+                    $this->showStatusModal = false;
+                    return;
+                }
+            } elseif ($missingDistIds->isNotEmpty()) {
                 $missingCodes = $this->convocatoria->distributionDetails
-                    ->whereIn('id', $missingDistIds)
+                    ->whereIn('id', $missingDistIds->toArray())
                     ->map(fn($dd) => $dd->expenseDistribution?->expenseCode?->code ?? '?')
                     ->implode(', ');
-                $this->dispatch('toast', message: 'Faltan CDPs para las distribuciones: ' . $missingCodes, type: 'error');
+                $this->dispatch('toast', message: 'Faltan CDPs para los códigos de gasto: ' . $missingCodes, type: 'error');
                 $this->showStatusModal = false;
                 return;
             }

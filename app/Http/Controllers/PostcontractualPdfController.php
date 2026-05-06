@@ -138,39 +138,49 @@ class PostcontractualPdfController extends Controller
         $bankName = '';
         $accountNumber = '';
         $fundingSourceName = '';
-        $fundingSourceDetails = []; // Detalle por fuente [{name, amount, bank, account}]
+        $fundingSourceDetails = []; // Se mantiene la variable por compatibilidad pero NO se renderiza en el PDF
 
         if ($po->payment_type === 'contract' && $po->contract) {
             $allSources = [];
-            // Ratio para convertir montos brutos a neto (descuenta retenciones proporcionalmente)
-            $netRatio = $amount > 0 ? $netPayment / $amount : 1.0;
 
+            // Banco/cuenta: tomar de la primera fuente del primer RP activo
             foreach ($po->contract->rps->where('status', 'active') as $rp) {
                 foreach ($rp->fundingSources as $rpFs) {
                     $fsName = $rpFs->fundingSource?->name ?? '';
-                    $allSources[] = $fsName;
+                    if ($fsName) { $allSources[] = $fsName; }
                     if (!$bankName && $rpFs->bank) {
                         $bankName = $rpFs->bank->name ?? '';
                         $accountNumber = $rpFs->bankAccount?->account_number ?? '';
                     }
-                    $fundingSourceDetails[] = [
-                        'name' => $fsName,
-                        'amount' => round((float) $rpFs->amount * $netRatio),
-                        'bank' => $rpFs->bank?->name ?? '',
-                        'account' => $rpFs->bankAccount?->account_number ?? '',
-                    ];
                 }
-
-                // Obtener código de gasto desde el CDP vinculado al RP (distribución específica)
-                $ecFromCdp = $rp->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
-                $rpData[] = [
-                    'rp_number' => $rp->formatted_number,
-                    'expense_code' => $ecFromCdp?->code ?? $rp->cdp?->budgetItem?->code ?? '',
-                    'expense_name' => $ecFromCdp?->name ?? $rp->cdp?->budgetItem?->name ?? '',
-                    'total_amount' => (float) $rp->total_amount,
-                ];
             }
             $fundingSourceName = implode(' Y ', array_unique(array_filter($allSources)));
+
+            // Una fila por cada línea de gasto del pago (valor BRUTO por rubro, tal cual se registró).
+            // Si no hay expenseLines, caer al RP como antes.
+            if ($po->expenseLines->isNotEmpty()) {
+                // Encontrar el RP principal del contrato para referenciar el número
+                $mainRp = $po->contract->rps->where('status', 'active')->first();
+                foreach ($po->expenseLines as $line) {
+                    $ec = $line->expenseCode;
+                    $rpData[] = [
+                        'rp_number'    => $mainRp?->formatted_number ?? '',
+                        'expense_code' => $ec?->code ?? '',
+                        'expense_name' => $ec?->name ?? '',
+                        'total_amount' => (float) $line->total,
+                    ];
+                }
+            } else {
+                foreach ($po->contract->rps->where('status', 'active') as $rp) {
+                    $ecFromCdp = $rp->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
+                    $rpData[] = [
+                        'rp_number'    => $rp->formatted_number,
+                        'expense_code' => $ecFromCdp?->code ?? $rp->cdp?->budgetItem?->code ?? '',
+                        'expense_name' => $ecFromCdp?->name ?? $rp->cdp?->budgetItem?->name ?? '',
+                        'total_amount' => (float) $rp->total_amount,
+                    ];
+                }
+            }
         } elseif ($po->contractRp) {
             $rp = $po->contractRp;
             foreach ($rp->fundingSources as $rpFs) {
@@ -178,23 +188,29 @@ class PostcontractualPdfController extends Controller
                     $bankName = $rpFs->bank->name ?? '';
                     $accountNumber = $rpFs->bankAccount?->account_number ?? '';
                 }
-                $fundingSourceName = $rpFs->fundingSource?->name ?? '';
-                $fundingSourceDetails[] = [
-                    'name' => $rpFs->fundingSource?->name ?? '',
-                    'amount' => (float) $rpFs->amount,
-                    'bank' => $rpFs->bank?->name ?? '',
-                    'account' => $rpFs->bankAccount?->account_number ?? '',
+                $fundingSourceName = $rpFs->fundingSource?->name ?? $fundingSourceName;
+            }
+
+            // Una fila por línea de gasto (valor bruto por rubro)
+            if ($po->expenseLines->isNotEmpty()) {
+                foreach ($po->expenseLines as $line) {
+                    $ec = $line->expenseCode;
+                    $rpData[] = [
+                        'rp_number'    => $rp->formatted_number,
+                        'expense_code' => $ec?->code ?? '',
+                        'expense_name' => $ec?->name ?? '',
+                        'total_amount' => (float) $line->total,
+                    ];
+                }
+            } else {
+                $directEc = $po->expenseLines->first()?->expenseCode;
+                $rpData[] = [
+                    'rp_number'    => $rp->formatted_number,
+                    'expense_code' => $directEc?->code ?? $po->cdp?->budgetItem?->code ?? '',
+                    'expense_name' => $directEc?->name ?? $po->cdp?->budgetItem?->name ?? '',
+                    'total_amount' => (float) $po->total,
                 ];
             }
-            // Código y rubro: usar el código de gasto (expenseLines) si existe,
-            // de lo contrario caer al budgetItem del CDP
-            $directEc = $po->expenseLines->first()?->expenseCode;
-            $rpData[] = [
-                'rp_number' => $rp->formatted_number,
-                'expense_code' => $directEc?->code ?? $po->cdp?->budgetItem?->code ?? '',
-                'expense_name' => $directEc?->name ?? $po->cdp?->budgetItem?->name ?? '',
-                'total_amount' => (float) $po->total,
-            ];
         }
 
         // Banco del colegio desde bankLines (pagos directos / cuentas por pagar)

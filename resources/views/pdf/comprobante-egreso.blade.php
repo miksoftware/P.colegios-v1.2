@@ -182,61 +182,26 @@
             </tr>
         </table>
         @endforeach
-        @if(!empty($fundingSourceDetails) && count($fundingSourceDetails) > 1)
-        {{-- Múltiples fuentes de financiación --}}
-        @foreach($fundingSourceDetails as $fsd)
-        <table class="pres-table">
-            <tr>
-                <td class="pres-label">Fte. Financiación:</td>
-                <td>{{ $fsd['name'] }}</td>
-                <td class="pres-label">Valor:</td>
-                <td class="bold">${{ number_format($fsd['amount'], 2, ',', '.') }}</td>
-            </tr>
-            @if($fsd['bank'])
-            <tr>
-                <td></td><td></td>
-                <td class="pres-label">Banco:</td>
-                <td>{{ $fsd['bank'] }}</td>
-            </tr>
-            <tr>
-                <td></td><td></td>
-                <td class="pres-label">Cuenta No.:</td>
-                <td>{{ $fsd['account'] }}</td>
-            </tr>
-            @endif
-        </table>
-        @endforeach
-        <table class="pres-table">
-            <tr>
-                <td class="pres-label">Pago con:</td>
-                <td>TRANSFERENCIA</td>
-            </tr>
-        </table>
-        @else
-        {{-- Una sola fuente --}}
+
+        {{-- DATOS DE PAGO: fuente, banco, cuenta, pago con (una sola vez al pie) --}}
         <table class="pres-table">
             <tr>
                 <td class="pres-label">Fte. Financiación:</td>
                 <td>{{ $fundingSourceName ?: 'N/A' }}</td>
             </tr>
             <tr>
-                <td class="pres-label">Auxiliar Administrativo</td>
-                <td></td>
                 <td class="pres-label">Banco:</td>
                 <td>{{ $bankName ?: 'N/A' }}</td>
             </tr>
             <tr>
-                <td></td><td></td>
                 <td class="pres-label">Cuenta No.:</td>
                 <td>{{ $accountNumber ?: 'N/A' }}</td>
             </tr>
             <tr>
-                <td></td><td></td>
                 <td class="pres-label">Pago con:</td>
                 <td>TRANSFERENCIA</td>
             </tr>
         </table>
-        @endif
 
         {{-- FIRMAS --}}
         <div style="padding: 8px 10px;">

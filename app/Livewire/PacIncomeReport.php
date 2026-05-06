@@ -42,7 +42,30 @@ class PacIncomeReport extends Component
     {
         $year = (int) $this->filterYear;
 
-        // Get all income budgets for this school/year
+        // Pre-load incomes del año, agrupados por fuente de financiación y mes
+        $incomes = Income::forSchool($this->schoolId)
+            ->forYear($year)
+            ->with('fundingSource.budgetItem')
+            ->get();
+
+        $incomesByFsMonth = [];
+        $incomeObservations = [];
+
+        foreach ($incomes as $income) {
+            $fsId  = $income->funding_source_id;
+            $month = (int) $income->date->format('m');
+
+            if (!isset($incomesByFsMonth[$fsId])) {
+                $incomesByFsMonth[$fsId] = [];
+            }
+            $incomesByFsMonth[$fsId][$month] = ($incomesByFsMonth[$fsId][$month] ?? 0) + (float) $income->amount;
+
+            if (!empty($income->description)) {
+                $incomeObservations[$fsId][] = $income->description;
+            }
+        }
+
+        // Traer presupuestos de ingresos del colegio para construir las filas por rubro
         $budgets = Budget::forSchool($this->schoolId)
             ->forYear($year)
             ->byType('income')
@@ -50,40 +73,21 @@ class PacIncomeReport extends Component
             ->orderBy('budget_item_id')
             ->get();
 
-        // Pre-load incomes grouped by funding_source_id and month
-        $fundingSourceIds = $budgets->pluck('funding_source_id')->unique()->filter()->toArray();
-
-        $incomesByFsMonth = [];
-        $incomeObservations = [];
-
-        if (!empty($fundingSourceIds)) {
-            $incomes = Income::forSchool($this->schoolId)
-                ->forYear($year)
-                ->whereIn('funding_source_id', $fundingSourceIds)
-                ->get();
-
-            foreach ($incomes as $income) {
-                $fsId = $income->funding_source_id;
-                $month = (int) $income->date->format('m');
-
-                if (!isset($incomesByFsMonth[$fsId])) {
-                    $incomesByFsMonth[$fsId] = [];
-                }
-                if (!isset($incomesByFsMonth[$fsId][$month])) {
-                    $incomesByFsMonth[$fsId][$month] = 0;
-                }
-                $incomesByFsMonth[$fsId][$month] += (float) $income->amount;
-
-                // Collect observations (description) for non-empty descriptions
-                if (!empty($income->description)) {
-                    $incomeObservations[$fsId][] = $income->description;
-                }
+        // Mapa fundingSourceId → {code, name} (del budgetItem), para cubrir el caso
+        // de ingresos con fuentes que no tienen presupuesto registrado.
+        $fsToRubro = [];
+        foreach ($budgets as $budget) {
+            if ($budget->funding_source_id) {
+                $fsToRubro[$budget->funding_source_id] = [
+                    'code' => $budget->budgetItem?->code ?? '',
+                    'name' => $budget->budgetItem?->name ?? '',
+                ];
             }
         }
 
-        // Build rows: one per budget item (concept)
         $conceptRows = [];
 
+        // Construir filas: una por rubro (budgetItem) del presupuesto de ingresos
         foreach ($budgets as $budget) {
             $budgetItem = $budget->budgetItem;
             $code = $budgetItem?->code ?? '';
@@ -111,7 +115,6 @@ class PacIncomeReport extends Component
                 $conceptRows[$key]['months'][$m] += (float) ($monthlyData[$m] ?? 0);
             }
 
-            // Merge observations
             if (!empty($incomeObservations[$fsId])) {
                 $existing = $conceptRows[$key]['observations'];
                 $new = implode('. ', array_unique($incomeObservations[$fsId]));
@@ -121,13 +124,45 @@ class PacIncomeReport extends Component
             }
         }
 
+        // Cubrir ingresos cuya fuente NO tiene presupuesto (no aparecen en la iteración anterior)
+        // Los agrupamos bajo el rubro del BudgetItem de la fuente de financiación.
+        foreach ($incomesByFsMonth as $fsId => $monthly) {
+            if (isset($fsToRubro[$fsId])) continue; // Ya cubiertos
+
+            $income  = $incomes->firstWhere('funding_source_id', $fsId);
+            $fs      = $income?->fundingSource;
+            $bi      = $fs?->budgetItem;
+            $code    = $bi?->code ?? '';
+            $name    = $bi?->name ?? ($fs?->name ?? 'Sin rubro');
+            $key     = $code ?: 'fs-' . $fsId;
+
+            if (!isset($conceptRows[$key])) {
+                $months = [];
+                for ($m = 1; $m <= 12; $m++) $months[$m] = 0;
+                $conceptRows[$key] = [
+                    'code' => $code,
+                    'name' => $name,
+                    'months' => $months,
+                    'total' => 0,
+                    'observations' => '',
+                ];
+            }
+            for ($m = 1; $m <= 12; $m++) {
+                $conceptRows[$key]['months'][$m] += (float) ($monthly[$m] ?? 0);
+            }
+            if (!empty($incomeObservations[$fsId])) {
+                $existing = $conceptRows[$key]['observations'];
+                $new = implode('. ', array_unique($incomeObservations[$fsId]));
+                $conceptRows[$key]['observations'] = $existing ? $existing . '. ' . $new : $new;
+            }
+        }
+
         // Calculate totals per row
         foreach ($conceptRows as &$row) {
             $row['total'] = array_sum($row['months']);
         }
         unset($row);
 
-        // Sort by code
         ksort($conceptRows);
         $this->rows = array_values($conceptRows);
 

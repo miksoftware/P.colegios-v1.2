@@ -237,7 +237,6 @@
             </tr>
         </table>
         @endif
-        </table>
 
         {{-- FIRMAS --}}
         <div style="padding: 8px 10px;">

@@ -69,7 +69,8 @@ class ContractingReport extends Component
                 'convocatoria.proposals',
                 'rps.cdp',
                 'rps.fundingSources.fundingSource',
-                'rps.fundingSources.budget',
+                'rps.fundingSources.budget.budgetItem.accountingAccount.parent.parent',
+                'rps.fundingSources.budget.distributions.expenseCode',
                 'paymentOrders' => fn($q) => $q->whereIn('status', ['approved', 'paid']),
             ]);
 
@@ -145,51 +146,104 @@ class ContractingReport extends Component
                 $liquidationDate = $lastPayment->payment_date?->format('Y-m-d');
             }
 
-            // Construir fuentes de financiación con montos individuales
-            $fundingSources = [];
+            // Construir pares (rubro + fuente + monto) desde RPs activos.
+            // Cada RP tiene UN rubro (via budget → budgetItem) y varias fuentes.
+            // Pero queremos filas por cada combinación rubro+fuente+código de gasto.
+            $rubroFuenteRows = []; // key: "rubroCode|fsCode" => ['rubro_code','rubro_name','rubro_sifse','acct_code','acct_name','fs_code','fs_name','amount']
             foreach ($rps->where('status', 'active') as $rp) {
                 foreach ($rp->fundingSources as $rpFs) {
                     $fs = $rpFs->fundingSource;
-                    if ($fs) {
-                        $key = $fs->id;
-                        if (!isset($fundingSources[$key])) {
-                            $fundingSources[$key] = [
-                                'name' => "{$fs->name} ({$fs->code})",
-                                'code' => $fs->code,
-                                'amount' => 0,
-                            ];
-                        }
-                        $fundingSources[$key]['amount'] += (float) $rpFs->amount;
+                    $b  = $rpFs->budget;
+                    $bi = $b?->budgetItem;
+                    $acct = $bi?->accountingAccount;
+
+                    // Buscar el ExpenseCode asociado al budget_id a través de expense_distributions
+                    $dist = null;
+                    if ($b) {
+                        $dist = $b->distributions->first() ?? null;
                     }
+                    $ec = $dist?->expenseCode;
+
+                    $rubroCode = $ec?->code ?? $bi?->code ?? '';
+                    $rubroName = $ec?->name ?? $bi?->name ?? '';
+                    $sifseCode = $ec?->sifse_code ?? '';
+                    $fsCode    = $fs?->code ?? '';
+                    $fsName    = $fs?->name ?? '';
+                    $key       = "{$rubroCode}|{$fsCode}";
+
+                    if (!isset($rubroFuenteRows[$key])) {
+                        $rubroFuenteRows[$key] = [
+                            'rubro_code'   => $rubroCode,
+                            'rubro_name'   => $rubroName,
+                            'sifse_code'   => $sifseCode,
+                            'acct_code'    => $acct?->code ?? '',
+                            'acct_name'    => $acct?->name ?? '',
+                            'acct_parent'  => $acct?->parent,
+                            'fs_code'      => $fsCode,
+                            'fs_name'      => $fsName,
+                            'amount'       => 0,
+                        ];
+                    }
+                    $rubroFuenteRows[$key]['amount'] += (float) $rpFs->amount;
                 }
             }
 
-            // Si no hay RPs, usar CDPs
-            if (empty($fundingSources)) {
+            // Si no hay RPs activos, intentar por CDPs
+            if (empty($rubroFuenteRows)) {
                 foreach ($cdps as $cdp) {
+                    $bi = $cdp->budgetItem;
+                    $acct = $bi?->accountingAccount;
                     foreach ($cdp->fundingSources as $cdpFs) {
                         $fs = $cdpFs->fundingSource;
-                        if ($fs) {
-                            $key = $fs->id;
-                            if (!isset($fundingSources[$key])) {
-                                $fundingSources[$key] = [
-                                    'name' => "{$fs->name} ({$fs->code})",
-                                    'code' => $fs->code,
-                                    'amount' => 0,
-                                ];
-                            }
-                            $fundingSources[$key]['amount'] += (float) $cdpFs->amount;
+                        $rubroCode = $bi?->code ?? '';
+                        $rubroName = $bi?->name ?? '';
+                        $fsCode    = $fs?->code ?? '';
+                        $fsName    = $fs?->name ?? '';
+                        $key       = "{$rubroCode}|{$fsCode}";
+                        if (!isset($rubroFuenteRows[$key])) {
+                            $rubroFuenteRows[$key] = [
+                                'rubro_code'   => $rubroCode,
+                                'rubro_name'   => $rubroName,
+                                'sifse_code'   => '',
+                                'acct_code'    => $acct?->code ?? '',
+                                'acct_name'    => $acct?->name ?? '',
+                                'acct_parent'  => $acct?->parent,
+                                'fs_code'      => $fsCode,
+                                'fs_name'      => $fsName,
+                                'amount'       => 0,
+                            ];
                         }
+                        $rubroFuenteRows[$key]['amount'] += (float) $cdpFs->amount;
                     }
                 }
             }
 
-            // Si no hay fuentes, crear una fila con fuente vacía
-            if (empty($fundingSources)) {
-                $fundingSources[0] = [
-                    'name' => '',
-                    'code' => '',
-                    'amount' => (float) $contract->total,
+            // Fuente de financiación consolidada (para compatibilidad con mapeos viejos)
+            $fundingSources = [];
+            foreach ($rubroFuenteRows as $r) {
+                $fsKey = $r['fs_code'] ?: uniqid('fs_');
+                if (!isset($fundingSources[$fsKey])) {
+                    $fundingSources[$fsKey] = [
+                        'name'   => $r['fs_name'] ? "{$r['fs_name']} ({$r['fs_code']})" : '',
+                        'code'   => $r['fs_code'],
+                        'amount' => 0,
+                    ];
+                }
+                $fundingSources[$fsKey]['amount'] += $r['amount'];
+            }
+
+            // Si no hay fuentes ni rubros, usar valor del contrato como fallback
+            if (empty($rubroFuenteRows)) {
+                $rubroFuenteRows['_default'] = [
+                    'rubro_code'   => $rubroCode ?? '',
+                    'rubro_name'   => $rubroName ?? '',
+                    'sifse_code'   => $sifseCode ?? '',
+                    'acct_code'    => $acctCode,
+                    'acct_name'    => $acctName,
+                    'acct_parent'  => $acctParent,
+                    'fs_code'      => '',
+                    'fs_name'      => '',
+                    'amount'       => (float) $contract->total,
                 ];
             }
 
@@ -270,20 +324,32 @@ class ContractingReport extends Component
                 'id' => $contract->id,
             ];
 
-            // Generar una fila por cada fuente de financiación
+            // Generar una fila por cada combinación rubro + fuente de financiación
             $totalContract = (float) $contract->total;
-            $totalFundingSources = collect($fundingSources)->sum('amount');
+            $totalAllRows  = collect($rubroFuenteRows)->sum('amount');
 
-            foreach ($fundingSources as $fsData) {
-                $ratio = $totalFundingSources > 0 ? $fsData['amount'] / $totalFundingSources : 1;
-                $row = $baseRow;
-                $row['funding_source'] = $fsData['name'];
-                $row['funding_source_codes'] = $fsData['code'];
-                $row['subtotal'] = round((float) $contract->subtotal * $ratio, 2);
-                $row['iva'] = round((float) $contract->iva * $ratio, 2);
-                $row['total'] = round($totalContract * $ratio, 2);
-                $row['valor_letras'] = '';
-                $this->rows[] = $row;
+            foreach ($rubroFuenteRows as $r) {
+                $ratio    = $totalAllRows > 0 ? $r['amount'] / $totalAllRows : 1;
+                $acctP    = $r['acct_parent'];
+                $acctGP   = $acctP?->parent;
+                $row                              = $baseRow;
+                $row['rubro_code']                = $r['rubro_code'];
+                $row['rubro_name']                = $r['rubro_name'];
+                $row['sifse_code']                = $r['sifse_code'];
+                $row['expense_code']              = $r['rubro_code'];
+                $row['acct_code']                 = $r['acct_code'];
+                $row['acct_name']                 = $r['acct_name'];
+                $row['acct_parent_code']          = $acctP?->code ?? '';
+                $row['acct_parent_name']          = $acctP?->name ?? '';
+                $row['acct_grandparent_code']     = $acctGP?->code ?? '';
+                $row['acct_grandparent_name']     = $acctGP?->name ?? '';
+                $row['funding_source']            = $r['fs_name'] ? "{$r['fs_name']} ({$r['fs_code']})" : '';
+                $row['funding_source_codes']      = $r['fs_code'];
+                $row['subtotal']                  = round((float) $contract->subtotal * $ratio, 2);
+                $row['iva']                       = round((float) $contract->iva * $ratio, 2);
+                $row['total']                     = round($totalContract * $ratio, 2);
+                $row['valor_letras']              = '';
+                $this->rows[]                     = $row;
             }
         }
 

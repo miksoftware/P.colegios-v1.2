@@ -54,6 +54,7 @@ class ContraloriaIncomeAgreementsReport extends Component
 
         $this->rows = $modifications->map(fn($mod) => [
             'codigo_rubro' => $mod->budget->budgetItem->code ?? 'N/A',
+            'nombre_rubro' => $mod->budget->budgetItem->name ?? 'N/A',
             'acto_adm'     => $mod->document_number ?: 'REGISTRO SISTEMA',
             'fecha'        => $mod->document_date
                 ? $mod->document_date->format('Y/m/d')

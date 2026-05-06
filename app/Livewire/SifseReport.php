@@ -145,11 +145,20 @@ class SifseReport extends Component
         }
 
         // --- Commitments (RP) up to cutoff per budget ---
+        // La fecha correcta es la del ContractRp (otrosi_date cuando exista, si no created_at).
         $commitmentsByBudget = [];
         if (!empty($budgetIds)) {
             $commitmentsByBudget = RpFundingSource::whereIn('budget_id', $budgetIds)
-                ->whereHas('contractRp', fn($q) => $q->where('status', '!=', 'cancelled'))
-                ->where('created_at', '<=', $cutoff . ' 23:59:59')
+                ->whereHas('contractRp', function ($q) use ($cutoff) {
+                    $q->where('status', '!=', 'cancelled')
+                      ->where(function ($qq) use ($cutoff) {
+                          $qq->where('otrosi_date', '<=', $cutoff)
+                             ->orWhere(function ($qqq) use ($cutoff) {
+                                 $qqq->whereNull('otrosi_date')
+                                     ->where('created_at', '<=', $cutoff . ' 23:59:59');
+                             });
+                      });
+                })
                 ->selectRaw('budget_id, SUM(amount) as total')
                 ->groupBy('budget_id')
                 ->pluck('total', 'budget_id')

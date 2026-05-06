@@ -122,7 +122,7 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @forelse($rows as $i => $r)
-                        <tr class="hover:bg-blue-50/50 transition-colors" wire:key="row-{{ $r['id'] }}">
+                        <tr class="hover:bg-blue-50/50 transition-colors" wire:key="row-{{ $r['id'] }}-{{ $i }}">
                             <td class="px-3 py-2.5 whitespace-nowrap text-gray-500">{{ $i + 1 }}</td>
                             <td class="px-3 py-2.5 whitespace-nowrap font-mono text-xs text-blue-700">{{ $r['expense_code'] }}</td>
                             <td class="px-3 py-2.5 text-gray-900 max-w-[200px] truncate" title="{{ $r['rubro_name'] }}">{{ $r['rubro_name'] }}</td>

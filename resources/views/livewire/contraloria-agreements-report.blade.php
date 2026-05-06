@@ -78,6 +78,7 @@
                 <table class="min-w-full divide-y divide-gray-200 text-xs">
                     <thead class="bg-gray-50">
                         <tr>
+                            <th class="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Nombre Rubro</th>
                             <th class="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Código Rubro</th>
                             <th class="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Acto Administrativo</th>
                             <th class="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Fecha</th>
@@ -93,6 +94,7 @@
                     <tbody class="divide-y divide-gray-100 bg-white">
                         @foreach($rows as $row)
                         <tr class="hover:bg-gray-50">
+                            <td class="px-3 py-2 text-gray-800 font-medium whitespace-nowrap">{{ $row['nombre_rubro'] ?? '' }}</td>
                             <td class="px-3 py-2 font-mono text-gray-800 whitespace-nowrap">{{ $row['codigo_rubro'] }}</td>
                             <td class="px-3 py-2 whitespace-nowrap text-gray-700">{{ $row['acto_adm'] }}</td>
                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ $row['fecha'] }}</td>
@@ -117,7 +119,7 @@
                     {{-- Totales --}}
                     <tfoot class="bg-gray-50 border-t-2 border-gray-200">
                         <tr class="font-bold text-xs">
-                            <td colspan="3" class="px-3 py-3 text-gray-700">TOTALES</td>
+                            <td colspan="4" class="px-3 py-3 text-gray-700">TOTALES</td>
                             <td class="px-3 py-3 text-right text-green-700">${{ number_format($totalAdicion, 0, ',', '.') }}</td>
                             <td class="px-3 py-3 text-right text-red-700">${{ number_format($totalReduccion, 0, ',', '.') }}</td>
                             <td class="px-3 py-3 text-right text-blue-700">${{ number_format($totalCredito, 0, ',', '.') }}</td>
@@ -162,6 +164,7 @@
             const rows   = JSON.parse(el.dataset.rows);
 
             const headers = [
+                'Nombre Rubro',
                 'Código Rubro Presupuestal',
                 'Acto Administrativo',
                 'Fecha',
@@ -175,6 +178,7 @@
             ];
 
             const dataRows = rows.map(r => [
+                r.nombre_rubro || '',
                 r.codigo_rubro,
                 r.acto_adm,
                 r.fecha,
@@ -189,11 +193,11 @@
 
             const ws = XLSX.utils.aoa_to_sheet([headers].concat(dataRows));
 
-            // Formato numérico para columnas D–I (índices 3–8)
+            // Formato numérico para columnas E–J (índices 4–9)
             const numFmt = '#,##0';
             const range  = XLSX.utils.decode_range(ws['!ref']);
             for (let R = 1; R <= range.e.r; R++) {
-                for (let C = 3; C <= 8; C++) {
+                for (let C = 4; C <= 9; C++) {
                     const addr = XLSX.utils.encode_cell({ r: R, c: C });
                     if (ws[addr]) ws[addr].z = numFmt;
                 }
@@ -201,6 +205,7 @@
 
             // Anchos de columna
             ws['!cols'] = [
+                { wch: 35 }, // nombre rubro
                 { wch: 22 }, // código
                 { wch: 20 }, // acto
                 { wch: 12 }, // fecha

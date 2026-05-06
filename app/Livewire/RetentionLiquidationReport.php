@@ -55,6 +55,7 @@ class RetentionLiquidationReport extends Component
                 'supplier',
                 'cdp.fundingSources.fundingSource',
                 'contractRp.fundingSources.fundingSource',
+                'expenseLines',
             ]);
 
         if ($this->filterMonth) {
@@ -83,37 +84,70 @@ class RetentionLiquidationReport extends Component
                 ];
             }
 
-            $concept = $po->retention_concept;
-            $subtotal = (float) $po->subtotal;
-            $retefuente = (float) $po->retefuente;
-            $reteiva = (float) $po->reteiva;
+            // El sistema puede guardar retenciones de dos formas:
+            // 1) A nivel PO (retefuente/reteiva) con retention_concept → pagos antiguos o single-mode
+            // 2) A nivel expense_lines con retention_concept por línea → pagos multi-concepto
+            // Recolectamos TODAS las retenciones para no perder datos.
+            $retentions = []; // [['concept' => x, 'base' => y, 'retefuente' => z, 'reteiva' => w]]
 
-            // Map retention concepts to report categories
-            // arrendamientos and transporte are classified as "servicios"
-            $reportConcept = match ($concept) {
-                'compras' => 'compras',
-                'honorarios' => 'honorarios',
-                'servicios', 'arrendamiento_sitios_web', 'arrendamiento_inmuebles', 'transporte_pasajeros' => 'servicios',
-                default => null,
-            };
+            // Siempre incluir los agregados a nivel PO si tienen valor
+            if ((float) $po->retefuente > 0 || (float) $po->reteiva > 0) {
+                $retentions[] = [
+                    'concept'    => $po->retention_concept,
+                    'base'       => (float) $po->subtotal,
+                    'retefuente' => (float) $po->retefuente,
+                    'reteiva'    => (float) $po->reteiva,
+                ];
+            }
 
-            // Classify retefuente by concept
-            if ($reportConcept && $retefuente > 0) {
-                if ($personType === 'juridica') {
-                    $grouped[$fundingSourceName][$reportConcept]['juridica_base'] += $subtotal;
-                    $grouped[$fundingSourceName][$reportConcept]['juridica_retention'] += $retefuente;
-                } else {
-                    $grouped[$fundingSourceName][$reportConcept]['natural_base'] += $subtotal;
-                    $grouped[$fundingSourceName][$reportConcept]['natural_retention'] += $retefuente;
+            // Recorrer expense_lines: si una línea tiene retención, usarla.
+            // ATENCIÓN: si PO ya tiene retefuente/reteiva (caso 1) las líneas podrían duplicar;
+            // pero en el modelo actual, cuando se usan líneas, el PO.retefuente es la SUMA
+            // de las líneas (ver computeTotals). Por tanto, preferimos el dato del PO ya
+            // agregado y descartamos las líneas cuando el PO tiene retención. Solo leemos
+            // líneas si el PO NO tiene retención agregada (caso raro).
+            if ((float) $po->retefuente == 0 && (float) $po->reteiva == 0) {
+                foreach ($po->expenseLines as $line) {
+                    if ((float) $line->retefuente > 0 || (float) $line->reteiva > 0) {
+                        $retentions[] = [
+                            'concept'    => $line->retention_concept,
+                            'base'       => (float) $line->subtotal,
+                            'retefuente' => (float) $line->retefuente,
+                            'reteiva'    => (float) $line->reteiva,
+                        ];
+                    }
                 }
             }
 
-            // ReteIVA goes to its own row
-            if ($reteiva > 0) {
-                if ($personType === 'juridica') {
-                    $grouped[$fundingSourceName]['reteiva']['juridica_retention'] += $reteiva;
-                } else {
-                    $grouped[$fundingSourceName]['reteiva']['natural_retention'] += $reteiva;
+            foreach ($retentions as $ret) {
+                $concept    = $ret['concept'];
+                $subtotal   = $ret['base'];
+                $retefuente = $ret['retefuente'];
+                $reteiva    = $ret['reteiva'];
+
+                $reportConcept = match ($concept) {
+                    'compras' => 'compras',
+                    'honorarios' => 'honorarios',
+                    'servicios', 'arrendamiento_sitios_web', 'arrendamiento_inmuebles', 'transporte_pasajeros' => 'servicios',
+                    default => null,
+                };
+
+                if ($reportConcept && $retefuente > 0) {
+                    if ($personType === 'juridica') {
+                        $grouped[$fundingSourceName][$reportConcept]['juridica_base']      += $subtotal;
+                        $grouped[$fundingSourceName][$reportConcept]['juridica_retention'] += $retefuente;
+                    } else {
+                        $grouped[$fundingSourceName][$reportConcept]['natural_base']       += $subtotal;
+                        $grouped[$fundingSourceName][$reportConcept]['natural_retention']  += $retefuente;
+                    }
+                }
+
+                if ($reteiva > 0) {
+                    if ($personType === 'juridica') {
+                        $grouped[$fundingSourceName]['reteiva']['juridica_retention'] += $reteiva;
+                    } else {
+                        $grouped[$fundingSourceName]['reteiva']['natural_retention']  += $reteiva;
+                    }
                 }
             }
         }

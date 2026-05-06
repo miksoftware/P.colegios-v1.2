@@ -92,11 +92,16 @@ class PaymentReportManagement extends Component
                 'contract.convocatoria.cdps.fundingSources.fundingSource',
                 'contract.convocatoria.cdps.contractRp',
                 'contract.rps.cdp',
+                'contract.rps.fundingSources.fundingSource',
+                'contract.rps.fundingSources.budget.budgetItem',
                 'supplier',
                 'cdp.fundingSources.fundingSource',
                 'contractRp.cdp',
+                'contractRp.fundingSources.fundingSource',
+                'contractRp.fundingSources.budget.budgetItem',
                 'budgetItem',
                 'expenseLines.expenseDistribution.budget.budgetItem',
+                'expenseLines.expenseDistribution.budget.fundingSource',
                 'expenseLines.expenseCode',
             ]);
 
@@ -135,59 +140,141 @@ class PaymentReportManagement extends Component
 
         $paymentOrders = $query->orderBy('payment_number')->get();
 
-        $this->payments = $paymentOrders->map(function ($po) {
+        $rows = [];
+
+        foreach ($paymentOrders as $po) {
             $contract = $po->contract;
             $supplier = $po->resolved_supplier;
             $convocatoria = $contract?->convocatoria;
 
-            // Obtener CDP y RP del contrato o del pago directo
-            $rp = $contract?->rps->first() ?? ($po->contractRp ?? null);
+            // Determinar RP y CDP de la orden de pago
+            $rp  = $po->contractRp ?? $contract?->rps->first();
             $cdp = $rp?->cdp ?? $po->cdp ?? $convocatoria?->cdps->first();
 
-            // Fuente de financiación (del CDP funding sources)
-            $fundingSourceName = '';
-            if ($cdp && $cdp->fundingSources->isNotEmpty()) {
-                $fs = $cdp->fundingSources->first()->fundingSource;
-                $fundingSourceName = $fs ? "{$fs->name} ({$fs->code})" : '';
+            // Datos comunes a todas las filas que se generen para este PO
+            $baseData = [
+                'id'                => $po->id,
+                'payment_number'    => $po->payment_number,
+                'formatted_number'  => $po->formatted_number,
+                'payment_date'      => $po->payment_date?->format('Y/m/d'),
+                'invoice_number'    => $po->invoice_number,
+                'invoice_date'      => $po->invoice_date?->format('Y/m/d'),
+                'supplier_name'     => $supplier?->full_name ?? '',
+                'supplier_document' => $supplier?->document_number ?? '',
+                'supplier_address'  => $supplier?->address ?? '',
+                'detail'            => $contract?->object ?? $po->description ?? '',
+                'sede'              => 'RECTORÍA',
+                'contract_number'   => $contract ? "CONTRATO No. {$contract->formatted_number}" : ($po->payment_type === 'direct' ? 'PAGO DIRECTO' : ''),
+                'contract_date'     => $contract?->start_date?->format('Y/m/d'),
+                'cdp_number'        => $cdp?->cdp_number ?? '',
+                'rp_number'         => $rp?->rp_number ?? '',
+                'status'            => $po->status,
+            ];
+
+            // Construir un mapa budget_id => ['code','name','fs_code','fs_name'] a partir del RP
+            // para poder distribuir el monto neto por cada rubro+fuente.
+            $rpSources = collect();
+            if ($rp) {
+                $rpSources = $rp->fundingSources;
+            }
+            $totalRpAmount = (float) $rpSources->sum('amount');
+
+            // Expense lines del PO (una por rubro/código de gasto)
+            $expenseLines = $po->expenseLines;
+
+            // Caso A: hay expense_lines + RP con fuentes → desglosar por cada combinación
+            if ($expenseLines->isNotEmpty() && $rpSources->isNotEmpty()) {
+                foreach ($expenseLines as $line) {
+                    $ec        = $line->expenseCode;
+                    $dist      = $line->expenseDistribution;
+                    $bi        = $dist?->budget?->budgetItem;
+                    $rubroCode = $ec?->code ?? $bi?->code ?? '';
+                    $rubroName = $ec?->name ?? $bi?->name ?? '';
+                    $lineTotal = (float) $line->total;
+                    $lineRet   = (float) $line->total_retentions;
+                    $lineNet   = (float) $line->net_payment;
+
+                    // Prorratear el total de la línea entre las fuentes del RP
+                    foreach ($rpSources as $rpFs) {
+                        $fs    = $rpFs->fundingSource;
+                        $ratio = $totalRpAmount > 0 ? (float) $rpFs->amount / $totalRpAmount : 1;
+                        $rows[] = array_merge($baseData, [
+                            'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
+                            'rubro_code'     => $rubroCode,
+                            'rubro_name'     => $rubroName,
+                            'total'          => round($lineTotal * $ratio, 2),
+                            'retefuente'     => round((float) $line->retefuente * $ratio, 2),
+                            'reteiva'        => round((float) $line->reteiva * $ratio, 2),
+                            'estampillas'    => round(((float) $line->estampilla_produlto_mayor + (float) $line->estampilla_procultura) * $ratio, 2),
+                            'otros_impuestos'=> round((float) $line->retencion_ica * $ratio, 2),
+                            'net_payment'    => round($lineNet * $ratio, 2),
+                        ]);
+                    }
+                }
+                continue;
             }
 
-            // Rubro presupuestal (de las líneas de gasto)
-            $firstLine = $po->expenseLines->first();
-            $budgetItem = $firstLine?->expenseDistribution?->budget?->budgetItem;
-            $rubroCode = $budgetItem?->code ?? '';
-            $rubroName = $budgetItem?->name ?? '';
+            // Caso B: hay expense_lines pero no fuentes del RP (inusual) → una fila por línea
+            if ($expenseLines->isNotEmpty()) {
+                foreach ($expenseLines as $line) {
+                    $ec        = $line->expenseCode;
+                    $dist      = $line->expenseDistribution;
+                    $bi        = $dist?->budget?->budgetItem;
+                    $fs        = $dist?->budget?->fundingSource;
+                    $rows[] = array_merge($baseData, [
+                        'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
+                        'rubro_code'     => $ec?->code ?? $bi?->code ?? '',
+                        'rubro_name'     => $ec?->name ?? $bi?->name ?? '',
+                        'total'          => (float) $line->total,
+                        'retefuente'     => (float) $line->retefuente,
+                        'reteiva'        => (float) $line->reteiva,
+                        'estampillas'    => (float) $line->estampilla_produlto_mayor + (float) $line->estampilla_procultura,
+                        'otros_impuestos'=> (float) $line->retencion_ica,
+                        'net_payment'    => (float) $line->net_payment,
+                    ]);
+                }
+                continue;
+            }
 
-            // Expense code
-            $expenseCode = $firstLine?->expenseCode;
+            // Caso C: no hay expense_lines (pago viejo o impuesto) → una fila por fuente del RP
+            if ($rpSources->isNotEmpty()) {
+                $poTotal = (float) $po->total;
+                $poNet   = (float) $po->net_payment;
+                foreach ($rpSources as $rpFs) {
+                    $fs    = $rpFs->fundingSource;
+                    $bi    = $rpFs->budget?->budgetItem;
+                    $ratio = $totalRpAmount > 0 ? (float) $rpFs->amount / $totalRpAmount : 1;
+                    $rows[] = array_merge($baseData, [
+                        'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
+                        'rubro_code'     => $bi?->code ?? '',
+                        'rubro_name'     => $bi?->name ?? '',
+                        'total'          => round($poTotal * $ratio, 2),
+                        'retefuente'     => round((float) $po->retefuente * $ratio, 2),
+                        'reteiva'        => round((float) $po->reteiva * $ratio, 2),
+                        'estampillas'    => round(((float) $po->estampilla_produlto_mayor + (float) $po->estampilla_procultura) * $ratio, 2),
+                        'otros_impuestos'=> round((float) $po->retencion_ica * $ratio, 2),
+                        'net_payment'    => round($poNet * $ratio, 2),
+                    ]);
+                }
+                continue;
+            }
 
-            return [
-                'id' => $po->id,
-                'payment_number' => $po->payment_number,
-                'formatted_number' => $po->formatted_number,
-                'payment_date' => $po->payment_date?->format('Y/m/d'),
-                'invoice_number' => $po->invoice_number,
-                'invoice_date' => $po->invoice_date?->format('Y/m/d'),
-                'supplier_name' => $supplier?->full_name ?? '',
-                'supplier_document' => $supplier?->document_number ?? '',
-                'supplier_address' => $supplier?->address ?? '',
-                'funding_source' => $fundingSourceName,
-                'rubro_code' => $expenseCode?->code ?? $rubroCode,
-                'rubro_name' => $expenseCode?->name ?? $rubroName,
-                'detail' => $contract?->object ?? $po->description ?? '',
-                'sede' => 'RECTORÍA',
-                'contract_number' => $contract ? "CONTRATO No. {$contract->formatted_number}" : ($po->payment_type === 'direct' ? 'PAGO DIRECTO' : ''),
-                'contract_date' => $contract?->start_date?->format('Y/m/d'),
-                'cdp_number' => $cdp?->cdp_number ?? '',
-                'rp_number' => $rp?->rp_number ?? '',
-                'total' => (float) $po->total,
-                'retefuente' => (float) $po->retefuente,
-                'reteiva' => (float) $po->reteiva,
-                'estampillas' => (float) ($po->estampilla_produlto_mayor + $po->estampilla_procultura),
-                'otros_impuestos' => (float) $po->retencion_ica,
-                'net_payment' => (float) $po->net_payment,
-                'status' => $po->status,
-            ];
-        })->toArray();
+            // Caso D: sin contrato/RP y sin expense_lines → una sola fila con datos de la orden
+            $bi = $po->budgetItem;
+            $rows[] = array_merge($baseData, [
+                'funding_source' => '',
+                'rubro_code'     => $bi?->code ?? '',
+                'rubro_name'     => $bi?->name ?? '',
+                'total'          => (float) $po->total,
+                'retefuente'     => (float) $po->retefuente,
+                'reteiva'        => (float) $po->reteiva,
+                'estampillas'    => (float) ($po->estampilla_produlto_mayor + $po->estampilla_procultura),
+                'otros_impuestos'=> (float) $po->retencion_ica,
+                'net_payment'    => (float) $po->net_payment,
+            ]);
+        }
+
+        $this->payments = $rows;
 
         // Filtro por fuente de financiación (post-query)
         if ($this->filterFundingSource) {

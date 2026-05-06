@@ -42,15 +42,29 @@ class ContraloriaSuppliersPaymentsReport extends Component
     {
         $year = (int) $this->filterYear;
 
-        // Pagos que cuentan con CDP y RP (ya sean de contrato o directos con CDP/RP)
+        // Pagos que cuentan con CDP y RP (de contrato o directos con CDP/RP).
+        // Un pago de contrato tiene cdp/rp a través de contract → rps.
+        // Un pago directo con CDP/RP tiene cdp_id/contract_rp_id en la propia orden.
         $orders = PaymentOrder::where('school_id', $this->schoolId)
             ->where('fiscal_year', $year)
-            ->whereNotNull('cdp_id')
-            ->whereNotNull('contract_rp_id')
             ->whereIn('status', ['approved', 'paid'])
+            ->where(function ($q) {
+                // A) Pago de contrato: tiene contract_id y el contrato tiene al menos un RP activo
+                $q->where(function ($sub) {
+                    $sub->whereNotNull('contract_id')
+                        ->whereHas('contract.rps', fn($rq) => $rq->where('status', 'active'));
+                });
+                // B) Pago directo con CDP y RP
+                $q->orWhere(function ($sub) {
+                    $sub->whereNotNull('cdp_id')->whereNotNull('contract_rp_id');
+                });
+            })
             ->with([
                 'supplier',
                 'contract.supplier',
+                'contract.rps.cdp.budgetItem',
+                'contract.rps.fundingSources.bank',
+                'contract.rps.fundingSources.bankAccount',
                 'cdp.budgetItem',
                 'contractRp.fundingSources.bank',
                 'contractRp.fundingSources.bankAccount',
@@ -62,9 +76,10 @@ class ContraloriaSuppliersPaymentsReport extends Component
 
         $this->rows = $orders->map(function (PaymentOrder $po) {
             // ── Código Presupuestal ─────────────────────────────────
-            // Prioridad: expense line code → CDP budget item code → payment order budget item
+            // Prioridad: expense line code → CDP budget item code → contract.rps.cdp → payment order budget item
             $codigoPresupuestal = $po->expenseLines->first()?->expenseCode?->code
                 ?? $po->cdp?->budgetItem?->code
+                ?? $po->contract?->rps->first()?->cdp?->budgetItem?->code
                 ?? $po->budgetItem?->code
                 ?? '';
 
@@ -79,17 +94,16 @@ class ContraloriaSuppliersPaymentsReport extends Component
             $beneficiario = $supplier?->full_name ?? ($po->description ?? 'N/D');
             $nit          = $supplier?->document_number ?? '';
 
-            // ── Banco y cuenta (desde fuentes de financiación del RP) ─
+            // ── Banco y cuenta (desde fuentes del RP — directo o del contrato) ─
             $banco    = 'N/D';
             $noCuenta = 'N/D';
 
-            $rpFs = $po->contractRp?->fundingSources->first();
+            $rpFs = $po->contractRp?->fundingSources->first()
+                ?? $po->contract?->rps->first()?->fundingSources->first();
             if ($rpFs) {
-                // Intentar banco directo del RP funding source
                 if ($rpFs->bank) {
                     $banco = $rpFs->bank->name;
                 }
-                // Cuenta bancaria del RP funding source
                 if ($rpFs->bankAccount) {
                     $banco    = $rpFs->bankAccount->bank?->name ?? $banco;
                     $noCuenta = $rpFs->bankAccount->account_number;

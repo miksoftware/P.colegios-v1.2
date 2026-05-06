@@ -84,25 +84,21 @@ class IncomeExecutionReport extends Component
 
         $budgetIds = $budgets->pluck('id')->toArray();
 
-        $incomesByFundingSource = [];
-        if (!empty($budgetIds)) {
-            $fundingSourceIds = $budgets->pluck('funding_source_id')->unique()->filter()->toArray();
-            if (!empty($fundingSourceIds)) {
-                $query = Income::forSchool($this->schoolId)
-                    ->whereIn('funding_source_id', $fundingSourceIds);
+        // Recaudos por fuente de financiación, sin limitar a las fuentes con presupuesto
+        // (así aparecen también los ingresos cuya fuente no tiene presupuesto registrado).
+        $query = Income::forSchool($this->schoolId);
 
-                if ($dateFrom && $dateTo) {
-                    $query->whereBetween('date', [$dateFrom, $dateTo]);
-                } else {
-                    $query->forYear($year);
-                }
-
-                $incomesByFundingSource = $query->selectRaw('funding_source_id, SUM(amount) as total')
-                    ->groupBy('funding_source_id')
-                    ->pluck('total', 'funding_source_id')
-                    ->toArray();
-            }
+        if ($dateFrom && $dateTo) {
+            $query->whereBetween('date', [$dateFrom, $dateTo]);
+        } else {
+            $query->forYear($year);
         }
+
+        $incomesByFundingSource = $query
+            ->selectRaw('funding_source_id, SUM(amount) as total')
+            ->groupBy('funding_source_id')
+            ->pluck('total', 'funding_source_id')
+            ->toArray();
 
         $this->rows = [];
 
@@ -129,6 +125,31 @@ class IncomeExecutionReport extends Component
                 'recaudos' => $recaudos,
                 'pending' => $pending,
             ];
+        }
+
+        // Incluir ingresos cuya fuente NO tiene presupuesto registrado del año,
+        // para que el total de recaudos refleje TODOS los ingresos del colegio.
+        $budgetedFsIds = $budgets->pluck('funding_source_id')->unique()->toArray();
+        $orphanFsIds = array_diff(array_keys($incomesByFundingSource), $budgetedFsIds);
+        if (!empty($orphanFsIds)) {
+            $orphanFsList = \App\Models\FundingSource::with('budgetItem')->whereIn('id', $orphanFsIds)->get();
+            foreach ($orphanFsList as $fs) {
+                $recaudos = (float) ($incomesByFundingSource[$fs->id] ?? 0);
+                if ($recaudos <= 0) continue;
+                $this->rows[] = [
+                    'budget_id'           => null,
+                    'rubro_code'          => $fs->budgetItem?->code ?? '',
+                    'rubro_name'          => $fs->budgetItem?->name ?? $fs->name,
+                    'funding_source_code' => $fs->code ?? '',
+                    'funding_source_name' => $fs->name ?? '',
+                    'initial'             => 0,
+                    'additions'           => 0,
+                    'reductions'          => 0,
+                    'definitive'          => 0,
+                    'recaudos'            => $recaudos,
+                    'pending'             => -$recaudos,
+                ];
+            }
         }
 
         $c = collect($this->rows);

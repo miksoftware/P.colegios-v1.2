@@ -143,8 +143,8 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                    @forelse($payments as $p)
-                    <tr class="hover:bg-blue-50/50 transition-colors" wire:key="payment-{{ $p['id'] }}">
+                    @forelse($payments as $pi => $p)
+                    <tr class="hover:bg-blue-50/50 transition-colors" wire:key="payment-{{ $p['id'] }}-{{ $pi }}">
                         <td class="px-4 py-3 whitespace-nowrap font-mono font-medium text-blue-600">{{ $p['formatted_number'] }}</td>
                         <td class="px-4 py-3 whitespace-nowrap text-gray-600">{{ $p['payment_date'] }}</td>
                         <td class="px-4 py-3">

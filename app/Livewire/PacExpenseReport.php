@@ -72,35 +72,58 @@ class PacExpenseReport extends Component
                 ->toArray();
         }
 
-        // Pre-load payments per expense_distribution grouped by month
+        // Pre-load payments per expense_distribution grouped by RP month (no payment month)
+        // El PAC refleja el MOMENTO DEL COMPROMISO (RP), no el pago.
+        // Cadena: rp_funding_sources → contract_rps → contracts → convocatoria_distributions
         $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
 
         $paymentsByDistMonth = [];
         if (!empty($distIds)) {
-            $rawPayments = PaymentOrderExpenseLine::whereIn('expense_distribution_id', $distIds)
-                ->whereHas('paymentOrder', fn($q) => $q->whereIn('status', ['approved', 'paid']))
-                ->join('payment_orders', 'payment_orders.id', '=', 'payment_order_expense_lines.payment_order_id')
-                ->selectRaw('expense_distribution_id, MONTH(payment_orders.payment_date) as pay_month, SUM(payment_order_expense_lines.total) as total_paid')
-                ->groupBy('expense_distribution_id', 'pay_month')
+            $rawRps = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
+                ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
+                ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
+                ->join('convocatoria_distributions as cd', 'cd.convocatoria_id', '=', 'c.convocatoria_id')
+                ->join('expense_distributions as ed', function ($join) {
+                    $join->on('ed.id', '=', 'cd.expense_distribution_id')
+                         ->on('ed.budget_id', '=', 'rfs.budget_id');
+                })
+                ->whereIn('cd.expense_distribution_id', $distIds)
+                ->where('cr.status', '!=', 'cancelled')
+                ->where('c.status', '!=', 'annulled')
+                ->selectRaw('cd.expense_distribution_id, MONTH(COALESCE(cr.otrosi_date, cr.created_at)) as pay_month, SUM(rfs.amount) as total_amount')
+                ->groupBy('cd.expense_distribution_id', 'pay_month')
                 ->get();
 
-            foreach ($rawPayments as $rp) {
-                $paymentsByDistMonth[$rp->expense_distribution_id][$rp->pay_month] = (float) $rp->total_paid;
+            foreach ($rawRps as $rp) {
+                $paymentsByDistMonth[$rp->expense_distribution_id][$rp->pay_month] = (float) $rp->total_amount;
+            }
+
+            // Pagos directos con expense_lines: atribuir al mes del payment_date
+            // (no tienen RP propio de contrato, representan compromiso y pago simultáneos)
+            $rawDirectLines = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
+                ->join('payment_orders as po', 'po.id', '=', 'pol.payment_order_id')
+                ->whereIn('pol.expense_distribution_id', $distIds)
+                ->where('po.payment_type', 'direct')
+                ->whereIn('po.status', ['approved', 'paid'])
+                ->selectRaw('pol.expense_distribution_id, MONTH(po.payment_date) as pay_month, SUM(pol.total) as total_paid')
+                ->groupBy('pol.expense_distribution_id', 'pay_month')
+                ->get();
+
+            foreach ($rawDirectLines as $dp) {
+                $m = (int) $dp->pay_month;
+                $paymentsByDistMonth[$dp->expense_distribution_id][$m] = ($paymentsByDistMonth[$dp->expense_distribution_id][$m] ?? 0) + (float) $dp->total_paid;
             }
         }
 
-        // Also get total payments per distribution (for summary)
+        // Also get total payments per distribution (for summary) — usar mismos datos
         $totalPaymentsByDist = [];
-        if (!empty($distIds)) {
-            $totalPaymentsByDist = PaymentOrderExpenseLine::whereIn('expense_distribution_id', $distIds)
-                ->whereHas('paymentOrder', fn($q) => $q->whereIn('status', ['approved', 'paid']))
-                ->selectRaw('expense_distribution_id, SUM(total) as total_paid')
-                ->groupBy('expense_distribution_id')
-                ->pluck('total_paid', 'expense_distribution_id')
-                ->toArray();
+        foreach ($paymentsByDistMonth as $distId => $months) {
+            $totalPaymentsByDist[$distId] = array_sum($months);
         }
 
-        // Pre-load direct payments per budget_item grouped by month
+        // Pre-load direct payments per budget_item grouped by month (pagos directos puros).
+        // Los pagos directos sin CDP/RP representan compromiso+pago simultáneos,
+        // por lo que usamos payment_date como mes del compromiso.
         $budgetItemIds = $budgets->pluck('budget_item_id')->unique()->toArray();
         $directPaymentsByItemMonth = [];
         $directPaymentsTotalByItem = [];
@@ -108,8 +131,11 @@ class PacExpenseReport extends Component
             $rawDirect = \App\Models\PaymentOrder::where('school_id', $this->schoolId)
                 ->where('fiscal_year', $year)
                 ->where('payment_type', 'direct')
+                ->whereNull('cdp_id')
                 ->whereIn('budget_item_id', $budgetItemIds)
                 ->whereIn('status', ['approved', 'paid'])
+                ->whereDoesntHave('expenseLines')
+                ->whereDoesntHave('taxLines')
                 ->selectRaw('budget_item_id, MONTH(payment_date) as pay_month, SUM(total) as total_paid')
                 ->groupBy('budget_item_id', 'pay_month')
                 ->get();
@@ -176,17 +202,13 @@ class PacExpenseReport extends Component
                     $codeRows[$key]['contracredits'] += round($contracredits * $ratio, 2);
                     $codeRows[$key]['definitive'] += round($definitive * $ratio, 2);
 
-                    // Monthly payments from contract payment orders
+                    // Monthly commitments: RPs (via contrato) + pagos directos con línea
                     $monthlyData = $paymentsByDistMonth[$dist->id] ?? [];
                     for ($m = 1; $m <= 12; $m++) {
                         $codeRows[$key]['months'][$m] += (float) ($monthlyData[$m] ?? 0);
                     }
-
-                    // Add prorated direct payments by month
-                    $directMonthly = $directPaymentsByItemMonth[$budget->budget_item_id] ?? [];
-                    for ($m = 1; $m <= 12; $m++) {
-                        $codeRows[$key]['months'][$m] += round((float) ($directMonthly[$m] ?? 0) * $ratio, 2);
-                    }
+                    // Nota: los pagos directos sin expense_lines (budgetItem-level)
+                    // se agregan solo al presupuesto sin distribuciones (caso superior).
                 }
             }
         }

@@ -89,6 +89,13 @@ class PostcontractualPdfController extends Controller
                 if ($matched) {
                     return $this->buildAccountHierarchy($matched);
                 }
+                // Si no existe la cuenta contable específica, construir jerarquía
+                // con el nombre real del banco bajo 1110/111005
+                return [
+                    ['code' => '1110',   'name' => 'BANCOS Y CORPORACIONES', 'level' => 1, 'show_amount' => false],
+                    ['code' => '111005', 'name' => 'BANCOS NACIONALES',      'level' => 2, 'show_amount' => false],
+                    ['code' => '11100501','name' => strtoupper($bankName),   'level' => 3, 'show_amount' => true],
+                ];
             }
             $first = \App\Models\AccountingAccount::where('code', 'like', '1110%')
                 ->where('allows_movement', true)

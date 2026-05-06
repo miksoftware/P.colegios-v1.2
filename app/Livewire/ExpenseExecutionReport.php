@@ -90,64 +90,55 @@ class ExpenseExecutionReport extends Component
             ->get();
 
         // Pre-load commitments per expense_distribution:
-        // 1) Compromisos base = convocatoria_distributions.amount (convocatorias no canceladas, contratos no anulados)
-        // 2) Adiciones = RP is_addition=true, atribuidos a la distribución específica via contract→convocatoria→convocatoria_distributions
+        // Los compromisos son los RPs (Registros Presupuestales) que se hacen por contrato.
+        // La cadena es: rp_funding_sources → contract_rps → contracts → convocatorias →
+        // convocatoria_distributions → expense_distributions.
+        // El JOIN a expense_distributions garantiza que el budget_id del RP coincide
+        // con el de la distribución (evita duplicados cuando hay varias distribuciones
+        // por convocatoria).
         $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
-
-        // Mapa dist_id → budget_id (necesario para cruzar adiciones de RP)
-        $distBudgetMap = $budgets->flatMap(fn($b) => $b->distributions->map(fn($d) => ['dist_id' => $d->id, 'budget_id' => $b->id]))
-            ->pluck('budget_id', 'dist_id')
-            ->toArray();
 
         $commitmentsByDist = [];
         if (!empty($distIds)) {
-            // --- Compromisos base desde convocatorias ---
-            $baseQuery = \Illuminate\Support\Facades\DB::table('convocatoria_distributions')
-                ->join('convocatorias', 'convocatorias.id', '=', 'convocatoria_distributions.convocatoria_id')
-                ->leftJoin('contracts', 'contracts.convocatoria_id', '=', 'convocatorias.id')
-                ->whereIn('convocatoria_distributions.expense_distribution_id', $distIds)
-                ->where('convocatorias.status', '!=', 'cancelled')
-                ->where(function ($q) {
-                    $q->whereNull('contracts.id')
-                      ->orWhere('contracts.status', '!=', 'annulled');
-                });
-            if ($dateFrom && $dateTo) {
-                $baseQuery->whereBetween('convocatoria_distributions.created_at', [$dateFrom, $dateTo . ' 23:59:59']);
-            }
-            $baseCommitments = $baseQuery
-                ->selectRaw('convocatoria_distributions.expense_distribution_id, SUM(convocatoria_distributions.amount) as total')
-                ->groupBy('convocatoria_distributions.expense_distribution_id')
-                ->pluck('total', 'expense_distribution_id')
-                ->toArray();
-
-            // --- Adiciones de recursos (otrosí): atribuidas a la distribución exacta ---
-            // Cadena: rp_funding_sources → contract_rps (is_addition) → contracts → convocatoria_distributions
-            // El JOIN adicional a expense_distributions garantiza que el budget_id del RP coincida
-            // con el de la distribución, evitando duplicados cuando hay varias distribuciones por convocatoria.
-            $addQuery = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
+            // --- Compromisos reales: RPs vía budget_id ↔ expense_distribution.budget_id ---
+            // NO dependemos de convocatoria_distributions porque no todos los contratos
+            // tienen distribuciones (p.ej. contratos con CDP pero sin convocatoria formal).
+            $rpQuery = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
                 ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
                 ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
-                ->join('convocatoria_distributions as cd', 'cd.convocatoria_id', '=', 'c.convocatoria_id')
-                ->join('expense_distributions as ed', function ($join) {
-                    $join->on('ed.id', '=', 'cd.expense_distribution_id')
-                         ->on('ed.budget_id', '=', 'rfs.budget_id');
-                })
-                ->whereIn('cd.expense_distribution_id', $distIds)
-                ->where('cr.is_addition', true)
+                ->join('expense_distributions as ed', 'ed.budget_id', '=', 'rfs.budget_id')
+                ->whereIn('ed.id', $distIds)
                 ->where('cr.status', '!=', 'cancelled')
                 ->where('c.status', '!=', 'annulled');
             if ($dateFrom && $dateTo) {
-                $addQuery->whereBetween('cr.created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+                // Usar fecha del RP: otrosi_date si existe, de lo contrario created_at
+                $rpQuery->where(function ($q) use ($dateFrom, $dateTo) {
+                    $q->whereBetween('cr.otrosi_date', [$dateFrom, $dateTo])
+                      ->orWhere(function ($qq) use ($dateFrom, $dateTo) {
+                          $qq->whereNull('cr.otrosi_date')
+                             ->whereBetween('cr.created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+                      });
+                });
             }
-            $additionByDist = $addQuery
-                ->selectRaw('cd.expense_distribution_id, SUM(rfs.amount) as total')
-                ->groupBy('cd.expense_distribution_id')
-                ->pluck('total', 'expense_distribution_id')
-                ->toArray();
+            // Distribuir el monto del RP proporcionalmente entre las distribuciones del mismo budget
+            // (si hay varias distribuciones para el mismo budget, prorratear por amount)
+            $rpCommitmentsRaw = $rpQuery
+                ->selectRaw('ed.id as dist_id, ed.budget_id, ed.amount as dist_amount, rfs.amount as rfs_amount')
+                ->get();
+
+            // Sum per budget_id to get total distributions
+            $totalDistAmountByBudget = [];
+            foreach ($budgets as $b) {
+                $totalDistAmountByBudget[$b->id] = (float) $b->distributions->sum('amount');
+            }
+
+            foreach ($rpCommitmentsRaw as $row) {
+                $totalDist = (float) ($totalDistAmountByBudget[$row->budget_id] ?? 0);
+                $ratio = $totalDist > 0 ? (float) $row->dist_amount / $totalDist : 0;
+                $commitmentsByDist[$row->dist_id] = ($commitmentsByDist[$row->dist_id] ?? 0) + (float) $row->rfs_amount * $ratio;
+            }
 
             // --- Pagos directos CON expense_lines por distribución ---
-            // Estos pagos ya pasaron por CDP/RP (son compromisos reales) pero no
-            // generan entrada en convocatoria_distributions porque no vienen de contrato.
             $directWithLinesByDist = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
                 ->join('payment_orders as po', 'po.id', '=', 'pol.payment_order_id')
                 ->whereIn('pol.expense_distribution_id', $distIds)
@@ -162,11 +153,8 @@ class ExpenseExecutionReport extends Component
                 ->pluck('total', 'expense_distribution_id')
                 ->toArray();
 
-            // Combinar base + adiciones + directos con línea para cada distribución
-            foreach ($distIds as $dId) {
-                $commitmentsByDist[$dId] = (float) ($baseCommitments[$dId] ?? 0)
-                    + (float) ($additionByDist[$dId] ?? 0)
-                    + (float) ($directWithLinesByDist[$dId] ?? 0);
+            foreach ($directWithLinesByDist as $dId => $total) {
+                $commitmentsByDist[$dId] = ($commitmentsByDist[$dId] ?? 0) + (float) $total;
             }
         }
 
@@ -179,7 +167,11 @@ class ExpenseExecutionReport extends Component
                 ->whereHas('contractRp', function ($q) use ($dateFrom, $dateTo) {
                     $q->where('status', '!=', 'cancelled');
                     if ($dateFrom && $dateTo) {
-                        $q->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+                        // Usar fecha del RP (created_at del contract_rp) u otrosi_date
+                        $q->where(function ($qq) use ($dateFrom, $dateTo) {
+                            $qq->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
+                               ->orWhereBetween('otrosi_date', [$dateFrom, $dateTo]);
+                        });
                     }
                 });
             $commitmentsByBudget = $q2->selectRaw('budget_id, SUM(amount) as total')

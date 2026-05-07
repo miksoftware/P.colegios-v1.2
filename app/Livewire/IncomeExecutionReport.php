@@ -18,6 +18,7 @@ class IncomeExecutionReport extends Component
 
     public $rows = [];
     public $totals = [];
+    public $incomeDetails = [];
 
     public function mount()
     {
@@ -161,6 +162,44 @@ class IncomeExecutionReport extends Component
             'recaudos' => $c->sum('recaudos'),
             'pending' => $c->sum('pending'),
         ];
+
+        // Detalle de cada ingreso (fila por fila) para que se vea cada recaudo individual.
+        $detailsQuery = Income::forSchool($this->schoolId)
+            ->with(['fundingSource.budgetItem', 'bankAccounts.bank', 'bankAccounts.bankAccount']);
+
+        if ($dateFrom && $dateTo) {
+            $detailsQuery->whereBetween('date', [$dateFrom, $dateTo]);
+        } else {
+            $detailsQuery->forYear($year);
+        }
+
+        $this->incomeDetails = $detailsQuery
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get()
+            ->map(function ($income) {
+                $bankInfo = $income->bankAccounts->map(function ($ba) {
+                    $bankName = $ba->bank?->name ?? '';
+                    $acctNum  = $ba->bankAccount?->account_number ?? '';
+                    return trim($bankName . ($acctNum ? ' - ' . $acctNum : ''));
+                })->filter()->join(' | ');
+
+                return [
+                    'id'                  => $income->id,
+                    'date'                => $income->date?->format('Y/m/d') ?? '',
+                    'name'                => $income->name,
+                    'description'         => $income->description,
+                    'rubro_code'          => $income->fundingSource?->budgetItem?->code ?? '',
+                    'rubro_name'          => $income->fundingSource?->budgetItem?->name ?? '',
+                    'funding_source_code' => $income->fundingSource?->code ?? '',
+                    'funding_source_name' => $income->fundingSource?->name ?? '',
+                    'bank_info'           => $bankInfo,
+                    'payment_method'      => $income->payment_method ?? '',
+                    'reference'           => $income->transaction_reference ?? '',
+                    'amount'              => (float) $income->amount,
+                ];
+            })
+            ->toArray();
 
         $this->dispatch('reportLoaded');
     }

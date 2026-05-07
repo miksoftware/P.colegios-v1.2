@@ -90,7 +90,7 @@
         </div>
         @endif
 
-        {{-- Tabla --}}
+        {{-- Tabla Resumen por Rubro/Fuente --}}
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-xs">
@@ -111,8 +111,8 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        @forelse($rows as $r)
-                        <tr class="hover:bg-blue-50/50 transition-colors" wire:key="row-{{ $r['budget_id'] }}">
+                        @forelse($rows as $ri => $r)
+                        <tr class="hover:bg-blue-50/50 transition-colors" wire:key="row-{{ $r['budget_id'] ?? 'orphan' }}-{{ $ri }}">
                             <td class="px-3 py-2.5 whitespace-nowrap font-mono text-xs text-blue-700">{{ $r['rubro_code'] }}</td>
                             <td class="px-3 py-2.5 text-gray-900 max-w-[250px] truncate" title="{{ $r['rubro_name'] }}">{{ $r['rubro_name'] }}</td>
                             <td class="px-3 py-2.5 text-center whitespace-nowrap">
@@ -149,6 +149,64 @@
                 </table>
             </div>
         </div>
+
+        {{-- Detalle de Recaudos --}}
+        <div class="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-700">Detalle de Recaudos</h3>
+                <span class="text-xs text-gray-500">{{ count($incomeDetails) }} ingresos registrados</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-3 text-left font-medium text-gray-500 uppercase whitespace-nowrap">Fecha</th>
+                            <th class="px-3 py-3 text-left font-medium text-gray-500 uppercase">Concepto</th>
+                            <th class="px-3 py-3 text-left font-medium text-gray-500 uppercase whitespace-nowrap">Rubro</th>
+                            <th class="px-3 py-3 text-left font-medium text-gray-500 uppercase whitespace-nowrap">Fuente</th>
+                            <th class="px-3 py-3 text-left font-medium text-gray-500 uppercase whitespace-nowrap">Banco / Cuenta</th>
+                            <th class="px-3 py-3 text-left font-medium text-gray-500 uppercase whitespace-nowrap">Referencia</th>
+                            <th class="px-3 py-3 text-right font-medium text-gray-500 uppercase whitespace-nowrap">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @forelse($incomeDetails as $d)
+                        <tr class="hover:bg-blue-50/50 transition-colors" wire:key="income-{{ $d['id'] }}">
+                            <td class="px-3 py-2.5 whitespace-nowrap text-gray-600">{{ $d['date'] }}</td>
+                            <td class="px-3 py-2.5">
+                                <div class="text-gray-900 font-medium truncate max-w-[260px]" title="{{ $d['name'] }}">{{ $d['name'] }}</div>
+                                @if(!empty($d['description']))
+                                <div class="text-[10px] text-gray-500 truncate max-w-[260px]" title="{{ $d['description'] }}">{{ $d['description'] }}</div>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2.5">
+                                <div class="font-mono text-blue-700 text-xs">{{ $d['rubro_code'] }}</div>
+                                <div class="text-[10px] text-gray-500 truncate max-w-[180px]" title="{{ $d['rubro_name'] }}">{{ $d['rubro_name'] }}</div>
+                            </td>
+                            <td class="px-3 py-2.5 whitespace-nowrap">
+                                <span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700">{{ $d['funding_source_code'] }} - {{ $d['funding_source_name'] }}</span>
+                            </td>
+                            <td class="px-3 py-2.5 text-gray-700 text-[11px] max-w-[200px] truncate" title="{{ $d['bank_info'] }}">{{ $d['bank_info'] ?: '—' }}</td>
+                            <td class="px-3 py-2.5 text-gray-600 font-mono text-[11px]">{{ $d['reference'] ?: '—' }}</td>
+                            <td class="px-3 py-2.5 text-right whitespace-nowrap font-mono font-medium text-emerald-700">${{ number_format($d['amount'], 0, ',', '.') }}</td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="7" class="px-6 py-10 text-center text-gray-500">No se registraron ingresos en el periodo seleccionado</td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                    @if(count($incomeDetails) > 0)
+                    <tfoot class="bg-gray-50 font-semibold text-xs">
+                        <tr>
+                            <td colspan="6" class="px-3 py-3 text-right text-gray-700 uppercase">Total Recaudado:</td>
+                            <td class="px-3 py-3 text-right whitespace-nowrap font-mono text-emerald-700">${{ number_format(collect($incomeDetails)->sum('amount'), 0, ',', '.') }}</td>
+                        </tr>
+                    </tfoot>
+                    @endif
+                </table>
+            </div>
+        </div>
     </div>
 
     {{-- Hidden data for JS --}}
@@ -156,6 +214,7 @@
          data-school="{{ json_encode($school) }}"
          data-rows="{{ json_encode($rows) }}"
          data-totals="{{ json_encode($totals) }}"
+         data-details="{{ json_encode($incomeDetails) }}"
          data-period="{{ $this->periodLabel }}">
     </div>
 </div>
@@ -174,6 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
             school: JSON.parse(el.dataset.school || '{}'),
             rows: JSON.parse(el.dataset.rows || '[]'),
             totals: JSON.parse(el.dataset.totals || '{}'),
+            details: JSON.parse(el.dataset.details || '[]'),
             period: el.dataset.period || ''
         };
     }
@@ -226,6 +286,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!d) return;
 
             var wb = XLSX.utils.book_new();
+
+            // --- HOJA 1: Resumen por rubro/fuente ---
             var hdr = [
                 ['INFORME:', 'EJECUCIÓN DE INGRESOS'],
                 ['CÓDIGO DANE:', d.school.dane_code || 'N/A'],
@@ -267,7 +329,46 @@ document.addEventListener('DOMContentLoaded', function() {
             var ti = all.length - 1;
             cc.forEach(function(c) { var cell = XLSX.utils.encode_cell({r:ti,c:c}); if (ws[cell] && typeof ws[cell].v === 'number') ws[cell].z = '#,##0.00'; });
 
-            XLSX.utils.book_append_sheet(wb, ws, 'Ejecución de Ingresos');
+            XLSX.utils.book_append_sheet(wb, ws, 'Resumen');
+
+            // --- HOJA 2: Detalle de recaudos ---
+            var hdr2 = [
+                ['INFORME:', 'DETALLE DE RECAUDOS'],
+                ['CÓDIGO DANE:', d.school.dane_code || 'N/A'],
+                ['FONDO:', d.school.name || 'N/A'],
+                ['MUNICIPIO:', d.school.municipality || 'N/A'],
+                ['RECTOR:', d.school.rector_name || 'N/A'],
+                ['PAGADOR:', d.school.pagador_name || 'N/A'],
+                ['PERIODO:', d.period],
+                [],
+                ['FECHA','CONCEPTO','DESCRIPCIÓN','RUBRO','NOMBRE DEL RUBRO','CÓDIGO FUENTE','NOMBRE FUENTE','BANCO / CUENTA','MÉTODO PAGO','REFERENCIA','VALOR']
+            ];
+
+            var data2 = d.details.map(function(x) {
+                return [x.date, x.name, x.description || '', x.rubro_code, x.rubro_name,
+                        x.funding_source_code, x.funding_source_name, x.bank_info,
+                        x.payment_method || '', x.reference || '', x.amount];
+            });
+
+            var totRec = d.details.reduce(function(s, x) { return s + (x.amount || 0); }, 0);
+            var tot2 = ['','','','','','','','','','TOTAL RECAUDADO:', totRec];
+
+            var all2 = hdr2.concat(data2, [[]], [tot2]);
+            var ws2 = XLSX.utils.aoa_to_sheet(all2);
+
+            ws2['!cols'] = [{wch:12},{wch:35},{wch:40},{wch:14},{wch:35},{wch:14},{wch:28},{wch:30},{wch:14},{wch:18},{wch:18}];
+            ws2['!merges'] = [{s:{r:0,c:1},e:{r:0,c:4}}];
+
+            for (var r = hdr2.length; r < hdr2.length + data2.length; r++) {
+                var cellVal = XLSX.utils.encode_cell({r:r,c:10});
+                if (ws2[cellVal] && typeof ws2[cellVal].v === 'number') ws2[cellVal].z = '#,##0.00';
+            }
+            var ti2 = all2.length - 1;
+            var cellTot = XLSX.utils.encode_cell({r:ti2,c:10});
+            if (ws2[cellTot] && typeof ws2[cellTot].v === 'number') ws2[cellTot].z = '#,##0.00';
+
+            XLSX.utils.book_append_sheet(wb, ws2, 'Detalle Recaudos');
+
             XLSX.writeFile(wb, 'Ejecucion_Ingresos_' + (d.school.name||'Colegio').replace(/[^a-zA-Z0-9]/g,'_') + '.xlsx');
         });
     }

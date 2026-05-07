@@ -171,8 +171,7 @@ class PaymentReportManagement extends Component
                 'status'            => $po->status,
             ];
 
-            // Construir un mapa budget_id => ['code','name','fs_code','fs_name'] a partir del RP
-            // para poder distribuir el monto neto por cada rubro+fuente.
+            // Fuentes del RP (para mapear budget_id → fuente como fallback)
             $rpSources = collect();
             if ($rp) {
                 $rpSources = $rp->fundingSources;
@@ -182,45 +181,25 @@ class PaymentReportManagement extends Component
             // Expense lines del PO (una por rubro/código de gasto)
             $expenseLines = $po->expenseLines;
 
-            // Caso A: hay expense_lines + RP con fuentes → desglosar por cada combinación
-            if ($expenseLines->isNotEmpty() && $rpSources->isNotEmpty()) {
-                foreach ($expenseLines as $line) {
-                    $ec        = $line->expenseCode;
-                    $dist      = $line->expenseDistribution;
-                    $bi        = $dist?->budget?->budgetItem;
-                    $rubroCode = $ec?->code ?? $bi?->code ?? '';
-                    $rubroName = $ec?->name ?? $bi?->name ?? '';
-                    $lineTotal = (float) $line->total;
-                    $lineRet   = (float) $line->total_retentions;
-                    $lineNet   = (float) $line->net_payment;
-
-                    // Prorratear el total de la línea entre las fuentes del RP
-                    foreach ($rpSources as $rpFs) {
-                        $fs    = $rpFs->fundingSource;
-                        $ratio = $totalRpAmount > 0 ? (float) $rpFs->amount / $totalRpAmount : 1;
-                        $rows[] = array_merge($baseData, [
-                            'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
-                            'rubro_code'     => $rubroCode,
-                            'rubro_name'     => $rubroName,
-                            'total'          => round($lineTotal * $ratio, 2),
-                            'retefuente'     => round((float) $line->retefuente * $ratio, 2),
-                            'reteiva'        => round((float) $line->reteiva * $ratio, 2),
-                            'estampillas'    => round(((float) $line->estampilla_produlto_mayor + (float) $line->estampilla_procultura) * $ratio, 2),
-                            'otros_impuestos'=> round((float) $line->retencion_ica * $ratio, 2),
-                            'net_payment'    => round($lineNet * $ratio, 2),
-                        ]);
-                    }
-                }
-                continue;
-            }
-
-            // Caso B: hay expense_lines pero no fuentes del RP (inusual) → una fila por línea
+            // Caso A: hay expense_lines → UNA FILA POR CADA RUBRO (línea)
+            // Cada línea ya tiene sus valores exactos (total, retenciones, neto)
+            // y su fuente de financiación viene de expense_distribution.budget.funding_source.
+            // No se prorratea entre fuentes del RP (eso producía filas duplicadas/fragmentadas).
             if ($expenseLines->isNotEmpty()) {
                 foreach ($expenseLines as $line) {
-                    $ec        = $line->expenseCode;
-                    $dist      = $line->expenseDistribution;
-                    $bi        = $dist?->budget?->budgetItem;
-                    $fs        = $dist?->budget?->fundingSource;
+                    $ec   = $line->expenseCode;
+                    $dist = $line->expenseDistribution;
+                    $bi   = $dist?->budget?->budgetItem;
+
+                    // Fuente de financiación: preferir la del budget de la distribución.
+                    $fs = $dist?->budget?->fundingSource;
+
+                    // Fallback: buscar en el RP la fuente cuyo budget_id coincida con el de la distribución.
+                    if (!$fs && $rpSources->isNotEmpty() && $dist?->budget_id) {
+                        $matchingRpFs = $rpSources->firstWhere('budget_id', $dist->budget_id);
+                        $fs = $matchingRpFs?->fundingSource;
+                    }
+
                     $rows[] = array_merge($baseData, [
                         'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
                         'rubro_code'     => $ec?->code ?? $bi?->code ?? '',

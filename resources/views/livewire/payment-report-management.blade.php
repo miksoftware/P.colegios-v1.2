@@ -134,6 +134,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rubro</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contrato</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">CDP</th>
                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">RP</th>
@@ -154,6 +155,10 @@
                         <td class="px-4 py-3 whitespace-nowrap">
                             <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">{{ $p['funding_source'] }}</span>
                         </td>
+                        <td class="px-4 py-3">
+                            <div class="font-mono text-xs text-gray-900">{{ $p['rubro_code'] }}</div>
+                            <div class="text-xs text-gray-500 truncate max-w-[240px]" title="{{ $p['rubro_name'] }}">{{ $p['rubro_name'] }}</div>
+                        </td>
                         <td class="px-4 py-3 whitespace-nowrap text-gray-700 text-xs">{{ $p['contract_number'] }}</td>
                         <td class="px-4 py-3 text-center font-mono text-gray-700">{{ $p['cdp_number'] }}</td>
                         <td class="px-4 py-3 text-center font-mono text-gray-700">{{ $p['rp_number'] }}</td>
@@ -163,7 +168,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="10" class="px-6 py-12 text-center text-gray-500">
+                        <td colspan="11" class="px-6 py-12 text-center text-gray-500">
                             <p>No se encontraron pagos para el periodo seleccionado</p>
                         </td>
                     </tr>
@@ -172,7 +177,7 @@
                 @if(count($payments) > 0)
                 <tfoot class="bg-gray-50 font-semibold text-sm">
                     <tr>
-                        <td colspan="7" class="px-4 py-3 text-right text-gray-700 uppercase text-xs">Totales:</td>
+                        <td colspan="8" class="px-4 py-3 text-right text-gray-700 uppercase text-xs">Totales:</td>
                         <td class="px-4 py-3 text-right whitespace-nowrap font-mono text-gray-900">${{ number_format($summary['total_amount'] ?? 0, 0, ',', '.') }}</td>
                         <td class="px-4 py-3 text-right whitespace-nowrap font-mono text-red-700">${{ number_format($summary['total_retentions'] ?? 0, 0, ',', '.') }}</td>
                         <td class="px-4 py-3 text-right whitespace-nowrap font-mono text-emerald-700">${{ number_format($summary['total_net'] ?? 0, 0, ',', '.') }}</td>

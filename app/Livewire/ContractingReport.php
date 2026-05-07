@@ -88,6 +88,33 @@ class ContractingReport extends Component
 
         $contracts = $query->orderBy('contract_number')->get();
 
+        // Precargar CDP → convocatoria_distribution → expense_distribution para asignación exacta
+        $cdpIds = $contracts
+            ->flatMap(fn($c) => $c->rps->pluck('cdp_id'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $distByCdp = [];
+        if (!empty($cdpIds)) {
+            $rows = \Illuminate\Support\Facades\DB::table('cdps as cdp')
+                ->leftJoin('convocatoria_distributions as cvd', 'cvd.id', '=', 'cdp.convocatoria_distribution_id')
+                ->leftJoin('expense_distributions as ed', 'ed.id', '=', 'cvd.expense_distribution_id')
+                ->leftJoin('expense_codes as ec', 'ec.id', '=', 'ed.expense_code_id')
+                ->whereIn('cdp.id', $cdpIds)
+                ->selectRaw('cdp.id cdp_id, ed.id ed_id, ed.budget_id, ec.code ec_code, ec.name ec_name, ec.sifse_code')
+                ->get();
+            foreach ($rows as $row) {
+                $distByCdp[$row->cdp_id] = [
+                    'ed_id'     => $row->ed_id,
+                    'budget_id' => $row->budget_id,
+                    'ec_code'   => $row->ec_code,
+                    'ec_name'   => $row->ec_name,
+                    'sifse'     => $row->sifse_code,
+                ];
+            }
+        }
+
         $this->rows = [];
 
         foreach ($contracts as $contract) {
@@ -146,33 +173,54 @@ class ContractingReport extends Component
                 $liquidationDate = $lastPayment->payment_date?->format('Y-m-d');
             }
 
-            // Construir pares (rubro + fuente + monto) desde RPs activos.
-            // Cada RP tiene UN rubro (via budget → budgetItem) y varias fuentes.
-            // Pero queremos filas por cada combinación rubro+fuente+código de gasto.
-            $rubroFuenteRows = []; // key: "rubroCode|fsCode" => ['rubro_code','rubro_name','rubro_sifse','acct_code','acct_name','fs_code','fs_name','amount']
+            // Construir filas por cada combinación RP + fuente de financiación.
+            // Cada RP del contrato tiene un CDP que apunta a UNA expense_distribution exacta
+            // (via convocatoria_distribution_id). Si no la tiene, caemos a la primera
+            // distribución del budget como antes (CDPs legacy).
+            // La clave se agranda con el rp_id para que RPs al mismo rubro+fuente
+            // queden en filas separadas (no se fusionen).
+            $rubroFuenteRows = []; // key único por RP+FS
             foreach ($rps->where('status', 'active') as $rp) {
+                $exactInfo = $distByCdp[$rp->cdp_id] ?? null;
+
                 foreach ($rp->fundingSources as $rpFs) {
                     $fs = $rpFs->fundingSource;
                     $b  = $rpFs->budget;
                     $bi = $b?->budgetItem;
                     $acct = $bi?->accountingAccount;
 
-                    // Buscar el ExpenseCode asociado al budget_id a través de expense_distributions
-                    $dist = null;
-                    if ($b) {
-                        $dist = $b->distributions->first() ?? null;
+                    // Asignación exacta: si el CDP del RP tiene convocatoria_distribution_id
+                    // y esa distribución cae en el mismo budget del rpFs, úsala.
+                    $ec = null;
+                    $sifseCode = '';
+                    $rubroCode = '';
+                    $rubroName = '';
+                    if ($exactInfo && (int) $exactInfo['budget_id'] === (int) $rpFs->budget_id) {
+                        $rubroCode = $exactInfo['ec_code'] ?? '';
+                        $rubroName = $exactInfo['ec_name'] ?? '';
+                        $sifseCode = $exactInfo['sifse'] ?? '';
+                    } else {
+                        // Fallback legacy: primera distribución del budget
+                        $dist = $b?->distributions->first();
+                        $ec   = $dist?->expenseCode;
+                        $rubroCode = $ec?->code ?? $bi?->code ?? '';
+                        $rubroName = $ec?->name ?? $bi?->name ?? '';
+                        $sifseCode = $ec?->sifse_code ?? '';
                     }
-                    $ec = $dist?->expenseCode;
 
-                    $rubroCode = $ec?->code ?? $bi?->code ?? '';
-                    $rubroName = $ec?->name ?? $bi?->name ?? '';
-                    $sifseCode = $ec?->sifse_code ?? '';
-                    $fsCode    = $fs?->code ?? '';
-                    $fsName    = $fs?->name ?? '';
-                    $key       = "{$rubroCode}|{$fsCode}";
+                    $fsCode = $fs?->code ?? '';
+                    $fsName = $fs?->name ?? '';
+                    // Key = rp_id + rubro + fs para que cada combinación quede en fila propia.
+                    $key    = "{$rp->id}|{$rubroCode}|{$fsCode}";
 
                     if (!isset($rubroFuenteRows[$key])) {
                         $rubroFuenteRows[$key] = [
+                            'rp_id'        => $rp->id,
+                            'rp_number'    => $rp->rp_number,
+                            'rp_date'      => $rp->otrosi_date?->format('Y-m-d')
+                                              ?? $contract->start_date?->format('Y-m-d')
+                                              ?? $rp->created_at?->format('Y-m-d')
+                                              ?? '',
                             'rubro_code'   => $rubroCode,
                             'rubro_name'   => $rubroName,
                             'sifse_code'   => $sifseCode,
@@ -188,23 +236,37 @@ class ContractingReport extends Component
                 }
             }
 
-            // Si no hay RPs activos, intentar por CDPs
+            // Si no hay RPs activos, intentar por CDPs (cada CDP en su propia fila)
             if (empty($rubroFuenteRows)) {
                 foreach ($cdps as $cdp) {
                     $bi = $cdp->budgetItem;
                     $acct = $bi?->accountingAccount;
+
+                    // Para CDP también intentamos asignación exacta si tiene convocatoria_distribution_id
+                    $cdpInfo = $distByCdp[$cdp->id] ?? null;
+
                     foreach ($cdp->fundingSources as $cdpFs) {
                         $fs = $cdpFs->fundingSource;
-                        $rubroCode = $bi?->code ?? '';
-                        $rubroName = $bi?->name ?? '';
+                        if ($cdpInfo && $cdpInfo['budget_id'] === $cdpFs->budget_id) {
+                            $rubroCode = $cdpInfo['ec_code'] ?? '';
+                            $rubroName = $cdpInfo['ec_name'] ?? '';
+                            $sifseCodeRow = $cdpInfo['sifse'] ?? '';
+                        } else {
+                            $rubroCode = $bi?->code ?? '';
+                            $rubroName = $bi?->name ?? '';
+                            $sifseCodeRow = '';
+                        }
                         $fsCode    = $fs?->code ?? '';
                         $fsName    = $fs?->name ?? '';
-                        $key       = "{$rubroCode}|{$fsCode}";
+                        $key       = "cdp{$cdp->id}|{$rubroCode}|{$fsCode}";
                         if (!isset($rubroFuenteRows[$key])) {
                             $rubroFuenteRows[$key] = [
+                                'rp_id'        => null,
+                                'rp_number'    => '',
+                                'rp_date'      => '',
                                 'rubro_code'   => $rubroCode,
                                 'rubro_name'   => $rubroName,
-                                'sifse_code'   => '',
+                                'sifse_code'   => $sifseCodeRow,
                                 'acct_code'    => $acct?->code ?? '',
                                 'acct_name'    => $acct?->name ?? '',
                                 'acct_parent'  => $acct?->parent,
@@ -235,6 +297,9 @@ class ContractingReport extends Component
             // Si no hay fuentes ni rubros, usar valor del contrato como fallback
             if (empty($rubroFuenteRows)) {
                 $rubroFuenteRows['_default'] = [
+                    'rp_id'        => null,
+                    'rp_number'    => $rpNumber,
+                    'rp_date'      => $fechaRp,
                     'rubro_code'   => $rubroCode ?? '',
                     'rubro_name'   => $rubroName ?? '',
                     'sifse_code'   => $sifseCode ?? '',
@@ -324,7 +389,10 @@ class ContractingReport extends Component
                 'id' => $contract->id,
             ];
 
-            // Generar una fila por cada combinación rubro + fuente de financiación
+            // Generar una fila por cada combinación RP + rubro + fuente de financiación.
+            // El monto de cada fila es el amount del RPFS (valor real comprometido en esa
+            // combinación). Subtotal e IVA se prorratean proporcional al monto de la fila
+            // respecto al total del contrato, ya que el contrato no los guarda desglosados.
             $totalContract = (float) $contract->total;
             $totalAllRows  = collect($rubroFuenteRows)->sum('amount');
 
@@ -345,9 +413,16 @@ class ContractingReport extends Component
                 $row['acct_grandparent_name']     = $acctGP?->name ?? '';
                 $row['funding_source']            = $r['fs_name'] ? "{$r['fs_name']} ({$r['fs_code']})" : '';
                 $row['funding_source_codes']      = $r['fs_code'];
+                // Si hay info específica del RP en esta fila, sobreescribir los campos del baseRow
+                if (!empty($r['rp_number'])) {
+                    $row['rp_number'] = $r['rp_number'];
+                }
+                if (!empty($r['rp_date'])) {
+                    $row['fecha_rp'] = $r['rp_date'];
+                }
                 $row['subtotal']                  = round((float) $contract->subtotal * $ratio, 2);
                 $row['iva']                       = round((float) $contract->iva * $ratio, 2);
-                $row['total']                     = round($totalContract * $ratio, 2);
+                $row['total']                     = round($r['amount'], 2);
                 $row['valor_letras']              = '';
                 $this->rows[]                     = $row;
             }
@@ -356,15 +431,19 @@ class ContractingReport extends Component
         // Resumen
         $collection = collect($this->rows);
         $this->summary = [
-            'total_contracts' => $collection->count(),
+            // Contratos únicos (no filas), para que el conteo no se infle por los desgloses
+            'total_contracts' => $collection->pluck('id')->unique()->count(),
             'total_amount' => $collection->sum('total'),
             'total_subtotal' => $collection->sum('subtotal'),
             'total_iva' => $collection->sum('iva'),
-            'by_status' => $collection->groupBy('status_name')->map(fn($g, $k) => [
-                'name' => $k ?: 'Sin estado',
-                'count' => $g->count(),
-                'total' => $g->sum('total'),
-            ])->values()->toArray(),
+            'by_status' => $collection
+                ->unique('id')
+                ->groupBy('status_name')
+                ->map(fn($g, $k) => [
+                    'name' => $k ?: 'Sin estado',
+                    'count' => $g->count(),
+                    'total' => $g->sum('total'),
+                ])->values()->toArray(),
             'by_funding' => $collection->groupBy('funding_source')->map(fn($g, $k) => [
                 'name' => $k ?: 'Sin fuente',
                 'count' => $g->count(),

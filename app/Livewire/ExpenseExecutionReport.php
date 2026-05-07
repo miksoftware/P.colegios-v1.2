@@ -5,7 +5,6 @@ namespace App\Livewire;
 use App\Models\Budget;
 use App\Models\ExpenseDistribution;
 use App\Models\PaymentOrderExpenseLine;
-use App\Models\RpFundingSource;
 use App\Models\School;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
@@ -111,14 +110,12 @@ class ExpenseExecutionReport extends Component
                 ->where('cr.status', '!=', 'cancelled')
                 ->where('c.status', '!=', 'annulled');
             if ($dateFrom && $dateTo) {
-                // Usar fecha del RP: otrosi_date si existe, de lo contrario created_at
-                $rpQuery->where(function ($q) use ($dateFrom, $dateTo) {
-                    $q->whereBetween('cr.otrosi_date', [$dateFrom, $dateTo])
-                      ->orWhere(function ($qq) use ($dateFrom, $dateTo) {
-                          $qq->whereNull('cr.otrosi_date')
-                             ->whereBetween('cr.created_at', [$dateFrom, $dateTo . ' 23:59:59']);
-                      });
-                });
+                // Fecha efectiva del RP:
+                //   - Adiciones: otrosi_date (fecha del otrosí)
+                //   - RPs normales: start_date del contrato (fecha de firma y expedición del RP)
+                // NO se usa cr.created_at porque es la fecha del registro en BD (p.ej. data
+                // cargada posteriormente), no la fecha fiscal del RP.
+                $rpQuery->whereRaw('COALESCE(cr.otrosi_date, c.start_date) BETWEEN ? AND ?', [$dateFrom, $dateTo]);
             }
             // Distribuir el monto del RP proporcionalmente entre las distribuciones del mismo budget
             // (si hay varias distribuciones para el mismo budget, prorratear por amount)
@@ -163,20 +160,19 @@ class ExpenseExecutionReport extends Component
         $budgetsWithoutDist = $budgets->filter(fn($b) => $b->distributions->isEmpty());
         if ($budgetsWithoutDist->isNotEmpty()) {
             $emptyBudgetIds = $budgetsWithoutDist->pluck('id')->toArray();
-            $q2 = RpFundingSource::whereIn('budget_id', $emptyBudgetIds)
-                ->whereHas('contractRp', function ($q) use ($dateFrom, $dateTo) {
-                    $q->where('status', '!=', 'cancelled');
-                    if ($dateFrom && $dateTo) {
-                        // Usar fecha del RP (created_at del contract_rp) u otrosi_date
-                        $q->where(function ($qq) use ($dateFrom, $dateTo) {
-                            $qq->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
-                               ->orWhereBetween('otrosi_date', [$dateFrom, $dateTo]);
-                        });
-                    }
-                });
-            $commitmentsByBudget = $q2->selectRaw('budget_id, SUM(amount) as total')
-                ->groupBy('budget_id')
-                ->pluck('total', 'budget_id')
+            $q2 = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
+                ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
+                ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
+                ->whereIn('rfs.budget_id', $emptyBudgetIds)
+                ->where('cr.status', '!=', 'cancelled')
+                ->where('c.status', '!=', 'annulled');
+            if ($dateFrom && $dateTo) {
+                // Misma lógica: fecha efectiva = otrosi_date (adiciones) o start_date del contrato
+                $q2->whereRaw('COALESCE(cr.otrosi_date, c.start_date) BETWEEN ? AND ?', [$dateFrom, $dateTo]);
+            }
+            $commitmentsByBudget = $q2->selectRaw('rfs.budget_id, SUM(rfs.amount) as total')
+                ->groupBy('rfs.budget_id')
+                ->pluck('total', 'rfs.budget_id')
                 ->toArray();
         }
 

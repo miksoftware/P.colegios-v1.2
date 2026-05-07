@@ -39,10 +39,36 @@
                         @endfor
                     </select>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Período (acumulado)</label>
+                    <select wire:model.live="filterQuarter" class="w-full rounded-xl border-gray-300">
+                        <option value="">Anual (Consolidado)</option>
+                        <optgroup label="── Trimestral ──">
+                            <option value="1">Al 1er Trimestre (Ene – Mar)</option>
+                            <option value="2">Al 2do Trimestre (Ene – Jun)</option>
+                            <option value="3">Al 3er Trimestre (Ene – Sep)</option>
+                            <option value="4">Al 4to Trimestre (Ene – Dic)</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Semestral (acumulado)</label>
+                    <select wire:model.live="filterSemester" class="w-full rounded-xl border-gray-300">
+                        <option value="">—</option>
+                        <option value="1">Al 1er Semestre (Ene – Jun)</option>
+                        <option value="2">Al 2do Semestre (Ene – Dic)</option>
+                    </select>
+                </div>
             </div>
         </div>
 
         {{-- Tarjetas --}}
+        @php
+            $lastMonth = $totals['last_included_month'] ?? 12;
+            $monthLabels = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+            $monthLabelsShown = array_slice($monthLabels, 0, $lastMonth);
+            $colsTotal = $lastMonth + 3; // concepto + N meses + total + observaciones
+        @endphp
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                 <p class="text-xs text-gray-500">Total Recaudado</p>
@@ -55,7 +81,7 @@
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                 <p class="text-xs text-gray-500">Meses con Recaudo</p>
                 <p class="text-xl font-bold text-gray-900">
-                    {{ collect($totals['months'] ?? [])->filter(fn($v) => $v > 0)->count() }} / 12
+                    {{ collect($totals['months'] ?? [])->filter(fn($v) => $v > 0)->count() }} / {{ $lastMonth }}
                 </p>
             </div>
         </div>
@@ -75,7 +101,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-3 py-3 text-left font-medium text-gray-500 uppercase whitespace-nowrap sticky left-0 bg-gray-50 z-10">Concepto de Ingreso</th>
-                            @foreach(['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] as $mLabel)
+                            @foreach($monthLabelsShown as $mLabel)
                                 <th class="px-2 py-3 text-right font-medium text-gray-500 uppercase text-[10px] whitespace-nowrap">{{ $mLabel }}</th>
                             @endforeach
                             <th class="px-3 py-3 text-right font-medium text-gray-500 uppercase whitespace-nowrap">Total</th>
@@ -84,9 +110,13 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @forelse($rows as $idx => $r)
+                        @php
+                            $rowTotalShown = 0;
+                            for ($mm = 1; $mm <= $lastMonth; $mm++) { $rowTotalShown += (float) ($r['months'][$mm] ?? 0); }
+                        @endphp
                         <tr class="hover:bg-blue-50/50 transition-colors" wire:key="pac-inc-row-{{ $idx }}">
                             <td class="px-3 py-2.5 whitespace-nowrap font-semibold text-xs text-gray-900 sticky left-0 bg-white z-10 uppercase">{{ $r['name'] }}</td>
-                            @for($m = 1; $m <= 12; $m++)
+                            @for($m = 1; $m <= $lastMonth; $m++)
                                 <td class="px-2 py-2.5 text-right whitespace-nowrap font-mono text-indigo-700 text-[11px]">
                                     @if($r['months'][$m] > 0)
                                         ${{ number_format($r['months'][$m], 2, ',', '.') }}
@@ -95,12 +125,12 @@
                                     @endif
                                 </td>
                             @endfor
-                            <td class="px-3 py-2.5 text-right whitespace-nowrap font-mono font-medium text-emerald-700">${{ number_format($r['total'], 2, ',', '.') }}</td>
+                            <td class="px-3 py-2.5 text-right whitespace-nowrap font-mono font-medium text-emerald-700">${{ number_format($rowTotalShown, 2, ',', '.') }}</td>
                             <td class="px-3 py-2.5 text-gray-600 max-w-[250px] truncate" title="{{ $r['observations'] }}">{{ $r['observations'] }}</td>
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="15" class="px-6 py-12 text-center text-gray-500">
+                            <td colspan="{{ $colsTotal }}" class="px-6 py-12 text-center text-gray-500">
                                 <p>No se encontraron presupuestos de ingreso para esta vigencia</p>
                             </td>
                         </tr>
@@ -110,7 +140,7 @@
                     <tfoot class="bg-gray-50 font-semibold text-xs">
                         <tr>
                             <td class="px-3 py-3 text-right text-gray-700 uppercase sticky left-0 bg-gray-50 z-10">TOTALES</td>
-                            @for($m = 1; $m <= 12; $m++)
+                            @for($m = 1; $m <= $lastMonth; $m++)
                                 <td class="px-2 py-3 text-right whitespace-nowrap font-mono text-indigo-700 text-[11px]">${{ number_format($totals['months'][$m] ?? 0, 2, ',', '.') }}</td>
                             @endfor
                             <td class="px-3 py-3 text-right whitespace-nowrap font-mono text-emerald-700">${{ number_format($totals['total'] ?? 0, 2, ',', '.') }}</td>
@@ -162,13 +192,18 @@ document.addEventListener('DOMContentLoaded', function() {
         var d = getData();
         if (!d) return;
         var mt = d.totals.months || {};
+        var lastMonth = parseInt(d.totals.last_included_month || 12, 10) || 12;
         var vals = [];
-        for (var i = 1; i <= 12; i++) vals.push(mt[i] || 0);
+        var labels = [];
+        for (var i = 1; i <= lastMonth; i++) {
+            vals.push(mt[i] || 0);
+            labels.push(mNames[i - 1]);
+        }
 
         chartPacIncome = new Chart(canvas, {
             type: 'bar',
             data: {
-                labels: mNames,
+                labels: labels,
                 datasets: [{
                     label: 'Recaudo',
                     data: vals,
@@ -204,45 +239,52 @@ document.addEventListener('DOMContentLoaded', function() {
             var d = getData();
             if (!d) return;
 
+            var lastMonth = parseInt(d.totals.last_included_month || 12, 10) || 12;
+            var shownMonths = mFull.slice(0, lastMonth);
+
             var wb = XLSX.utils.book_new();
             var hdr = [
                 [d.school.name || 'INSTITUCION EDUCATIVA'],
                 ['PAC INGRESOS ' + d.period],
                 [],
-                ['MES / CONCEPTO DE INGRESO'].concat(mFull, ['TOTAL', 'OBSERVACIONES'])
+                ['MES / CONCEPTO DE INGRESO'].concat(shownMonths, ['TOTAL', 'OBSERVACIONES'])
             ];
 
             var data = d.rows.map(function(r) {
                 var row = [r.name];
-                for (var m = 1; m <= 12; m++) row.push(r.months[m] || 0);
-                row.push(r.total, r.observations || '');
+                var rowTotal = 0;
+                for (var m = 1; m <= lastMonth; m++) {
+                    var v = r.months[m] || 0;
+                    row.push(v);
+                    rowTotal += v;
+                }
+                row.push(rowTotal, r.observations || '');
                 return row;
             });
 
             var mt = d.totals.months || {};
             var tot = ['TOTALES'];
-            for (var m = 1; m <= 12; m++) tot.push(mt[m] || 0);
+            for (var m = 1; m <= lastMonth; m++) tot.push(mt[m] || 0);
             tot.push(d.totals.total, '');
 
             var all = hdr.concat(data, [[]], [tot]);
             var ws = XLSX.utils.aoa_to_sheet(all);
 
-            ws['!cols'] = [
-                {wch:40},
-                {wch:18},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18},
-                {wch:18},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18},
-                {wch:22},{wch:40}
-            ];
+            var cols = [{wch:40}];
+            for (var i = 0; i < lastMonth; i++) cols.push({wch:18});
+            cols.push({wch:22}, {wch:40});
+            ws['!cols'] = cols;
 
-            // Merge title rows
+            // Merge title rows a lo largo de todas las columnas visibles
+            var lastCol = lastMonth + 2; // concepto + meses + total + observaciones (índices 0..)
             ws['!merges'] = [
-                {s:{r:0,c:0},e:{r:0,c:14}},
-                {s:{r:1,c:0},e:{r:1,c:14}}
+                {s:{r:0,c:0},e:{r:0,c:lastCol}},
+                {s:{r:1,c:0},e:{r:1,c:lastCol}}
             ];
 
-            // Format currency columns (1-13)
+            // Format currency columns (1 .. lastMonth+1)
             var cc = [];
-            for (var ci = 1; ci <= 13; ci++) cc.push(ci);
+            for (var ci = 1; ci <= lastMonth + 1; ci++) cc.push(ci);
             for (var r = hdr.length; r < hdr.length + data.length; r++) {
                 cc.forEach(function(c) {
                     var cell = XLSX.utils.encode_cell({r:r,c:c});

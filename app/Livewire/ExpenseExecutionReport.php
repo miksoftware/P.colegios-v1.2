@@ -99,14 +99,17 @@ class ExpenseExecutionReport extends Component
 
         $commitmentsByDist = [];
         if (!empty($distIds)) {
-            // --- Compromisos reales: RPs vía budget_id ↔ expense_distribution.budget_id ---
-            // NO dependemos de convocatoria_distributions porque no todos los contratos
-            // tienen distribuciones (p.ej. contratos con CDP pero sin convocatoria formal).
+            // --- Compromisos reales: RPs vía CDP → convocatoria_distribution → expense_distribution.
+            // La asignación exacta se obtiene por:
+            //   rp_funding_sources → contract_rps → cdps → convocatoria_distributions → expense_distribution_id
+            // Si el CDP tiene convocatoria_distribution_id se conoce la distribución EXACTA del RP
+            // (no hay prorrateo). Si no la tiene (CDPs legacy o RP de adición sin convocatoria),
+            // se cae al comportamiento anterior: prorrateo por monto de distribución dentro del budget.
             $rpQuery = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
                 ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
                 ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
-                ->join('expense_distributions as ed', 'ed.budget_id', '=', 'rfs.budget_id')
-                ->whereIn('ed.id', $distIds)
+                ->leftJoin('cdps as cdp', 'cdp.id', '=', 'cr.cdp_id')
+                ->leftJoin('convocatoria_distributions as cvd', 'cvd.id', '=', 'cdp.convocatoria_distribution_id')
                 ->where('cr.status', '!=', 'cancelled')
                 ->where('c.status', '!=', 'annulled');
             if ($dateFrom && $dateTo) {
@@ -117,25 +120,46 @@ class ExpenseExecutionReport extends Component
                 // cargada posteriormente), no la fecha fiscal del RP.
                 $rpQuery->whereRaw('COALESCE(cr.otrosi_date, c.start_date) BETWEEN ? AND ?', [$dateFrom, $dateTo]);
             }
-            // Distribuir el monto del RP proporcionalmente entre las distribuciones del mismo budget
-            // (si hay varias distribuciones para el mismo budget, prorratear por amount)
-            $rpCommitmentsRaw = $rpQuery
-                ->selectRaw('ed.id as dist_id, ed.budget_id, ed.amount as dist_amount, rfs.amount as rfs_amount')
+            $rpRows = $rpQuery
+                ->selectRaw('rfs.id as rfs_id, rfs.budget_id, rfs.amount as rfs_amount, cvd.expense_distribution_id as exact_dist_id')
                 ->get();
 
-            // Sum per budget_id to get total distributions
-            $totalDistAmountByBudget = [];
+            // Mapa budget_id → colección de distribuciones (id + amount) para el prorrateo fallback
+            $distsByBudget = [];
             foreach ($budgets as $b) {
-                $totalDistAmountByBudget[$b->id] = (float) $b->distributions->sum('amount');
+                $distsByBudget[$b->id] = $b->distributions->map(fn($d) => [
+                    'id'     => $d->id,
+                    'amount' => (float) $d->amount,
+                ])->values()->all();
+            }
+            $validDistIds = array_flip($distIds);
+
+            foreach ($rpRows as $row) {
+                $rfsAmount = (float) $row->rfs_amount;
+
+                // Caso 1: el CDP indica la distribución exacta → asignación 1:1
+                if (!empty($row->exact_dist_id) && isset($validDistIds[$row->exact_dist_id])) {
+                    $commitmentsByDist[$row->exact_dist_id] =
+                        ($commitmentsByDist[$row->exact_dist_id] ?? 0) + $rfsAmount;
+                    continue;
+                }
+
+                // Caso 2: CDP sin convocatoria_distribution (legacy) → prorratear entre
+                // las distribuciones del budget según su amount.
+                $dists = $distsByBudget[$row->budget_id] ?? [];
+                if (empty($dists)) continue;
+
+                $totalDist = array_sum(array_column($dists, 'amount'));
+                foreach ($dists as $d) {
+                    if (!isset($validDistIds[$d['id']])) continue;
+                    $ratio = $totalDist > 0 ? $d['amount'] / $totalDist : 0;
+                    $commitmentsByDist[$d['id']] =
+                        ($commitmentsByDist[$d['id']] ?? 0) + $rfsAmount * $ratio;
+                }
             }
 
-            foreach ($rpCommitmentsRaw as $row) {
-                $totalDist = (float) ($totalDistAmountByBudget[$row->budget_id] ?? 0);
-                $ratio = $totalDist > 0 ? (float) $row->dist_amount / $totalDist : 0;
-                $commitmentsByDist[$row->dist_id] = ($commitmentsByDist[$row->dist_id] ?? 0) + (float) $row->rfs_amount * $ratio;
-            }
-
-            // --- Pagos directos CON expense_lines por distribución ---
+            // --- Pagos directos CON expense_lines por distribución (pagos sin contrato) ---
+            // Estos sí son compromisos ya ejecutados y se suman a su distribución exacta.
             $directWithLinesByDist = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
                 ->join('payment_orders as po', 'po.id', '=', 'pol.payment_order_id')
                 ->whereIn('pol.expense_distribution_id', $distIds)

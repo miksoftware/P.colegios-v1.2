@@ -16,6 +16,7 @@ class RetentionLiquidationReport extends Component
 
     public $reportData = [];
     public $grandTotals = [];
+    public $monthlySummary = []; // Resumen mensual consolidado
 
     public function mount()
     {
@@ -45,6 +46,54 @@ class RetentionLiquidationReport extends Component
 
     public function loadReport()
     {
+        // === 1) RESUMEN MENSUAL CONSOLIDADO (todo el año, no se filtra por mes) ===
+        // Suma directa a nivel PO por mes. Cubre retefuente, reteiva, estampillas e ICA.
+        $monthlyQuery = PaymentOrder::forSchool($this->schoolId)
+            ->forYear((int) $this->filterYear)
+            ->whereIn('status', ['approved', 'paid'])
+            ->selectRaw(
+                'MONTH(payment_date) as m, '
+                . 'SUM(retefuente) AS retefuente, '
+                . 'SUM(reteiva) AS reteiva, '
+                . 'SUM(estampilla_procultura) AS estampilla_procultura, '
+                . 'SUM(estampilla_produlto_mayor) AS estampilla_produlto, '
+                . 'SUM(retencion_ica) AS retencion_ica'
+            )
+            ->groupBy('m')
+            ->get();
+
+        $monthlySummary = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $monthlySummary[$m] = [
+                'month'                => $m,
+                'retefuente'           => 0.0,
+                'reteiva'              => 0.0,
+                'estampilla_procultura'=> 0.0,
+                'estampilla_produlto'  => 0.0,
+                'retencion_ica'        => 0.0,
+                'total'                => 0.0,
+            ];
+        }
+        foreach ($monthlyQuery as $row) {
+            $m = (int) $row->m;
+            if ($m < 1 || $m > 12) continue;
+            $monthlySummary[$m] = [
+                'month'                => $m,
+                'retefuente'           => (float) $row->retefuente,
+                'reteiva'              => (float) $row->reteiva,
+                'estampilla_procultura'=> (float) $row->estampilla_procultura,
+                'estampilla_produlto'  => (float) $row->estampilla_produlto,
+                'retencion_ica'        => (float) $row->retencion_ica,
+                'total'                => (float) $row->retefuente
+                                          + (float) $row->reteiva
+                                          + (float) $row->estampilla_procultura
+                                          + (float) $row->estampilla_produlto
+                                          + (float) $row->retencion_ica,
+            ];
+        }
+        $this->monthlySummary = array_values($monthlySummary);
+
+        // === 2) FORMATO POR FUENTE DE FINANCIACIÓN (según mes filtrado) ===
         $query = PaymentOrder::forSchool($this->schoolId)
             ->forYear((int) $this->filterYear)
             ->whereIn('status', ['approved', 'paid'])
@@ -70,53 +119,47 @@ class RetentionLiquidationReport extends Component
         foreach ($paymentOrders as $po) {
             $contract = $po->contract;
             $supplier = $po->resolved_supplier;
-            $personType = $supplier?->person_type ?? 'natural'; // natural or juridica
+            $personType = $supplier?->person_type ?? 'natural';
 
-            // Determine funding source name
             $fundingSourceName = $this->getFundingSourceName($contract);
 
             if (!isset($grouped[$fundingSourceName])) {
                 $grouped[$fundingSourceName] = [
-                    'servicios' => ['juridica_base' => 0, 'juridica_retention' => 0, 'natural_base' => 0, 'natural_retention' => 0],
-                    'compras' => ['juridica_base' => 0, 'juridica_retention' => 0, 'natural_base' => 0, 'natural_retention' => 0],
-                    'honorarios' => ['juridica_base' => 0, 'juridica_retention' => 0, 'natural_base' => 0, 'natural_retention' => 0],
-                    'reteiva' => ['juridica_base' => 0, 'juridica_retention' => 0, 'natural_base' => 0, 'natural_retention' => 0],
+                    'servicios'            => $this->emptyConceptRow(),
+                    'compras'              => $this->emptyConceptRow(),
+                    'honorarios'           => $this->emptyConceptRow(),
+                    'reteiva'              => $this->emptyConceptRow(),
+                    'estampilla_procultura'=> $this->emptyConceptRow(),
+                    'estampilla_produlto'  => $this->emptyConceptRow(),
+                    'retencion_ica'        => $this->emptyConceptRow(),
                 ];
             }
 
-            // El sistema puede guardar retenciones de dos formas:
-            // 1) A nivel PO (retefuente/reteiva) con retention_concept → pagos antiguos o single-mode
-            // 2) A nivel expense_lines con retention_concept por línea → pagos multi-concepto
-            // Recolectamos TODAS las retenciones para no perder datos.
-            $retentions = []; // [['concept' => x, 'base' => y, 'retefuente' => z, 'reteiva' => w]]
+            // Expense lines: fuente de verdad para retefuente/reteiva cuando existen.
+            // Solo si NO hay líneas (o ninguna aportó) se usa el agregado del PO.
+            $retentions = [];
 
-            // Siempre incluir los agregados a nivel PO si tienen valor
-            if ((float) $po->retefuente > 0 || (float) $po->reteiva > 0) {
+            if ($po->expenseLines->isNotEmpty()) {
+                foreach ($po->expenseLines as $line) {
+                    if ((float) $line->retefuente == 0 && (float) $line->reteiva == 0) {
+                        continue;
+                    }
+                    $retentions[] = [
+                        'concept'    => $line->retention_concept ?? $po->retention_concept,
+                        'base'       => (float) $line->subtotal,
+                        'retefuente' => (float) $line->retefuente,
+                        'reteiva'    => (float) $line->reteiva,
+                    ];
+                }
+            }
+
+            if (empty($retentions) && ((float) $po->retefuente > 0 || (float) $po->reteiva > 0)) {
                 $retentions[] = [
                     'concept'    => $po->retention_concept,
                     'base'       => (float) $po->subtotal,
                     'retefuente' => (float) $po->retefuente,
                     'reteiva'    => (float) $po->reteiva,
                 ];
-            }
-
-            // Recorrer expense_lines: si una línea tiene retención, usarla.
-            // ATENCIÓN: si PO ya tiene retefuente/reteiva (caso 1) las líneas podrían duplicar;
-            // pero en el modelo actual, cuando se usan líneas, el PO.retefuente es la SUMA
-            // de las líneas (ver computeTotals). Por tanto, preferimos el dato del PO ya
-            // agregado y descartamos las líneas cuando el PO tiene retención. Solo leemos
-            // líneas si el PO NO tiene retención agregada (caso raro).
-            if ((float) $po->retefuente == 0 && (float) $po->reteiva == 0) {
-                foreach ($po->expenseLines as $line) {
-                    if ((float) $line->retefuente > 0 || (float) $line->reteiva > 0) {
-                        $retentions[] = [
-                            'concept'    => $line->retention_concept,
-                            'base'       => (float) $line->subtotal,
-                            'retefuente' => (float) $line->retefuente,
-                            'reteiva'    => (float) $line->reteiva,
-                        ];
-                    }
-                }
             }
 
             foreach ($retentions as $ret) {
@@ -126,10 +169,10 @@ class RetentionLiquidationReport extends Component
                 $reteiva    = $ret['reteiva'];
 
                 $reportConcept = match ($concept) {
-                    'compras' => 'compras',
-                    'honorarios' => 'honorarios',
+                    'compras'     => 'compras',
+                    'honorarios'  => 'honorarios',
                     'servicios', 'arrendamiento_sitios_web', 'arrendamiento_inmuebles', 'transporte_pasajeros' => 'servicios',
-                    default => null,
+                    default       => null,
                 };
 
                 if ($reportConcept && $retefuente > 0) {
@@ -150,57 +193,85 @@ class RetentionLiquidationReport extends Component
                     }
                 }
             }
+
+            // Estampillas e ICA: viven únicamente a nivel PO, no por expense_line.
+            // Se atribuyen a la fuente del contrato y al tipo de persona del proveedor.
+            $estamCultura = (float) $po->estampilla_procultura;
+            $estamProd    = (float) $po->estampilla_produlto_mayor;
+            $ica          = (float) $po->retencion_ica;
+
+            foreach ([
+                'estampilla_procultura' => $estamCultura,
+                'estampilla_produlto'   => $estamProd,
+                'retencion_ica'         => $ica,
+            ] as $key => $amount) {
+                if ($amount <= 0) continue;
+                if ($personType === 'juridica') {
+                    $grouped[$fundingSourceName][$key]['juridica_retention'] += $amount;
+                } else {
+                    $grouped[$fundingSourceName][$key]['natural_retention']  += $amount;
+                }
+            }
         }
 
-        // Build report data with totals per funding source
+        // Armar datos por fuente
         $this->reportData = [];
         $this->grandTotals = ['total_retentions' => 0];
+
+        $conceptOrder = ['servicios', 'compras', 'honorarios', 'reteiva', 'estampilla_procultura', 'estampilla_produlto', 'retencion_ica'];
 
         foreach ($grouped as $fsName => $concepts) {
             $fsTotal = 0;
             $rows = [];
 
-            foreach (['servicios', 'compras', 'honorarios', 'reteiva'] as $conceptKey) {
+            foreach ($conceptOrder as $conceptKey) {
                 $data = $concepts[$conceptKey];
                 $totalRetention = $data['juridica_retention'] + $data['natural_retention'];
                 $fsTotal += $totalRetention;
 
                 $rows[$conceptKey] = [
-                    'juridica_base' => $data['juridica_base'],
+                    'juridica_base'      => $data['juridica_base'],
                     'juridica_retention' => $data['juridica_retention'],
-                    'natural_base' => $data['natural_base'],
-                    'natural_retention' => $data['natural_retention'],
-                    'total_retention' => $totalRetention,
+                    'natural_base'       => $data['natural_base'],
+                    'natural_retention'  => $data['natural_retention'],
+                    'total_retention'    => $totalRetention,
                 ];
             }
 
             $this->reportData[] = [
                 'funding_source' => $fsName,
-                'rows' => $rows,
-                'total' => $fsTotal,
+                'rows'           => $rows,
+                'total'          => $fsTotal,
             ];
 
             $this->grandTotals['total_retentions'] += $fsTotal;
         }
 
-        // Sort by funding source name
         usort($this->reportData, fn($a, $b) => strcmp($a['funding_source'], $b['funding_source']));
 
         $this->dispatch('reportLoaded');
+    }
+
+    private function emptyConceptRow(): array
+    {
+        return [
+            'juridica_base'      => 0,
+            'juridica_retention' => 0,
+            'natural_base'       => 0,
+            'natural_retention'  => 0,
+        ];
     }
 
     private function getFundingSourceName($contract): string
     {
         if (!$contract) return 'Sin fuente';
 
-        // Try from RPs first (more direct)
         $rp = $contract->rps->first();
         if ($rp && $rp->fundingSources->isNotEmpty()) {
             $fs = $rp->fundingSources->first()->fundingSource;
             if ($fs) return $fs->name;
         }
 
-        // Fallback to CDP funding sources
         $convocatoria = $contract->convocatoria;
         if ($convocatoria) {
             $cdp = $convocatoria->cdps->first();

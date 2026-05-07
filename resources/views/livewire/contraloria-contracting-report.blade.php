@@ -128,8 +128,17 @@
         </div>
 
         {{-- Data para JS --}}
+        @php
+            $schoolNit = preg_replace('/-\d+$/', '', $school->nit ?? '');
+            $schoolPayload = [
+                'nit'          => $schoolNit,
+                'name'         => $school->name ?? '',
+                'address'      => $school->address ?? '',
+                'municipality' => $school->municipality ?? '',
+            ];
+        @endphp
         <div id="contraloria-data" class="hidden"
-            data-school='@json(["nit" => preg_replace('/-\d+$/', '', $school->nit ?? ''), "name" => $school->name, "address" => $school->address ?? "", "municipality" => $school->municipality ?? ""])'
+            data-school='@json($schoolPayload)'
             data-year="{{ $filterYear }}"
             data-total-budget="{{ $totalBudget }}"
             data-rows='@json($rows)'>

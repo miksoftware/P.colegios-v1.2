@@ -74,6 +74,7 @@
                         <tr>
                             <th class="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Nombre Rubro</th>
                             <th class="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Código Rubro</th>
+                            <th class="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Fuente</th>
                             <th class="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Acto Administrativo</th>
                             <th class="px-3 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Fecha</th>
                             <th class="px-3 py-3 text-right font-semibold text-green-700 uppercase tracking-wider whitespace-nowrap">Adición</th>
@@ -86,6 +87,11 @@
                         <tr class="hover:bg-gray-50">
                             <td class="px-3 py-2 text-gray-800 font-medium whitespace-nowrap">{{ $row['nombre_rubro'] ?? '' }}</td>
                             <td class="px-3 py-2 font-mono text-gray-800 whitespace-nowrap">{{ $row['codigo_rubro'] }}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-gray-700">
+                                @if(!empty($row['fuente']))
+                                    <span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700">{{ $row['fuente'] }}</span>
+                                @endif
+                            </td>
                             <td class="px-3 py-2 whitespace-nowrap text-gray-700">{{ $row['acto_adm'] }}</td>
                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ $row['fecha'] }}</td>
                             <td class="px-3 py-2 text-right whitespace-nowrap {{ $row['adicion'] > 0 ? 'font-semibold text-green-600' : 'text-gray-400' }}">
@@ -100,7 +106,7 @@
                     </tbody>
                     <tfoot class="bg-gray-50 border-t-2 border-gray-200">
                         <tr class="font-bold text-xs">
-                            <td colspan="4" class="px-3 py-3 text-gray-700">TOTALES</td>
+                            <td colspan="5" class="px-3 py-3 text-gray-700">TOTALES</td>
                             <td class="px-3 py-3 text-right text-green-700">${{ number_format($totalAdicion, 0, ',', '.') }}</td>
                             <td class="px-3 py-3 text-right text-red-700">${{ number_format($totalReduccion, 0, ',', '.') }}</td>
                             <td></td>
@@ -143,6 +149,7 @@
             const headers = [
                 'Nombre Rubro',
                 'Código Rubro Presupuestal',
+                'Fuente',
                 'Acto Administrativo',
                 'Fecha',
                 'Adición',
@@ -153,6 +160,7 @@
             const dataRows = rows.map(r => [
                 r.nombre_rubro || '',
                 r.codigo_rubro,
+                r.fuente || '',
                 r.acto_adm,
                 r.fecha,
                 r.adicion,
@@ -162,11 +170,11 @@
 
             const ws = XLSX.utils.aoa_to_sheet([headers].concat(dataRows));
 
-            // Formato numérico columnas E–F (índices 4–5)
+            // Formato numérico columnas F–G (índices 5–6)
             const numFmt = '#,##0';
             const range  = XLSX.utils.decode_range(ws['!ref']);
             for (let R = 1; R <= range.e.r; R++) {
-                for (let C = 4; C <= 5; C++) {
+                for (let C = 5; C <= 6; C++) {
                     const addr = XLSX.utils.encode_cell({ r: R, c: C });
                     if (ws[addr]) ws[addr].z = numFmt;
                 }
@@ -175,6 +183,7 @@
             ws['!cols'] = [
                 { wch: 35 },
                 { wch: 22 },
+                { wch: 28 },
                 { wch: 20 },
                 { wch: 12 },
                 { wch: 15 },

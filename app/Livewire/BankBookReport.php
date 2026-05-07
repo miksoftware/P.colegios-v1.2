@@ -216,34 +216,39 @@ class BankBookReport extends Component
     private function calculatePreviousBalance(int $bankAccountId, int $year): float
     {
         $account = BankAccount::find($bankAccountId);
+        if (!$account) return 0;
 
-        // Si la cuenta tiene saldo inicial configurado para esta vigencia o anterior, usarlo como base
-        $initialBalance = 0;
-        if ($account && $account->initial_balance > 0 && $account->initial_balance_year) {
-            if ($account->initial_balance_year <= $year) {
-                $initialBalance = (float) $account->initial_balance;
-            }
+        // Sólo se usa el saldo inicial si se configuró explícitamente su año de referencia.
+        // Cuando el colegio registra los saldos de arrastre del año anterior como ingresos
+        // tipo "Recaudo Superávit" con fecha 01/01, NO se debe duplicar usando también
+        // initial_balance — por eso requerimos initial_balance_year no nulo.
+        if (empty($account->initial_balance_year) || $account->initial_balance <= 0) {
+            return 0;
         }
 
-        // Si el saldo inicial es de la misma vigencia, es el saldo de apertura
-        if ($account && $account->initial_balance_year == $year) {
+        $initialBalance = (float) $account->initial_balance;
+        $initialYear    = (int) $account->initial_balance_year;
+
+        // Si el saldo inicial es de vigencia futura, no aplica al corte consultado
+        if ($initialYear > $year) {
+            return 0;
+        }
+
+        // Si el saldo inicial es de la MISMA vigencia → es el saldo de apertura
+        if ($initialYear === $year) {
             return $initialBalance;
         }
 
-        // Sumar todos los ingresos desde el año del saldo inicial hasta el año anterior
-        $startYear = ($account && $account->initial_balance_year) ? $account->initial_balance_year : 0;
-
+        // El saldo inicial es de una vigencia ANTERIOR: sumar movimientos desde
+        // ese año hasta el año anterior al consultado.
         $totalIncome = IncomeBankAccount::where('bank_account_id', $bankAccountId)
-            ->whereHas('income', function ($q) use ($year, $startYear) {
+            ->whereHas('income', function ($q) use ($year, $initialYear) {
                 $q->where('school_id', $this->schoolId)
-                  ->whereYear('date', '<', $year);
-                if ($startYear > 0) {
-                    $q->whereYear('date', '>=', $startYear);
-                }
+                  ->whereYear('date', '<', $year)
+                  ->whereYear('date', '>=', $initialYear);
             })
             ->sum('amount');
 
-        // Sumar todos los egresos desde el año del saldo inicial hasta el año anterior
         $totalExpense = 0;
 
         $rpFundingSources = RpFundingSource::where('bank_account_id', $bankAccountId)
@@ -257,13 +262,10 @@ class BankBookReport extends Component
 
             $paymentOrders = PaymentOrder::where('school_id', $this->schoolId)
                 ->where('fiscal_year', '<', $year)
+                ->where('fiscal_year', '>=', $initialYear)
                 ->where('contract_rp_id', $rpFs->contractRp->id)
                 ->whereIn('status', ['approved', 'paid'])
                 ->get();
-
-            if ($startYear > 0) {
-                $paymentOrders = $paymentOrders->where('fiscal_year', '>=', $startYear);
-            }
 
             foreach ($paymentOrders as $po) {
                 if (in_array($po->id, $processedPOs)) continue;

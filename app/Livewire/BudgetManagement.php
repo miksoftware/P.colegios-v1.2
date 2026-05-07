@@ -63,7 +63,7 @@ class BudgetManagement extends Component
     {
         $rules = [
             'budget_item_id' => 'required|exists:budget_items,id',
-            'initial_amount' => 'required|numeric|min:0.01',
+            'initial_amount' => 'required|numeric|min:0',
             'fiscal_year' => 'required|integer|min:2020|max:2100',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
@@ -81,7 +81,8 @@ class BudgetManagement extends Component
     protected $messages = [
         'budget_item_id.required' => 'Debe seleccionar un rubro.',
         'initial_amount.required' => 'El monto presupuestado es obligatorio.',
-        'initial_amount.min' => 'El monto debe ser mayor a 0.',
+        'initial_amount.min' => 'El monto no puede ser negativo.',
+        'initial_amount.numeric' => 'El monto debe ser un número.',
         'fiscal_year.required' => 'El año fiscal es obligatorio.',
         'selectedFundingSourceId.required' => 'Debe seleccionar una fuente de financiación.',
     ];
@@ -323,19 +324,14 @@ class BudgetManagement extends Component
 
         if ($this->useMultipleSources && !$this->isEditing) {
             $totalAssigned = collect($this->fundingSourceAmounts)
-                ->filter(fn($a) => is_numeric($a) && $a > 0)
+                ->filter(fn($a) => is_numeric($a) && $a >= 0)
                 ->sum();
             $totalBudget = (float) $this->initial_amount;
-            
+
             if (abs($totalAssigned - $totalBudget) > 0.01) {
                 $formattedAssigned = number_format($totalAssigned, 2);
                 $formattedBudget = number_format($totalBudget, 2);
                 $this->dispatch('toast', message: "La suma asignada (\${$formattedAssigned}) debe ser igual al monto total (\${$formattedBudget}).", type: 'error');
-                return;
-            }
-
-            if ($totalAssigned <= 0) {
-                $this->dispatch('toast', message: 'Debe asignar monto a al menos una fuente.', type: 'error');
                 return;
             }
         }
@@ -360,9 +356,18 @@ class BudgetManagement extends Component
 
             if ($this->useMultipleSources) {
                 foreach ($this->fundingSourceAmounts as $sourceId => $amount) {
-                    if (is_numeric($amount) && $amount > 0) {
-                        $sourcesToCreate[] = ['funding_source_id' => $sourceId, 'amount' => $amount];
+                    // Incluir fuentes con monto explícito (incluyendo 0). Saltamos strings vacíos y no numéricos.
+                    if ($amount === '' || $amount === null || !is_numeric($amount)) {
+                        continue;
                     }
+                    $sourcesToCreate[] = ['funding_source_id' => $sourceId, 'amount' => (float) $amount];
+                }
+
+                // Si con múltiples fuentes ninguna fue capturada pero el total es 0, no hay qué crear.
+                if (empty($sourcesToCreate)) {
+                    $this->dispatch('toast', message: 'Debe asignar al menos una fuente.', type: 'error');
+                    DB::rollBack();
+                    return false;
                 }
             } else {
                 $sourcesToCreate[] = [

@@ -80,13 +80,94 @@ class ExpenseExecutionReport extends Component
             ->with([
                 'budgetItem',
                 'fundingSource',
-                'modifications',
-                'outgoingTransfers',
-                'incomingTransfers',
                 'distributions.expenseCode',
             ])
             ->orderBy('budget_item_id')
             ->get();
+
+        $budgetIds = $budgets->pluck('id')->toArray();
+        $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
+        $validDistIds = array_flip($distIds);
+
+        // --- Modificaciones (adición/reducción) filtradas por corte ---
+        // BudgetModification no tiene expense_distribution_id, así que se mantiene
+        // el prorrateo por amount de distribución dentro del budget.
+        $additionsByBudget = [];
+        $reductionsByBudget = [];
+        if (!empty($budgetIds)) {
+            $modQuery = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds);
+            if ($dateFrom && $dateTo) {
+                $modQuery->where(function ($q) use ($dateFrom, $dateTo) {
+                    $q->whereBetween('document_date', [$dateFrom, $dateTo])
+                      ->orWhere(function ($q2) use ($dateFrom, $dateTo) {
+                          $q2->whereNull('document_date')
+                             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+                      });
+                });
+            }
+            $mods = $modQuery->get();
+            foreach ($mods as $mod) {
+                if ($mod->type === 'addition') {
+                    $additionsByBudget[$mod->budget_id] = ($additionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
+                } else {
+                    $reductionsByBudget[$mod->budget_id] = ($reductionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
+                }
+            }
+        }
+
+        // --- Traslados filtrados por corte, con asignación exacta por distribución ---
+        // Si el traslado tiene source_expense_distribution_id / destination_expense_distribution_id,
+        // la plata entra/sale del rubro exacto. Si no, se prorratea por amount dentro del budget.
+        $creditsByBudget = [];       // fallback si no hay dist exacta
+        $contracreditsByBudget = []; // fallback si no hay dist exacta
+        $creditsByDist = [];         // asignación exacta a expense_distribution
+        $contracreditsByDist = [];   // asignación exacta a expense_distribution
+        if (!empty($budgetIds)) {
+            $transferQuery = \App\Models\BudgetTransfer::where('school_id', $this->schoolId)
+                ->where('fiscal_year', $year)
+                ->where(function ($q) use ($budgetIds) {
+                    $q->whereIn('source_budget_id', $budgetIds)
+                      ->orWhereIn('destination_budget_id', $budgetIds);
+                });
+            if ($dateFrom && $dateTo) {
+                $transferQuery->where(function ($q) use ($dateFrom, $dateTo) {
+                    $q->whereBetween('document_date', [$dateFrom, $dateTo])
+                      ->orWhere(function ($q2) use ($dateFrom, $dateTo) {
+                          $q2->whereNull('document_date')
+                             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+                      });
+                });
+            }
+            $transfers = $transferQuery->get();
+
+            foreach ($transfers as $t) {
+                $amt = (float) $t->amount;
+
+                // Destino (crédito - entra al rubro destino)
+                if (in_array($t->destination_budget_id, $budgetIds)) {
+                    if (!empty($t->destination_expense_distribution_id)
+                        && isset($validDistIds[$t->destination_expense_distribution_id])) {
+                        $creditsByDist[$t->destination_expense_distribution_id] =
+                            ($creditsByDist[$t->destination_expense_distribution_id] ?? 0) + $amt;
+                    } else {
+                        $creditsByBudget[$t->destination_budget_id] =
+                            ($creditsByBudget[$t->destination_budget_id] ?? 0) + $amt;
+                    }
+                }
+
+                // Origen (contracrédito - sale del rubro origen)
+                if (in_array($t->source_budget_id, $budgetIds)) {
+                    if (!empty($t->source_expense_distribution_id)
+                        && isset($validDistIds[$t->source_expense_distribution_id])) {
+                        $contracreditsByDist[$t->source_expense_distribution_id] =
+                            ($contracreditsByDist[$t->source_expense_distribution_id] ?? 0) + $amt;
+                    } else {
+                        $contracreditsByBudget[$t->source_budget_id] =
+                            ($contracreditsByBudget[$t->source_budget_id] ?? 0) + $amt;
+                    }
+                }
+            }
+        }
 
         // Pre-load commitments per expense_distribution:
         // Los compromisos son los RPs (Registros Presupuestales) que se hacen por contrato.
@@ -95,7 +176,6 @@ class ExpenseExecutionReport extends Component
         // El JOIN a expense_distributions garantiza que el budget_id del RP coincide
         // con el de la distribución (evita duplicados cuando hay varias distribuciones
         // por convocatoria).
-        $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
 
         $commitmentsByDist = [];
         if (!empty($distIds)) {
@@ -245,11 +325,11 @@ class ExpenseExecutionReport extends Component
 
         foreach ($budgets as $budget) {
             $initial = (float) $budget->initial_amount;
-            $additions = (float) $budget->modifications->where('type', 'addition')->sum('amount');
-            $reductions = (float) $budget->modifications->where('type', 'reduction')->sum('amount');
-            $credits = (float) $budget->incomingTransfers->sum('amount');
-            $contracredits = (float) $budget->outgoingTransfers->sum('amount');
-            $definitive = (float) $budget->current_amount;
+            $additions = (float) ($additionsByBudget[$budget->id] ?? 0);
+            $reductions = (float) ($reductionsByBudget[$budget->id] ?? 0);
+            // Traslados que no tienen distribución exacta (fallback prorrateable)
+            $credits = (float) ($creditsByBudget[$budget->id] ?? 0);
+            $contracredits = (float) ($contracreditsByBudget[$budget->id] ?? 0);
             $totalBudgetCommitments = (float) ($commitmentsByBudget[$budget->id] ?? 0); // solo para presupuestos sin distribuciones
             $directPayments = (float) ($directPaymentsByBudgetItem[$budget->budget_item_id] ?? 0);
             $fundingCode = $budget->fundingSource?->code ?? '';
@@ -258,6 +338,10 @@ class ExpenseExecutionReport extends Component
             $distributions = $budget->distributions;
 
             if ($distributions->isEmpty()) {
+                // Presupuesto sin distribuciones: todos los movimientos van a la única fila.
+                // Aquí también debemos sumar traslados exactos si apuntaron a distribuciones de este budget
+                // (no debería pasar, pero por seguridad sumamos el fallback + exactos del budget).
+                $definitive = $initial + $additions - $reductions + $credits - $contracredits;
                 $totalObligations = $directPayments;
                 $this->rows[] = [
                     'budget_id' => $budget->id,
@@ -282,13 +366,21 @@ class ExpenseExecutionReport extends Component
                 foreach ($distributions as $dist) {
                     $expCode = $dist->expenseCode;
                     $distPayments = (float) ($paymentsByDist[$dist->id] ?? 0);
-                    // Compromisos reales de esta distribución (convocatoria + adiciones RP + directos con línea)
                     $distCommitments = (float) ($commitmentsByDist[$dist->id] ?? 0);
-                    // Pagos directos sin expense_lines NO se prorratean: son pagos viejos
-                    // sin código de gasto asignado o pagos de impuestos — no pertenecen aquí.
                     $ratio = $totalDistAmount > 0 ? (float) $dist->amount / $totalDistAmount : 0;
-                    $totalObligations = $distPayments;
-                    $totalCommitmentsRow = $distCommitments;
+
+                    // Créditos/contracréditos de esta distribución:
+                    //   1) Los traslados con destination/source_expense_distribution_id === dist.id → valor exacto
+                    //   2) Más la parte prorrateada de traslados que no especificaron distribución exacta
+                    $exactCred = (float) ($creditsByDist[$dist->id] ?? 0);
+                    $exactCont = (float) ($contracreditsByDist[$dist->id] ?? 0);
+                    $distCredits       = $exactCred + round($credits * $ratio, 2);
+                    $distContracredits = $exactCont + round($contracredits * $ratio, 2);
+
+                    $distInitial    = round($initial * $ratio, 2);
+                    $distAdditions  = round($additions * $ratio, 2);
+                    $distReductions = round($reductions * $ratio, 2);
+                    $distDefinitive = $distInitial + $distAdditions - $distReductions + $distCredits - $distContracredits;
 
                     $this->rows[] = [
                         'budget_id' => $budget->id,
@@ -296,16 +388,16 @@ class ExpenseExecutionReport extends Component
                         'rubro_name' => $expCode?->name ?? '',
                         'funding_source_code' => $fundingCode,
                         'funding_source_name' => $fundingName,
-                        'initial' => round($initial * $ratio, 2),
-                        'additions' => round($additions * $ratio, 2),
-                        'reductions' => round($reductions * $ratio, 2),
-                        'credits' => round($credits * $ratio, 2),
-                        'contracredits' => round($contracredits * $ratio, 2),
-                        'definitive' => round($definitive * $ratio, 2),
-                        'commitments' => $totalCommitmentsRow,
-                        'obligations' => $totalObligations,
-                        'payments' => $totalObligations,
-                        'pending' => round($definitive * $ratio, 2) - $totalCommitmentsRow,
+                        'initial' => $distInitial,
+                        'additions' => $distAdditions,
+                        'reductions' => $distReductions,
+                        'credits' => $distCredits,
+                        'contracredits' => $distContracredits,
+                        'definitive' => $distDefinitive,
+                        'commitments' => $distCommitments,
+                        'obligations' => $distPayments,
+                        'payments' => $distPayments,
+                        'pending' => $distDefinitive - $distCommitments,
                     ];
                 }
             }

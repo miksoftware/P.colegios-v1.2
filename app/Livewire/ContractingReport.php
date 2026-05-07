@@ -182,6 +182,9 @@ class ContractingReport extends Component
             $rubroFuenteRows = []; // key único por RP+FS
             foreach ($rps->where('status', 'active') as $rp) {
                 $exactInfo = $distByCdp[$rp->cdp_id] ?? null;
+                // CDP número específico de este RP
+                $rpCdpNumber = $rp->cdp?->cdp_number ?? '';
+                $rpCdpDate   = $rp->cdp?->created_at?->format('Y-m-d') ?? '';
 
                 foreach ($rp->fundingSources as $rpFs) {
                     $fs = $rpFs->fundingSource;
@@ -221,6 +224,9 @@ class ContractingReport extends Component
                                               ?? $contract->start_date?->format('Y-m-d')
                                               ?? $rp->created_at?->format('Y-m-d')
                                               ?? '',
+                            'cdp_number'   => $rpCdpNumber,
+                            'cdp_date'     => $rpCdpDate,
+                            'cdp_amount'   => (float) ($rp->cdp?->total_amount ?? 0),
                             'rubro_code'   => $rubroCode,
                             'rubro_name'   => $rubroName,
                             'sifse_code'   => $sifseCode,
@@ -420,11 +426,224 @@ class ContractingReport extends Component
                 if (!empty($r['rp_date'])) {
                     $row['fecha_rp'] = $r['rp_date'];
                 }
+                // Sobreescribir CDP con el CDP específico del RP (cada RP tiene su propio CDP)
+                if (!empty($r['cdp_number'])) {
+                    $row['cdp_number']     = $r['cdp_number'];
+                    $row['disponibilidad'] = $r['cdp_amount'] ?? 0;
+                }
+                if (!empty($r['cdp_date'])) {
+                    $row['fecha_cdp']          = $r['cdp_date'];
+                    $row['fecha_certificacion']= $r['cdp_date'];
+                }
                 $row['subtotal']                  = round((float) $contract->subtotal * $ratio, 2);
                 $row['iva']                       = round((float) $contract->iva * $ratio, 2);
                 $row['total']                     = round($r['amount'], 2);
                 $row['valor_letras']              = '';
                 $this->rows[]                     = $row;
+            }
+        }
+
+        // ========================================================================
+        // PAGOS DIRECTOS CON CDP/RP (servicios públicos, gastos financieros, etc.)
+        // ========================================================================
+        // Estos pagos no tienen contract_id pero sí tienen cdp_id y contract_rp_id,
+        // por lo que deben aparecer en el informe de contratación con su propio CDP y RP.
+        $directQuery = \App\Models\PaymentOrder::forSchool($this->schoolId)
+            ->forYear((int) $this->filterYear)
+            ->where('payment_type', 'direct')
+            ->whereNull('contract_id')
+            ->whereNotNull('contract_rp_id')
+            ->whereIn('status', ['approved', 'paid'])
+            ->with([
+                'supplier.municipality',
+                'supplier.bankAccounts',
+                'cdp.budgetItem.accountingAccount.parent.parent',
+                'cdp.fundingSources.fundingSource',
+                'contractRp.cdp',
+                'contractRp.fundingSources.fundingSource',
+                'contractRp.fundingSources.budget.budgetItem.accountingAccount.parent.parent',
+                'contractRp.fundingSources.budget.distributions.expenseCode',
+                'expenseLines.expenseCode',
+                'expenseLines.expenseDistribution.budget.budgetItem',
+            ]);
+
+        if ($this->filterSupplier) {
+            $directQuery->whereHas('supplier', function ($q) {
+                $q->where('first_surname', 'like', "%{$this->filterSupplier}%")
+                  ->orWhere('first_name', 'like', "%{$this->filterSupplier}%")
+                  ->orWhere('document_number', 'like', "%{$this->filterSupplier}%");
+            });
+        }
+
+        $directPayments = $directQuery->orderBy('payment_number')->get();
+
+        foreach ($directPayments as $po) {
+            $supplier = $po->supplier;
+            $cdp      = $po->cdp;
+            $rp       = $po->contractRp;
+            if (!$rp) continue;
+
+            $supplierBank       = $supplier?->bankAccounts?->first();
+            $bankName           = $supplierBank?->bank_name ?? '';
+            $bankAccountNumber  = $supplierBank?->account_number ?? '';
+            $fechaCdp           = $cdp?->created_at?->format('Y-m-d') ?? '';
+            $fechaRp            = $rp->created_at?->format('Y-m-d') ?? '';
+
+            // Datos base compartidos entre filas del mismo pago directo
+            $baseDirectRow = [
+                'prox_disp'               => 0,
+                'cdp_number'              => $cdp?->cdp_number ?? '',
+                'disponibilidad'          => (float) ($cdp?->total_amount ?? $rp->total_amount ?? 0),
+                'fecha_cdp'               => $fechaCdp,
+                'supplier_name'           => $supplier?->full_name ?? '',
+                'supplier_first_surname'  => $supplier?->first_surname ?? '',
+                'supplier_second_surname' => $supplier?->second_surname ?? '',
+                'supplier_first_name'     => $supplier?->first_name ?? '',
+                'supplier_second_name'    => $supplier?->second_name ?? '',
+                'supplier_document'       => $supplier?->document_number ?? '',
+                'supplier_dv'             => $supplier?->dv ?? '',
+                'supplier_document_type'  => $supplier?->document_type ?? '',
+                'supplier_person_type'    => $supplier?->person_type ?? '',
+                'objeto'                  => $po->description ?? '',
+                'justificacion'           => $po->description ?? '',
+                'supervisor_name'         => $this->school->rector_name ?? '',
+                'supervisor_document'     => $this->school->rector_document ?? '',
+                'supervisor_cargo'        => 'RECTOR',
+                'necesidades'             => $po->description ?? '',
+                'duracion'                => 0,
+                'duracion_label'          => 'N/A',
+                'riesgos'                 => 'NO GENERA RIESGOS',
+                'supplier_address'        => $supplier?->address ?? '',
+                'supplier_phone'          => $supplier?->phone ?? $supplier?->mobile ?? '',
+                'supplier_city'           => $supplier?->city ?? '',
+                'supplier_regime'         => $supplier?->tax_regime_name ?? '',
+                'forma_pago'              => 'Pago directo',
+                'fecha_rp'                => $fechaRp,
+                'fecha_inicio'            => $po->payment_date?->format('Y-m-d') ?? '',
+                'fecha_fin'               => $po->payment_date?->format('Y-m-d') ?? '',
+                'contract_number'         => '',
+                'contract_formatted'      => 'PAGO DIRECTO',
+                'contract_date'           => $po->payment_date?->format('Y-m-d') ?? '',
+                'dependencia'             => 'RECTORIA',
+                'bank_account'            => $bankAccountNumber,
+                'bank_name'               => $bankName,
+                'fecha_liquidacion'       => $po->payment_date?->format('Y-m-d') ?? '',
+                'plazo'                   => 'N/A',
+                'modalidad'               => 'Pago Directo',
+                'rp_number'               => $rp->rp_number,
+                'criterio_evaluacion'     => 'N/A',
+                'lugar_ejecucion'         => '',
+                'representante_legal'     => ($supplier?->person_type === 'juridica') ? '' : 'N/A',
+                'convocatoria_number'     => '',
+                'convocatoria_formatted'  => '',
+                'fecha_invitacion'        => '',
+                'intro_manual'            => '',
+                'presupuesto_asignado'    => (float) $po->total,
+                'fecha_max_propuesta'     => '',
+                'hora_propuesta'          => '',
+                'fecha_revision'          => '',
+                'hora_revision'           => '',
+                'fecha_evaluacion'        => '',
+                'num_propuestas'          => 0,
+                'acuerdo_paa'             => $this->school->budget_agreement_number ?? '',
+                'fecha_acuerdo'           => $this->school->budget_approval_date ?? '',
+                'fecha_certificacion'     => $fechaCdp,
+                'status'                  => $po->status,
+                'status_name'             => $po->status_name ?? ucfirst($po->status),
+                'status_color'            => $po->status === 'paid' ? 'green' : 'blue',
+                'id'                      => 'direct-' . $po->id,
+            ];
+
+            // Construir filas: una por cada fuente de financiación del RP (y por expense_line si hay).
+            // Si el PO tiene expense_lines, usamos cada línea como rubro.
+            // Si no, usamos el budget_item asociado al rp_funding_source.
+            $directRows = [];
+
+            if ($po->expenseLines->isNotEmpty()) {
+                // Una fila por cada expense_line
+                $rpSources = $rp->fundingSources;
+                foreach ($po->expenseLines as $line) {
+                    $ec   = $line->expenseCode;
+                    $dist = $line->expenseDistribution;
+                    $bi   = $dist?->budget?->budgetItem;
+                    $acct = $bi?->accountingAccount;
+
+                    // Fuente: la del budget de la distribución, o fallback al primer RP funding source
+                    $fs = $dist?->budget?->fundingSource;
+                    if (!$fs && $rpSources->isNotEmpty() && $dist?->budget_id) {
+                        $match = $rpSources->firstWhere('budget_id', $dist->budget_id);
+                        $fs = $match?->fundingSource;
+                    }
+                    if (!$fs) {
+                        $fs = $rpSources->first()?->fundingSource;
+                    }
+
+                    $directRows[] = [
+                        'rubro_code'   => $ec?->code ?? $bi?->code ?? '',
+                        'rubro_name'   => $ec?->name ?? $bi?->name ?? '',
+                        'sifse_code'   => $ec?->sifse_code ?? '',
+                        'acct_code'    => $acct?->code ?? '',
+                        'acct_name'    => $acct?->name ?? '',
+                        'acct_parent'  => $acct?->parent,
+                        'fs_code'      => $fs?->code ?? '',
+                        'fs_name'      => $fs?->name ?? '',
+                        'amount'       => (float) $line->total,
+                        'subtotal'     => (float) $line->subtotal,
+                        'iva'          => (float) $line->iva,
+                    ];
+                }
+            } else {
+                // Sin expense_lines: una fila por cada fuente del RP
+                foreach ($rp->fundingSources as $rpFs) {
+                    $fs   = $rpFs->fundingSource;
+                    $b    = $rpFs->budget;
+                    $bi   = $b?->budgetItem;
+                    $acct = $bi?->accountingAccount;
+                    $dist = $b?->distributions->first();
+                    $ec   = $dist?->expenseCode;
+
+                    $directRows[] = [
+                        'rubro_code'   => $ec?->code ?? $bi?->code ?? '',
+                        'rubro_name'   => $ec?->name ?? $bi?->name ?? '',
+                        'sifse_code'   => $ec?->sifse_code ?? '',
+                        'acct_code'    => $acct?->code ?? '',
+                        'acct_name'    => $acct?->name ?? '',
+                        'acct_parent'  => $acct?->parent,
+                        'fs_code'      => $fs?->code ?? '',
+                        'fs_name'      => $fs?->name ?? '',
+                        'amount'       => (float) $rpFs->amount,
+                        'subtotal'     => 0,
+                        'iva'          => 0,
+                    ];
+                }
+            }
+
+            if (empty($directRows)) continue;
+
+            $totalAllDirect = collect($directRows)->sum('amount');
+            foreach ($directRows as $r) {
+                $ratio  = $totalAllDirect > 0 ? $r['amount'] / $totalAllDirect : 1;
+                $acctP  = $r['acct_parent'];
+                $acctGP = $acctP?->parent;
+
+                $row = $baseDirectRow;
+                $row['rubro_code']            = $r['rubro_code'];
+                $row['rubro_name']            = $r['rubro_name'];
+                $row['sifse_code']            = $r['sifse_code'];
+                $row['expense_code']          = $r['rubro_code'];
+                $row['acct_code']             = $r['acct_code'];
+                $row['acct_name']             = $r['acct_name'];
+                $row['acct_parent_code']      = $acctP?->code ?? '';
+                $row['acct_parent_name']      = $acctP?->name ?? '';
+                $row['acct_grandparent_code'] = $acctGP?->code ?? '';
+                $row['acct_grandparent_name'] = $acctGP?->name ?? '';
+                $row['funding_source']        = $r['fs_name'] ? "{$r['fs_name']} ({$r['fs_code']})" : '';
+                $row['funding_source_codes']  = $r['fs_code'];
+                $row['subtotal']              = $r['subtotal'] > 0 ? $r['subtotal'] : round((float) $po->subtotal * $ratio, 2);
+                $row['iva']                   = $r['iva'] > 0      ? $r['iva']      : round((float) $po->iva * $ratio, 2);
+                $row['total']                 = round($r['amount'], 2);
+                $row['valor_letras']          = '';
+                $this->rows[] = $row;
             }
         }
 

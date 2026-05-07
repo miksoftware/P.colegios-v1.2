@@ -103,11 +103,40 @@ class IncomeExecutionReport extends Component
 
         $this->rows = [];
 
+        // Pre-cargar modificaciones filtradas por corte (acumulado hasta cutoff)
+        $additionsByBudget = [];
+        $reductionsByBudget = [];
+        if (!empty($budgetIds)) {
+            $modQuery = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds);
+            if ($dateFrom && $dateTo) {
+                // Filtrar por document_date (fecha del acto) y caer a created_at si es nula
+                $modQuery->where(function ($q) use ($dateFrom, $dateTo) {
+                    $q->whereBetween('document_date', [$dateFrom, $dateTo])
+                      ->orWhere(function ($q2) use ($dateFrom, $dateTo) {
+                          $q2->whereNull('document_date')
+                             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+                      });
+                });
+            }
+            $mods = $modQuery->get();
+            foreach ($mods as $mod) {
+                if ($mod->type === 'addition') {
+                    $additionsByBudget[$mod->budget_id] = ($additionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
+                } else {
+                    $reductionsByBudget[$mod->budget_id] = ($reductionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
+                }
+            }
+        }
+
         foreach ($budgets as $budget) {
             $initial = (float) $budget->initial_amount;
-            $additions = (float) $budget->modifications->where('type', 'addition')->sum('amount');
-            $reductions = (float) $budget->modifications->where('type', 'reduction')->sum('amount');
-            $definitive = (float) $budget->current_amount;
+            $additions = (float) ($additionsByBudget[$budget->id] ?? 0);
+            $reductions = (float) ($reductionsByBudget[$budget->id] ?? 0);
+
+            // Apropiación definitiva al corte: base + modificaciones filtradas.
+            // No se usa $budget->current_amount porque ese refleja TODAS las modificaciones
+            // (incluidas las fuera del período seleccionado).
+            $definitive = $initial + $additions - $reductions;
 
             $fundingSourceId = $budget->funding_source_id;
             $recaudos = (float) ($incomesByFundingSource[$fundingSourceId] ?? 0);

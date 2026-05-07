@@ -24,7 +24,7 @@ class ExogenaReport extends Component
      * Mapeo de concepto de retención a código de concepto exógena DIAN (Formato 1001).
      */
     const CONCEPT_MAP = [
-        'compras'                  => ['code' => '5007', 'name' => 'Compra de activos movibles'],
+        'compras'                  => ['code' => '5008', 'name' => 'Compra de activos movibles'],
         'servicios'                => ['code' => '5004', 'name' => 'Servicios'],
         'honorarios'               => ['code' => '5002', 'name' => 'Honorarios'],
         'arrendamiento_sitios_web' => ['code' => '5005', 'name' => 'Arrendamientos'],

@@ -1,5 +1,5 @@
 <div class="min-h-screen bg-gray-50 py-8">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         {{-- Header --}}
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
             <div>
@@ -114,14 +114,18 @@
                                 'compras' => 'COMPRAS',
                                 'honorarios' => 'HONORARIOS',
                                 'reteiva' => 'RETEIVA',
+                                'estampilla_procultura' => 'ESTAMPILLA PROCULTURA',
+                                'estampilla_produlto' => 'ESTAMPILLA PRODULTO MAYOR',
+                                'retencion_ica' => 'RETENCIÓN ICA',
                             ];
+                            $soloRetencionKeys = ['reteiva', 'estampilla_procultura', 'estampilla_produlto', 'retencion_ica'];
                         @endphp
-                        @foreach(['servicios', 'compras', 'honorarios', 'reteiva'] as $concept)
+                        @foreach(['servicios', 'compras', 'honorarios', 'reteiva', 'estampilla_procultura', 'estampilla_produlto', 'retencion_ica'] as $concept)
                         @php $row = $fsData['rows'][$concept]; @endphp
                         <tr class="border-t border-gray-200 hover:bg-white/80 transition-colors">
                             <td class="px-4 py-3 font-semibold text-gray-800 border-r border-gray-200">{{ $conceptLabels[$concept] }}</td>
-                            @if($concept === 'reteiva')
-                                {{-- ReteIVA no tiene base, solo valor de retencion --}}
+                            @if(in_array($concept, $soloRetencionKeys))
+                                {{-- Solo valor de retención, sin base --}}
                                 <td class="px-4 py-3 text-right font-mono text-gray-400 border-r border-gray-200"></td>
                                 <td class="px-4 py-3 text-right font-mono border-r border-gray-200 {{ $row['juridica_retention'] > 0 ? 'text-gray-900' : 'text-gray-400' }}">
                                     @if($row['juridica_retention'] > 0)
@@ -185,6 +189,64 @@
         </div>
         @endforelse
 
+        {{-- Resumen Mensual Consolidado (todos los meses del año, sin importar el filtro de mes) --}}
+        @php
+            $monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+            $monthlyTotals = [
+                'retefuente'            => collect($monthlySummary)->sum('retefuente'),
+                'reteiva'               => collect($monthlySummary)->sum('reteiva'),
+                'estampilla_procultura' => collect($monthlySummary)->sum('estampilla_procultura'),
+                'estampilla_produlto'   => collect($monthlySummary)->sum('estampilla_produlto'),
+                'retencion_ica'         => collect($monthlySummary)->sum('retencion_ica'),
+                'total'                 => collect($monthlySummary)->sum('total'),
+            ];
+        @endphp
+        <div class="mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                <h3 class="text-sm font-bold text-gray-700 uppercase">Resumen Mensual de Retenciones — Vigencia {{ $filterYear }}</h3>
+                <span class="text-xs text-gray-500">Totales consolidados por mes (independiente del filtro superior)</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mes</th>
+                            <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Retefuente</th>
+                            <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">ReteIVA</th>
+                            <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Estampilla Procultura</th>
+                            <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Estampilla Produlto Mayor</th>
+                            <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ret. ICA</th>
+                            <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Mes</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @foreach($monthlySummary as $idx => $m)
+                        <tr class="hover:bg-gray-50 {{ $m['total'] > 0 ? '' : 'text-gray-400' }}">
+                            <td class="px-3 py-2.5 font-medium whitespace-nowrap">{{ $monthNames[$idx] }} {{ $filterYear }}</td>
+                            <td class="px-3 py-2.5 text-right font-mono">{{ $m['retefuente'] > 0 ? '$'.number_format($m['retefuente'], 0, ',', '.') : '—' }}</td>
+                            <td class="px-3 py-2.5 text-right font-mono">{{ $m['reteiva'] > 0 ? '$'.number_format($m['reteiva'], 0, ',', '.') : '—' }}</td>
+                            <td class="px-3 py-2.5 text-right font-mono">{{ $m['estampilla_procultura'] > 0 ? '$'.number_format($m['estampilla_procultura'], 0, ',', '.') : '—' }}</td>
+                            <td class="px-3 py-2.5 text-right font-mono">{{ $m['estampilla_produlto'] > 0 ? '$'.number_format($m['estampilla_produlto'], 0, ',', '.') : '—' }}</td>
+                            <td class="px-3 py-2.5 text-right font-mono">{{ $m['retencion_ica'] > 0 ? '$'.number_format($m['retencion_ica'], 0, ',', '.') : '—' }}</td>
+                            <td class="px-3 py-2.5 text-right font-mono font-semibold {{ $m['total'] > 0 ? 'text-red-700' : '' }}">{{ $m['total'] > 0 ? '$'.number_format($m['total'], 0, ',', '.') : '—' }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                    <tfoot class="bg-gray-100 font-bold text-sm">
+                        <tr>
+                            <td class="px-3 py-3 uppercase text-xs text-gray-700">Totales Anuales</td>
+                            <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['retefuente'], 0, ',', '.') }}</td>
+                            <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['reteiva'], 0, ',', '.') }}</td>
+                            <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['estampilla_procultura'], 0, ',', '.') }}</td>
+                            <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['estampilla_produlto'], 0, ',', '.') }}</td>
+                            <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['retencion_ica'], 0, ',', '.') }}</td>
+                            <td class="px-3 py-3 text-right font-mono text-red-800 text-base">${{ number_format($monthlyTotals['total'], 0, ',', '.') }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
         {{-- Resumen General --}}
         @if(count($reportData) > 1)
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -222,6 +284,7 @@
          data-school="{{ json_encode($school) }}"
          data-report="{{ json_encode($reportData) }}"
          data-totals="{{ json_encode($grandTotals) }}"
+         data-monthly="{{ json_encode($monthlySummary) }}"
          data-period="{{ $this->periodLabel }}"
          data-year="{{ $filterYear }}">
     </div>
@@ -239,6 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
             school: JSON.parse(el.dataset.school || '{}'),
             report: JSON.parse(el.dataset.report || '[]'),
             totals: JSON.parse(el.dataset.totals || '{}'),
+            monthly: JSON.parse(el.dataset.monthly || '[]'),
             period: el.dataset.period || '',
             year: el.dataset.year || ''
         };
@@ -247,109 +311,142 @@ document.addEventListener('DOMContentLoaded', function() {
     window.exportRetentionExcel = function() {
         if (typeof XLSX === 'undefined') { alert('Cargando libreria...'); return; }
         var d = getData();
-        if (!d || !d.report.length) { alert('No hay datos para exportar.'); return; }
+        if (!d) { alert('No hay datos para exportar.'); return; }
 
         var wb = XLSX.utils.book_new();
-        var allRows = [];
-        var merges = [];
-        var currentRow = 0;
 
-        // Header del colegio
-        allRows.push(['FORMATO PARA LIQUIDAR RETENCIONES']);
-        merges.push({s:{r:currentRow,c:0},e:{r:currentRow,c:5}});
-        currentRow++;
-        allRows.push(['COLEGIO:', d.school.name || 'N/A']);
-        merges.push({s:{r:currentRow,c:1},e:{r:currentRow,c:5}});
-        currentRow++;
-        allRows.push(['CODIGO DANE:', d.school.dane_code || 'N/A']);
-        currentRow++;
-        allRows.push(['MUNICIPIO:', d.school.municipality || 'N/A']);
-        currentRow++;
-        allRows.push(['PERIODO:', d.period]);
-        currentRow++;
-        allRows.push([]);
-        currentRow++;
+        // ========== HOJA 1: RESUMEN MENSUAL ==========
+        var monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        var mSheet = [];
+        mSheet.push(['RESUMEN MENSUAL DE RETENCIONES']);
+        mSheet.push(['COLEGIO:', d.school.name || 'N/A']);
+        mSheet.push(['CODIGO DANE:', d.school.dane_code || 'N/A']);
+        mSheet.push(['MUNICIPIO:', d.school.municipality || 'N/A']);
+        mSheet.push(['VIGENCIA:', d.year]);
+        mSheet.push([]);
+        mSheet.push(['MES', 'RETEFUENTE', 'RETEIVA', 'ESTAMPILLA PROCULTURA', 'ESTAMPILLA PRODULTO MAYOR', 'RETENCION ICA', 'TOTAL MES']);
 
-        var conceptLabels = {
-            'servicios': 'SERVICIOS',
-            'compras': 'COMPRAS',
-            'honorarios': 'HONORARIOS',
-            'reteiva': 'RETEIVA'
-        };
-        var conceptOrder = ['servicios', 'compras', 'honorarios', 'reteiva'];
+        var tots = {retefuente:0,reteiva:0,procult:0,prod:0,ica:0,total:0};
+        d.monthly.forEach(function(m, idx){
+            mSheet.push([
+                monthNames[idx] + ' ' + d.year,
+                m.retefuente || 0,
+                m.reteiva || 0,
+                m.estampilla_procultura || 0,
+                m.estampilla_produlto || 0,
+                m.retencion_ica || 0,
+                m.total || 0
+            ]);
+            tots.retefuente += m.retefuente || 0;
+            tots.reteiva += m.reteiva || 0;
+            tots.procult += m.estampilla_procultura || 0;
+            tots.prod += m.estampilla_produlto || 0;
+            tots.ica += m.retencion_ica || 0;
+            tots.total += m.total || 0;
+        });
+        mSheet.push(['TOTAL AÑO', tots.retefuente, tots.reteiva, tots.procult, tots.prod, tots.ica, tots.total]);
 
-        d.report.forEach(function(fs) {
-            // Titulo de la fuente
-            allRows.push(['FORMATO PARA LIQUIDAR RETENCIONES', '', '', '', 'FUENTE DE FINANCIACION']);
-            merges.push({s:{r:currentRow,c:0},e:{r:currentRow,c:3}});
+        var ws1 = XLSX.utils.aoa_to_sheet(mSheet);
+        ws1['!cols'] = [{wch:20},{wch:18},{wch:18},{wch:26},{wch:28},{wch:18},{wch:20}];
+        ws1['!merges'] = [{s:{r:0,c:0},e:{r:0,c:6}}];
+        for (var r = 6; r < mSheet.length; r++) {
+            for (var c = 1; c <= 6; c++) {
+                var cell = XLSX.utils.encode_cell({r:r,c:c});
+                if (ws1[cell] && typeof ws1[cell].v === 'number') ws1[cell].z = '#,##0.00';
+            }
+        }
+        XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Mensual');
+
+        // ========== HOJA 2: FORMATO POR FUENTE (según periodo filtrado) ==========
+        if (d.report.length > 0) {
+            var allRows = [];
+            var merges = [];
+            var currentRow = 0;
+
+            allRows.push(['FORMATO PARA LIQUIDAR RETENCIONES']);
+            merges.push({s:{r:currentRow,c:0},e:{r:currentRow,c:5}});
+            currentRow++;
+            allRows.push(['COLEGIO:', d.school.name || 'N/A']);
+            merges.push({s:{r:currentRow,c:1},e:{r:currentRow,c:5}});
+            currentRow++;
+            allRows.push(['CODIGO DANE:', d.school.dane_code || 'N/A']);
+            currentRow++;
+            allRows.push(['MUNICIPIO:', d.school.municipality || 'N/A']);
+            currentRow++;
+            allRows.push(['PERIODO:', d.period]);
+            currentRow++;
+            allRows.push([]);
             currentRow++;
 
-            // Headers de la tabla
-            allRows.push(['CONCEPTO DE RETENCION', 'PERSONA JURIDICA', '', 'PERSONA NATURAL', '', 'TOTAL RETENCION']);
-            merges.push({s:{r:currentRow,c:1},e:{r:currentRow,c:2}});
-            merges.push({s:{r:currentRow,c:3},e:{r:currentRow,c:4}});
-            currentRow++;
+            var conceptLabels = {
+                'servicios': 'SERVICIOS',
+                'compras': 'COMPRAS',
+                'honorarios': 'HONORARIOS',
+                'reteiva': 'RETEIVA',
+                'estampilla_procultura': 'ESTAMPILLA PROCULTURA',
+                'estampilla_produlto': 'ESTAMPILLA PRODULTO MAYOR',
+                'retencion_ica': 'RETENCION ICA'
+            };
+            var conceptOrder = ['servicios', 'compras', 'honorarios', 'reteiva', 'estampilla_procultura', 'estampilla_produlto', 'retencion_ica'];
+            var soloRetencion = {'reteiva':1,'estampilla_procultura':1,'estampilla_produlto':1,'retencion_ica':1};
 
-            allRows.push(['', 'VALOR BASE (SUBTOTAL)', 'VALOR RETENCION', 'VALOR BASE (SUBTOTAL)', 'VALOR RETENCION', fs.funding_source.toUpperCase()]);
-            currentRow++;
+            d.report.forEach(function(fs) {
+                allRows.push(['FORMATO PARA LIQUIDAR RETENCIONES - ' + fs.funding_source.toUpperCase()]);
+                merges.push({s:{r:currentRow,c:0},e:{r:currentRow,c:5}});
+                currentRow++;
 
-            // Filas de datos
-            conceptOrder.forEach(function(key) {
-                var row = fs.rows[key];
-                if (key === 'reteiva') {
-                    allRows.push([
-                        conceptLabels[key],
-                        '',
-                        row.juridica_retention || '',
-                        '',
-                        row.natural_retention || '',
-                        row.total_retention
-                    ]);
-                } else {
-                    allRows.push([
-                        conceptLabels[key],
-                        row.juridica_base || '',
-                        row.juridica_retention || '',
-                        row.natural_base || '',
-                        row.natural_retention || '',
-                        row.total_retention
-                    ]);
-                }
+                allRows.push(['CONCEPTO DE RETENCION', 'PERSONA JURIDICA', '', 'PERSONA NATURAL', '', 'TOTAL RETENCION']);
+                merges.push({s:{r:currentRow,c:1},e:{r:currentRow,c:2}});
+                merges.push({s:{r:currentRow,c:3},e:{r:currentRow,c:4}});
+                currentRow++;
+                allRows.push(['', 'VALOR BASE (SUBTOTAL)', 'VALOR RETENCION', 'VALOR BASE (SUBTOTAL)', 'VALOR RETENCION', '']);
+                currentRow++;
+
+                conceptOrder.forEach(function(key) {
+                    var row = fs.rows[key];
+                    if (soloRetencion[key]) {
+                        allRows.push([
+                            conceptLabels[key],
+                            '',
+                            row.juridica_retention || '',
+                            '',
+                            row.natural_retention || '',
+                            row.total_retention
+                        ]);
+                    } else {
+                        allRows.push([
+                            conceptLabels[key],
+                            row.juridica_base || '',
+                            row.juridica_retention || '',
+                            row.natural_base || '',
+                            row.natural_retention || '',
+                            row.total_retention
+                        ]);
+                    }
+                    currentRow++;
+                });
+
+                allRows.push(['TOTAL RETENCIONES POR ' + fs.funding_source.toUpperCase(), '', '', '', '', fs.total]);
+                merges.push({s:{r:currentRow,c:0},e:{r:currentRow,c:4}});
+                currentRow++;
+                allRows.push([]);
                 currentRow++;
             });
 
-            // Total por fuente
-            allRows.push(['TOTAL RETENCIONES POR ' + fs.funding_source.toUpperCase(), '', '', '', '', fs.total]);
-            merges.push({s:{r:currentRow,c:0},e:{r:currentRow,c:4}});
-            currentRow++;
-
-            // Espacio entre tablas
-            allRows.push([]);
-            currentRow++;
-        });
-
-        var ws = XLSX.utils.aoa_to_sheet(allRows);
-        ws['!merges'] = merges;
-        ws['!cols'] = [
-            {wch: 35},
-            {wch: 22},
-            {wch: 20},
-            {wch: 22},
-            {wch: 20},
-            {wch: 18}
-        ];
-
-        // Format currency cells
-        for (var r = 0; r < allRows.length; r++) {
-            for (var c = 1; c <= 5; c++) {
-                var cell = XLSX.utils.encode_cell({r: r, c: c});
-                if (ws[cell] && typeof ws[cell].v === 'number' && ws[cell].v !== 0) {
-                    ws[cell].z = '#,##0';
+            var ws2 = XLSX.utils.aoa_to_sheet(allRows);
+            ws2['!merges'] = merges;
+            ws2['!cols'] = [{wch:35},{wch:22},{wch:20},{wch:22},{wch:20},{wch:18}];
+            for (var r = 0; r < allRows.length; r++) {
+                for (var c = 1; c <= 5; c++) {
+                    var cell = XLSX.utils.encode_cell({r: r, c: c});
+                    if (ws2[cell] && typeof ws2[cell].v === 'number' && ws2[cell].v !== 0) {
+                        ws2[cell].z = '#,##0.00';
+                    }
                 }
             }
+            XLSX.utils.book_append_sheet(wb, ws2, 'Por Fuente');
         }
 
-        XLSX.utils.book_append_sheet(wb, ws, 'Liquidacion Retenciones');
         var fileName = 'Liquidacion_Retenciones_' + (d.school.name || 'Colegio').replace(/[^a-zA-Z0-9]/g, '_') + '_' + d.year + '.xlsx';
         XLSX.writeFile(wb, fileName);
     };

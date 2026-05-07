@@ -140,6 +140,33 @@ class PaymentReportManagement extends Component
 
         $paymentOrders = $query->orderBy('payment_number')->get();
 
+        // Precargar mapeo expense_distribution_id → {cdp_number, rp_number, rp_id}
+        // para cada contrato que aparezca en los pagos. Así cada expense_line puede
+        // mostrar el CDP y RP exactos que la financian (importante para contratos
+        // con varios rubros, donde cada rubro se respalda con RP+CDP distintos).
+        $contractIds = $paymentOrders->pluck('contract_id')->filter()->unique()->all();
+        $distToCdpRpByContract = []; // [contract_id => [expense_distribution_id => ['cdp_number','rp_number','rp_id']]]
+        if (!empty($contractIds)) {
+            $rowsMap = DB::table('contract_rps as cr')
+                ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
+                ->join('cdps as cdp', 'cdp.id', '=', 'cr.cdp_id')
+                ->join('convocatoria_distributions as cvd', 'cvd.id', '=', 'cdp.convocatoria_distribution_id')
+                ->whereIn('c.id', $contractIds)
+                ->where('cr.status', '!=', 'cancelled')
+                ->selectRaw('c.id AS contract_id, cr.id AS rp_id, cr.rp_number, cdp.cdp_number, cvd.expense_distribution_id')
+                ->get();
+            foreach ($rowsMap as $m) {
+                if (!isset($distToCdpRpByContract[$m->contract_id])) {
+                    $distToCdpRpByContract[$m->contract_id] = [];
+                }
+                $distToCdpRpByContract[$m->contract_id][$m->expense_distribution_id] = [
+                    'cdp_number' => $m->cdp_number,
+                    'rp_number'  => $m->rp_number,
+                    'rp_id'      => $m->rp_id,
+                ];
+            }
+        }
+
         $rows = [];
 
         foreach ($paymentOrders as $po) {
@@ -184,8 +211,10 @@ class PaymentReportManagement extends Component
             // Caso A: hay expense_lines → UNA FILA POR CADA RUBRO (línea)
             // Cada línea ya tiene sus valores exactos (total, retenciones, neto)
             // y su fuente de financiación viene de expense_distribution.budget.funding_source.
-            // No se prorratea entre fuentes del RP (eso producía filas duplicadas/fragmentadas).
+            // El CDP y RP se resuelven por cada distribución usando el mapeo del contrato.
             if ($expenseLines->isNotEmpty()) {
+                $distMap = $distToCdpRpByContract[$po->contract_id] ?? [];
+
                 foreach ($expenseLines as $line) {
                     $ec   = $line->expenseCode;
                     $dist = $line->expenseDistribution;
@@ -200,7 +229,18 @@ class PaymentReportManagement extends Component
                         $fs = $matchingRpFs?->fundingSource;
                     }
 
+                    // CDP y RP exactos de esta distribución (vía cdp.convocatoria_distribution_id).
+                    // Si no hay match, caemos al baseData (CDP/RP del contrato, comportamiento legacy).
+                    $lineCdp = $baseData['cdp_number'];
+                    $lineRp  = $baseData['rp_number'];
+                    if ($dist && isset($distMap[$dist->id])) {
+                        $lineCdp = $distMap[$dist->id]['cdp_number'];
+                        $lineRp  = $distMap[$dist->id]['rp_number'];
+                    }
+
                     $rows[] = array_merge($baseData, [
+                        'cdp_number'     => $lineCdp,
+                        'rp_number'      => $lineRp,
                         'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
                         'rubro_code'     => $ec?->code ?? $bi?->code ?? '',
                         'rubro_name'     => $ec?->name ?? $bi?->name ?? '',

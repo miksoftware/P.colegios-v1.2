@@ -1,6 +1,6 @@
 <div>
     <div class="min-h-screen bg-gray-50 py-8">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
             {{-- Header --}}
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                 <div>
@@ -115,24 +115,13 @@
                         <tbody class="divide-y divide-gray-200">
                             {{-- Fila de saldo anterior --}}
                             <tr class="bg-yellow-50 font-semibold">
-                                <td class="px-4 py-3 whitespace-nowrap text-gray-700">saldo a 31/12/{{ $movements['previous_year'] ?? ($filterYear - 1) }}</td>
-                                <td class="px-4 py-3 text-gray-700">31/12/{{ $movements['previous_year'] ?? ($filterYear - 1) }}</td>
-                                <td class="px-3 py-3 text-center text-gray-500">0</td>
-                                <td class="px-3 py-3 text-right text-gray-700">{{ number_format(0, 2, ',', '.') }}</td>
-                                <td class="px-3 py-3 text-center"></td>
-                                <td class="px-3 py-3 text-right text-gray-700">{{ number_format(0, 2, ',', '.') }}</td>
-                                <td class="px-3 py-3 text-right font-bold text-gray-900">{{ number_format($movements['previous_balance'] ?? 0, 2, ',', '.') }}</td>
-                            </tr>
-
-                            {{-- Fila SALDO --}}
-                            <tr class="bg-gray-50">
-                                <td class="px-4 py-2"></td>
-                                <td class="px-4 py-2 font-semibold text-gray-700">SALDO</td>
-                                <td class="px-3 py-2"></td>
-                                <td class="px-3 py-2 text-right text-gray-500">$ {{ number_format($movements['previous_balance'] ?? 0, 2, ',', '.') }}</td>
-                                <td class="px-3 py-2"></td>
-                                <td class="px-3 py-2"></td>
-                                <td class="px-3 py-2 text-right font-bold text-gray-900">{{ number_format($movements['previous_balance'] ?? 0, 2, ',', '.') }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-gray-700">31/12/{{ $movements['previous_year'] ?? ($filterYear - 1) }}</td>
+                                <td class="px-4 py-3 text-gray-700">SALDO ANTERIOR A 31/12/{{ $movements['previous_year'] ?? ($filterYear - 1) }}</td>
+                                <td class="px-3 py-3 text-center text-gray-400">—</td>
+                                <td class="px-3 py-3 text-right text-gray-400">—</td>
+                                <td class="px-3 py-3 text-center text-gray-400">—</td>
+                                <td class="px-3 py-3 text-right text-gray-400">—</td>
+                                <td class="px-3 py-3 text-right font-bold text-gray-900">$ {{ number_format($movements['previous_balance'] ?? 0, 2, ',', '.') }}</td>
                             </tr>
 
                             {{-- Movimientos --}}
@@ -147,13 +136,13 @@
                                     @if($mov['type'] === 'income')
                                         <td class="px-3 py-3 text-center text-gray-500">{{ $mov['income_ref'] }}</td>
                                         <td class="px-3 py-3 text-right font-medium text-emerald-700">$ {{ number_format($mov['income_amount'], 2, ',', '.') }}</td>
-                                        <td class="px-3 py-3"></td>
-                                        <td class="px-3 py-3 text-right text-gray-400">{{ number_format($mov['income_amount'], 2, ',', '.') }}</td>
+                                        <td class="px-3 py-3 text-center text-gray-300">—</td>
+                                        <td class="px-3 py-3 text-right text-gray-300">—</td>
                                     @else
-                                        <td class="px-3 py-3"></td>
-                                        <td class="px-3 py-3"></td>
+                                        <td class="px-3 py-3 text-center text-gray-300">—</td>
+                                        <td class="px-3 py-3 text-right text-gray-300">—</td>
                                         <td class="px-3 py-3 text-center text-gray-500">{{ $mov['expense_ref'] }}</td>
-                                        <td class="px-3 py-3 text-right font-medium text-red-600">{{ number_format($mov['expense_amount'], 2, ',', '.') }}</td>
+                                        <td class="px-3 py-3 text-right font-medium text-red-600">$ {{ number_format($mov['expense_amount'], 2, ',', '.') }}</td>
                                     @endif
                                     <td class="px-3 py-3 text-right font-bold text-gray-900">{{ number_format($mov['balance'] ?? 0, 2, ',', '.') }}</td>
                                 </tr>
@@ -256,8 +245,7 @@ window.exportBankBookExcel = function() {
     rows.push(['FECHA', 'DETALLE', 'No CONSIG', 'VALOR INGRESO', 'No CHEQUE', 'VALOR EGRESO', 'NUEVO SALDO']);
 
     // Saldo anterior
-    rows.push(['saldo a 31/12/' + previousYear, '31/12/' + previousYear, 0, 0, '', 0, previousBalance]);
-    rows.push(['', 'SALDO', '', previousBalance, '', '', previousBalance]);
+    rows.push(['31/12/' + previousYear, 'SALDO ANTERIOR A 31/12/' + previousYear, '', '', '', '', previousBalance]);
 
     // Movimientos
     for (var i = 0; i < movements.length; i++) {
@@ -268,7 +256,7 @@ window.exportBankBookExcel = function() {
             dateStr = parts[2] + '/' + parts[1] + '/' + parts[0];
         }
         if (m.type === 'income') {
-            rows.push([dateStr, m.detail, m.income_ref || '', m.income_amount, '', m.income_amount, m.balance]);
+            rows.push([dateStr, m.detail, m.income_ref || '', m.income_amount, '', '', m.balance]);
         } else {
             rows.push([dateStr, m.detail, '', '', m.expense_ref || '', m.expense_amount, m.balance]);
         }

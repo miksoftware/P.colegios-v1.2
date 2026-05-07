@@ -6,7 +6,6 @@ use App\Models\Budget;
 use App\Models\ExpenseDistribution;
 use App\Models\Income;
 use App\Models\PaymentOrderExpenseLine;
-use App\Models\RpFundingSource;
 use App\Models\School;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
@@ -144,29 +143,55 @@ class SifseReport extends Component
             }
         }
 
-        // --- Commitments (RP) up to cutoff per budget ---
-        // La fecha correcta es la del ContractRp (otrosi_date cuando exista, si no created_at).
-        $commitmentsByBudget = [];
-        if (!empty($budgetIds)) {
-            $commitmentsByBudget = RpFundingSource::whereIn('budget_id', $budgetIds)
-                ->whereHas('contractRp', function ($q) use ($cutoff) {
-                    $q->where('status', '!=', 'cancelled')
-                      ->where(function ($qq) use ($cutoff) {
-                          $qq->where('otrosi_date', '<=', $cutoff)
-                             ->orWhere(function ($qqq) use ($cutoff) {
-                                 $qqq->whereNull('otrosi_date')
-                                     ->where('created_at', '<=', $cutoff . ' 23:59:59');
-                             });
-                      });
-                })
-                ->selectRaw('budget_id, SUM(amount) as total')
-                ->groupBy('budget_id')
-                ->pluck('total', 'budget_id')
-                ->toArray();
+        // --- Commitments (RP) up to cutoff per expense_distribution ---
+        // Usa asignación exacta vía cdp.convocatoria_distribution_id cuando existe,
+        // con fallback a prorrateo por amount dentro del budget para CDPs legacy.
+        $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
+
+        $commitmentsByDist = [];
+        if (!empty($distIds)) {
+            $rpRows = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
+                ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
+                ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
+                ->leftJoin('cdps as cdp', 'cdp.id', '=', 'cr.cdp_id')
+                ->leftJoin('convocatoria_distributions as cvd', 'cvd.id', '=', 'cdp.convocatoria_distribution_id')
+                ->where('cr.status', '!=', 'cancelled')
+                ->where('c.status', '!=', 'annulled')
+                ->whereRaw('COALESCE(cr.otrosi_date, c.start_date) <= ?', [$cutoff])
+                ->selectRaw('rfs.budget_id, rfs.amount as rfs_amount, cvd.expense_distribution_id as exact_dist_id')
+                ->get();
+
+            $distsByBudget = [];
+            foreach ($budgets as $b) {
+                $distsByBudget[$b->id] = $b->distributions->map(fn($d) => [
+                    'id'     => $d->id,
+                    'amount' => (float) $d->amount,
+                ])->values()->all();
+            }
+            $validDistIds = array_flip($distIds);
+
+            foreach ($rpRows as $row) {
+                $rfsAmount = (float) $row->rfs_amount;
+
+                if (!empty($row->exact_dist_id) && isset($validDistIds[$row->exact_dist_id])) {
+                    $commitmentsByDist[$row->exact_dist_id] =
+                        ($commitmentsByDist[$row->exact_dist_id] ?? 0) + $rfsAmount;
+                    continue;
+                }
+
+                $dists = $distsByBudget[$row->budget_id] ?? [];
+                if (empty($dists)) continue;
+                $totalDist = array_sum(array_column($dists, 'amount'));
+                foreach ($dists as $d) {
+                    if (!isset($validDistIds[$d['id']])) continue;
+                    $ratio = $totalDist > 0 ? $d['amount'] / $totalDist : 0;
+                    $commitmentsByDist[$d['id']] =
+                        ($commitmentsByDist[$d['id']] ?? 0) + $rfsAmount * $ratio;
+                }
+            }
         }
 
         // --- Payments up to cutoff per expense_distribution ---
-        $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
         $paymentsByDist = [];
         if (!empty($distIds)) {
             $paymentsByDist = PaymentOrderExpenseLine::whereIn('expense_distribution_id', $distIds)
@@ -206,7 +231,6 @@ class SifseReport extends Component
             $credits = (float) ($creditsByBudget[$budget->id] ?? 0);
             $contracredits = (float) ($contracreditsByBudget[$budget->id] ?? 0);
             $definitive = $initial + $additions - $reductions + $credits - $contracredits;
-            $totalCommitments = (float) ($commitmentsByBudget[$budget->id] ?? 0);
             $fundingCode = $budget->fundingSource?->code ?? '';
 
             $distributions = $budget->distributions;
@@ -222,6 +246,7 @@ class SifseReport extends Component
                 $expCode = $dist->expenseCode;
                 $sifseCode = $expCode?->sifse_code ?? '';
                 $distPayments = (float) ($paymentsByDist[$dist->id] ?? 0);
+                $distCommitments = (float) ($commitmentsByDist[$dist->id] ?? 0);
                 $ratio = $totalDistAmount > 0 ? (float) $dist->amount / $totalDistAmount : 0;
                 $directProrated = round($directPayments * $ratio, 2);
 
@@ -241,7 +266,7 @@ class SifseReport extends Component
 
                 $rawRows[$key]['initial'] += round($initial * $ratio, 2);
                 $rawRows[$key]['definitive'] += round($definitive * $ratio, 2);
-                $rawRows[$key]['commitments'] += round($totalCommitments * $ratio, 2) + $directProrated;
+                $rawRows[$key]['commitments'] += $distCommitments + $directProrated;
                 $rawRows[$key]['obligations'] += $distPayments + $directProrated;
                 $rawRows[$key]['payments'] += $distPayments + $directProrated;
             }

@@ -95,11 +95,13 @@ class ExpenseExecutionReport extends Component
         // pero NO se muestran en el reporte de ejecución de gastos, porque ese monto
         // aún no está distribuido en ningún rubro (queda como saldo disponible del budget).
         //
-        // Cada línea puede tener su propio document_date (fecha fiscal del movimiento)
-        // que puede diferir de la fecha de la modificación padre. Se respeta la fecha
-        // de la línea para el filtrado por periodo.
+        // Cada línea tiene su propio document_date (fecha fiscal del movimiento).
+        // Para no duplicar con el initial_amount del rubro, ignoramos líneas cuya fecha
+        // sea ANTERIOR al año fiscal del reporte (son el histórico del inicial del rubro).
         $additionsByDist  = []; // asignación exacta a expense_distribution
         $reductionsByDist = [];
+        $yearStart = "{$year}-01-01";
+
         if (!empty($budgetIds)) {
             // Solo necesitamos modificaciones que tengan al menos una línea
             $mods = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds)
@@ -116,11 +118,26 @@ class ExpenseExecutionReport extends Component
 
             foreach ($mods as $mod) {
                 $isAddition = $mod->type === 'addition';
-                $modDate    = $mod->document_date ?? $mod->created_at;
+                // Fecha efectiva de la modificación: SOLO document_date (la fecha fiscal real
+                // que el usuario ingresó). NO se usa created_at porque el usuario puede
+                // estar cargando data histórica y esa fecha no corresponde al movimiento.
+                $modDate = $mod->document_date;
 
                 foreach ($mod->lines as $line) {
                     if (!isset($validDistIds[$line->expense_distribution_id])) continue;
+                    // Fecha efectiva de la línea: document_date propio, fallback a la del mod
                     $lineDate = $line->document_date ?? $modDate;
+                    if (!$lineDate) continue; // sin fecha no se puede ubicar en ningún periodo
+
+                    $lineDateStr = $lineDate instanceof \Carbon\Carbon
+                        ? $lineDate->toDateString()
+                        : (string) $lineDate;
+
+                    // Ignorar líneas anteriores al año fiscal consultado: corresponden
+                    // a la apropiación inicial del rubro, ya contabilizada en initial_amount.
+                    if ($lineDateStr < $yearStart) continue;
+
+                    // Filtrar por el periodo solicitado (Q1, Q2, etc.)
                     if (!$inRange($lineDate)) continue;
 
                     $delta = abs((float) $line->amount_after - (float) $line->amount_before);
@@ -308,7 +325,6 @@ class ExpenseExecutionReport extends Component
         foreach ($budgets as $budget) {
             $fundingCode = $budget->fundingSource?->code ?? '';
             $fundingName = $budget->fundingSource?->name ?? '';
-            $budgetInitial = (float) $budget->initial_amount;
 
             $distributions = $budget->distributions;
 
@@ -318,46 +334,30 @@ class ExpenseExecutionReport extends Component
                 continue;
             }
 
-            // Suma de initial_amount de todas las distribuciones, para calcular
-            // la proporción de cada rubro en la apropiación inicial del budget.
-            $totalDistInitial = (float) $distributions->sum('initial_amount');
-
             foreach ($distributions as $dist) {
                 $expCode = $dist->expenseCode;
 
-                // Todo es asignación exacta:
+                // Todo es asignación exacta con fechas reales:
                 //   - Compromisos: RP → CDP → distribución
                 //   - Pagos: expense_line → distribución
-                //   - Créditos/contracréditos: source/destination_expense_distribution_id
+                //   - Créditos/contracréditos: source/destination_expense_distribution_id + document_date
+                //   - Adiciones/reducciones: budget_modification_lines con document_date dentro del año fiscal
                 $distCommitments   = (float) ($commitmentsByDist[$dist->id] ?? 0);
                 $distPayments      = (float) ($paymentsByDist[$dist->id] ?? 0);
                 $distCredits       = (float) ($creditsByDist[$dist->id] ?? 0);
                 $distContracredits = (float) ($contracreditsByDist[$dist->id] ?? 0);
+                $distAdditions     = (float) ($additionsByDist[$dist->id] ?? 0);
+                $distReductions    = (float) ($reductionsByDist[$dist->id] ?? 0);
 
-                // Apropiación inicial del rubro: derivada del budget.
-                // Si el budget nació en 0, el rubro también nace en 0 (todo es adición).
-                // Si el budget tuvo apropiación inicial, se reparte proporcional a la
-                // participación del rubro en el total distribuido original.
-                $distInitial = 0;
-                if ($budgetInitial > 0 && $totalDistInitial > 0) {
-                    $distInitial = round($budgetInitial * ((float) $dist->initial_amount / $totalDistInitial), 2);
-                }
+                // Apropiación inicial del rubro: el initial_amount registrado al momento
+                // de crear la distribución. Esto incluye cualquier línea histórica previa
+                // al año fiscal (se guardaron como "adiciones" pero representan el inicial).
+                $distInitial = (float) $dist->initial_amount;
 
-                // Apropiación definitiva: valor actual del rubro (directo).
-                $distDefinitive = (float) $dist->amount;
-
-                // Adiciones/reducciones del rubro: el neto entre definitiva y (inicial
-                // + traslados). Esto captura tanto adiciones explícitas (vía líneas de
-                // modificación) como implícitas (distribuciones hechas después de una
-                // adición general al budget).
-                $netChange = $distDefinitive - $distInitial - $distCredits + $distContracredits;
-                if ($netChange >= 0) {
-                    $distAdditions  = $netChange;
-                    $distReductions = 0;
-                } else {
-                    $distAdditions  = 0;
-                    $distReductions = abs($netChange);
-                }
+                // Apropiación definitiva CALCULADA: inicial + adiciones del año - reducciones
+                // + créditos - contracréditos. Se respeta el filtro de periodo.
+                $distDefinitive = $distInitial + $distAdditions - $distReductions
+                                  + $distCredits - $distContracredits;
 
                 $this->rows[] = [
                     'budget_id' => $budget->id,

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BudgetModification extends Model
 {
@@ -50,6 +51,11 @@ class BudgetModification extends Model
     public function budget(): BelongsTo
     {
         return $this->belongsTo(Budget::class);
+    }
+
+    public function lines(): HasMany
+    {
+        return $this->hasMany(BudgetModificationLine::class);
     }
 
     public function creator(): BelongsTo

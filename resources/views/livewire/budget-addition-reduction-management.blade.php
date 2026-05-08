@@ -526,10 +526,46 @@
                         </div>
                     </div>
 
+                    {{-- Distribuciones actuales de gasto --}}
+                    @if($historyExpenseBudget && $historyExpenseBudget->distributions->count() > 0)
+                    <div class="mb-4">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Distribución de Gastos Actual</h4>
+                        <div class="overflow-x-auto rounded-xl border border-gray-200">
+                            <table class="min-w-full text-xs">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-500">Código</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-500">Gasto</th>
+                                        <th class="px-3 py-2 text-right font-medium text-gray-500">Monto Actual</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    @foreach($historyExpenseBudget->distributions as $dist)
+                                    <tr class="bg-white hover:bg-gray-50">
+                                        <td class="px-3 py-2 text-gray-500 font-mono">{{ $dist->expenseCode->code ?? '' }}</td>
+                                        <td class="px-3 py-2 text-gray-800">{{ $dist->expenseCode->name ?? 'N/A' }}</td>
+                                        <td class="px-3 py-2 text-right font-medium text-gray-900">${{ number_format($dist->amount, 2, ',', '.') }}</td>
+                                    </tr>
+                                    @endforeach
+                                    <tr class="bg-indigo-50">
+                                        <td colspan="2" class="px-3 py-2 font-semibold text-indigo-700">Total distribuido</td>
+                                        <td class="px-3 py-2 text-right font-bold text-indigo-700">${{ number_format($historyExpenseBudget->distributions->sum('amount'), 2, ',', '.') }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    @endif
+
                     <!-- Modifications list -->
                     @if($historyIncomeBudget->modifications->count() > 0)
-                    <div class="space-y-3 max-h-96 overflow-y-auto">
+                    <div class="space-y-3 max-h-[36rem] overflow-y-auto">
                         @foreach($historyIncomeBudget->modifications as $mod)
+                        @php
+                            // Correlacionar con la modificación de gasto (mismo número de modificación)
+                            $expenseMod = $historyExpenseBudget?->modifications
+                                ->firstWhere('modification_number', $mod->modification_number);
+                        @endphp
                         <div class="p-3 {{ $mod->type === 'addition' ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-100' }} rounded-xl border">
                             <div class="flex items-center justify-between mb-1">
                                 <div class="flex items-center gap-2">
@@ -574,6 +610,94 @@
                                 </div>
                                 @endif
                             </div>
+
+                            {{-- Detalle de distribuciones afectadas --}}
+                            @if($expenseMod && $historyExpenseBudget->distributions->count() > 0)
+                            @if($editingLinesModId === $expenseMod->id)
+                            {{-- Formulario de edición de líneas --}}
+                            <div class="mt-3 pt-2 border-t border-dashed border-blue-200">
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-xs font-semibold text-blue-700">Distribución por gastos:</p>
+                                    <button wire:click="cancelEditModLines" class="text-xs text-gray-400 hover:text-gray-600">✕ Cancelar</button>
+                                </div>
+                                <div class="space-y-1.5">
+                                    @foreach($historyExpenseBudget->distributions as $dist)
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 min-w-0">
+                                            <span class="text-xs font-mono text-gray-400">{{ $dist->expenseCode->code ?? '' }}</span>
+                                            <span class="text-xs text-gray-700 ml-1">{{ $dist->expenseCode->name ?? 'N/A' }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-1 flex-shrink-0">
+                                            <span class="text-xs text-gray-400">$</span>
+                                            <input type="number" step="0.01" min="0"
+                                                wire:model="editingLines.{{ $dist->id }}"
+                                                class="w-32 rounded-lg border-gray-300 text-xs text-right focus:border-blue-500 focus:ring-blue-500"
+                                                placeholder="0.00">
+                                        </div>
+                                    </div>
+                                    @endforeach
+                                </div>
+                                <div class="mt-2 flex justify-end">
+                                    <button wire:click="saveModificationLines"
+                                        class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg font-medium">
+                                        Guardar detalle
+                                    </button>
+                                </div>
+                            </div>
+                            @else
+                            {{-- Vista de líneas existentes + botón editar --}}
+                            @if($expenseMod->lines->count() > 0)
+                            <div class="mt-3 pt-2 border-t border-dashed {{ $mod->type === 'addition' ? 'border-green-200' : 'border-orange-200' }}">
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="text-xs font-semibold text-gray-500">Distribuciones afectadas:</p>
+                                    @can('budget_modifications.create')
+                                    <button wire:click="startEditModLines({{ $expenseMod->id }}, '{{ $expenseMod->type }}')"
+                                        class="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        Editar
+                                    </button>
+                                    @endcan
+                                </div>
+                                <div class="space-y-1">
+                                    @foreach($expenseMod->lines as $line)
+                                    @php
+                                        $isAnnotation = (float)$line->amount_before === 0.0;
+                                        $delta = $isAnnotation ? (float)$line->amount_after : abs((float)$line->amount_after - (float)$line->amount_before);
+                                        $isPositive = $expenseMod->type === 'addition';
+                                    @endphp
+                                    <div class="flex items-center justify-between text-xs">
+                                        <div class="flex items-center gap-1.5 min-w-0">
+                                            <span class="font-mono text-gray-400 flex-shrink-0">{{ $line->expenseDistribution->expenseCode->code ?? '' }}</span>
+                                            <span class="text-gray-700 truncate">{{ $line->expenseDistribution->expenseCode->name ?? 'N/A' }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+                                            @if(!$isAnnotation)
+                                            <span class="text-gray-400">${{ number_format($line->amount_before, 0, ',', '.') }}</span>
+                                            <span class="text-gray-300">→</span>
+                                            <span class="font-semibold {{ $isPositive ? 'text-green-700' : 'text-orange-700' }}">${{ number_format($line->amount_after, 0, ',', '.') }}</span>
+                                            @endif
+                                            <span class="font-medium {{ $isPositive ? 'text-green-600' : 'text-orange-600' }}">
+                                                ({{ $isPositive ? '+' : '-' }}${{ number_format($delta, 0, ',', '.') }})
+                                            </span>
+                                        </div>
+                                    </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                            @else
+                            {{-- Sin líneas: mostrar botón para agregar --}}
+                            @can('budget_modifications.create')
+                            <div class="mt-2 flex justify-end">
+                                <button wire:click="startEditModLines({{ $expenseMod->id }}, '{{ $expenseMod->type }}')"
+                                    class="text-xs text-indigo-400 hover:text-indigo-600 flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                    Agregar distribución por gastos
+                                </button>
+                            </div>
+                            @endcan
+                            @endif
+                            @endif
+                            @endif
                         </div>
                         @endforeach
                     </div>

@@ -41,6 +41,10 @@ class BudgetAdditionReductionManagement extends Component
     public $historyExpenseBudget = null;
     public $editingModId = null;
     public $editingModDate = '';
+    // Editar líneas de distribución de una modificación
+    public $editingLinesModId = null;
+    public $editingLinesModType = '';
+    public $editingLines = [];
 
     // Info de distribuciones afectadas
     public $affectedDistributions = [];
@@ -347,6 +351,11 @@ class BudgetAdditionReductionManagement extends Component
 
             DB::beginTransaction();
             try {
+                // Obtener montos actuales de distribuciones ANTES de decrementar
+                $distAmountsBefore = ExpenseDistribution::whereIn('id', array_column($lines, 'id'))
+                    ->pluck('amount', 'id')
+                    ->toArray();
+
                 // Reducir cada distribución
                 foreach ($lines as $line) {
                     ExpenseDistribution::where('id', $line['id'])->decrement('amount', $line['amount']);
@@ -369,10 +378,10 @@ class BudgetAdditionReductionManagement extends Component
                 ]);
                 $incomeBudget->update(['current_amount' => $incomeNew]);
 
-                // Registrar modificación en GASTO
+                // Registrar modificación en GASTO y guardar líneas de detalle
                 $expensePrev = $expenseBudget->current_amount;
                 $expenseNew  = $expensePrev - $amount;
-                BudgetModification::create([
+                $expenseMod  = BudgetModification::create([
                     'budget_id'           => $expenseBudget->id,
                     'modification_number' => $expenseBudget->getNextModificationNumber(),
                     'type'                => 'reduction',
@@ -385,6 +394,17 @@ class BudgetAdditionReductionManagement extends Component
                     'created_by'          => auth()->id(),
                 ]);
                 $expenseBudget->update(['current_amount' => $expenseNew]);
+
+                // Guardar líneas de detalle por distribución
+                foreach ($lines as $line) {
+                    $before = (float) ($distAmountsBefore[$line['id']] ?? 0);
+                    \App\Models\BudgetModificationLine::create([
+                        'budget_modification_id'  => $expenseMod->id,
+                        'expense_distribution_id' => $line['id'],
+                        'amount_before'           => $before,
+                        'amount_after'            => $before - $line['amount'],
+                    ]);
+                }
 
                 DB::commit();
                 $this->dispatch('toast', message: 'Reducción registrada exitosamente en ingreso, gasto y distribuciones.', type: 'success');
@@ -430,6 +450,12 @@ class BudgetAdditionReductionManagement extends Component
                     $this->addError('amount', 'Ingrese al menos un monto a adicionar en alguna distribución.');
                     return;
                 }
+
+                // Obtener montos actuales ANTES de incrementar
+                $distAmountsBefore = ExpenseDistribution::whereIn('id', array_column($lines, 'id'))
+                    ->pluck('amount', 'id')
+                    ->toArray();
+
                 $amount = array_sum(array_column($lines, 'amount'));
                 foreach ($lines as $line) {
                     ExpenseDistribution::where('id', $line['id'])->increment('amount', $line['amount']);
@@ -462,7 +488,7 @@ class BudgetAdditionReductionManagement extends Component
                 ? $expensePrevious + $amount
                 : $expensePrevious - $amount;
 
-            BudgetModification::create([
+            $expenseMod2 = BudgetModification::create([
                 'budget_id' => $expenseBudget->id,
                 'modification_number' => $expenseBudget->getNextModificationNumber(),
                 'type' => $this->operationType,
@@ -475,6 +501,19 @@ class BudgetAdditionReductionManagement extends Component
                 'created_by' => auth()->id(),
             ]);
             $expenseBudget->update(['current_amount' => $expenseNew]);
+
+            // Guardar líneas de detalle si fue adición por distribución
+            if (!empty($lines) && isset($distAmountsBefore)) {
+                foreach ($lines as $line) {
+                    $before = (float) ($distAmountsBefore[$line['id']] ?? 0);
+                    \App\Models\BudgetModificationLine::create([
+                        'budget_modification_id'  => $expenseMod2->id,
+                        'expense_distribution_id' => $line['id'],
+                        'amount_before'           => $before,
+                        'amount_after'            => $before + $line['amount'],
+                    ]);
+                }
+            }
 
             DB::commit();
 
@@ -494,7 +533,11 @@ class BudgetAdditionReductionManagement extends Component
             ->findOrFail($incomeBudgetId);
 
         $this->historyExpenseBudget = Budget::forSchool($this->schoolId)
-            ->with(['modifications.creator'])
+            ->with([
+                'distributions.expenseCode',
+                'modifications.creator',
+                'modifications.lines.expenseDistribution.expenseCode',
+            ])
             ->findOrFail($expenseBudgetId);
 
         $this->showHistoryModal = true;
@@ -753,12 +796,102 @@ class BudgetAdditionReductionManagement extends Component
             ->with(['budgetItem', 'fundingSource', 'modifications.creator'])
             ->findOrFail($incomeId);
         $this->historyExpenseBudget = Budget::forSchool($this->schoolId)
-            ->with(['modifications.creator'])
+            ->with([
+                'distributions.expenseCode',
+                'modifications.creator',
+                'modifications.lines.expenseDistribution.expenseCode',
+            ])
             ->findOrFail($expenseId);
 
         $this->editingModId   = null;
         $this->editingModDate = '';
         $this->dispatch('toast', message: 'Fecha actualizada exitosamente.', type: 'success');
+    }
+
+    // ======================================================
+    // EDITAR LÍNEAS DE DISTRIBUCIÓN DE UNA MODIFICACIÓN
+    // ======================================================
+
+    public function startEditModLines(int $expenseModId, string $modType)
+    {
+        $this->editingLinesModId   = $expenseModId;
+        $this->editingLinesModType = $modType;
+
+        // Pre-llenar con los deltas de líneas existentes
+        $existingDeltas = \App\Models\BudgetModificationLine::where('budget_modification_id', $expenseModId)
+            ->get()
+            ->mapWithKeys(function ($l) {
+                $delta = $l->amount_before > 0
+                    ? abs((float) $l->amount_after - (float) $l->amount_before)
+                    : (float) $l->amount_after; // anotación retroactiva
+                return [$l->expense_distribution_id => $delta];
+            })
+            ->toArray();
+
+        $this->editingLines = [];
+        foreach ($this->historyExpenseBudget->distributions as $dist) {
+            $val = $existingDeltas[$dist->id] ?? null;
+            $this->editingLines[$dist->id] = ($val > 0) ? number_format($val, 2, '.', '') : '';
+        }
+    }
+
+    public function cancelEditModLines()
+    {
+        $this->editingLinesModId   = null;
+        $this->editingLinesModType = '';
+        $this->editingLines = [];
+    }
+
+    public function saveModificationLines()
+    {
+        if (!auth()->user()->can('budget_modifications.create')) {
+            $this->dispatch('toast', message: 'No tienes permisos para esta acción.', type: 'error');
+            return;
+        }
+
+        $expenseMod = BudgetModification::whereHas('budget', fn($q) => $q->where('school_id', $this->schoolId))
+            ->findOrFail($this->editingLinesModId);
+
+        $linesToSave = [];
+        foreach ($this->editingLines as $distId => $rawAmt) {
+            $amt = (float) str_replace(',', '.', (string) $rawAmt);
+            if ($amt > 0) {
+                $linesToSave[(int) $distId] = $amt;
+            }
+        }
+
+        if (empty($linesToSave)) {
+            $this->dispatch('toast', message: 'Ingrese al menos un monto.', type: 'error');
+            return;
+        }
+
+        // Reemplazar líneas existentes
+        \App\Models\BudgetModificationLine::where('budget_modification_id', $expenseMod->id)->delete();
+
+        // Guardar como anotación (amount_before=0, amount_after=delta)
+        foreach ($linesToSave as $distId => $amt) {
+            \App\Models\BudgetModificationLine::create([
+                'budget_modification_id'  => $expenseMod->id,
+                'expense_distribution_id' => $distId,
+                'amount_before'           => 0,
+                'amount_after'            => $amt,
+            ]);
+        }
+
+        // Recargar historial
+        $expenseId = $this->historyExpenseBudget->id;
+        $this->historyExpenseBudget = Budget::forSchool($this->schoolId)
+            ->with([
+                'distributions.expenseCode',
+                'modifications.creator',
+                'modifications.lines.expenseDistribution.expenseCode',
+            ])
+            ->findOrFail($expenseId);
+
+        $this->editingLinesModId   = null;
+        $this->editingLinesModType = '';
+        $this->editingLines = [];
+        $this->dispatch('toast', message: 'Detalle de distribuciones guardado exitosamente.', type: 'success');
     }
 
     #[Layout('layouts.app')]

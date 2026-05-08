@@ -56,7 +56,16 @@ class SifseReport extends Component
     }
 
     /**
-     * Calcula la fecha de corte (último día del trimestre seleccionado).
+     * Primer día del año fiscal.
+     */
+    private function getYearStart(): string
+    {
+        return ((int) $this->filterYear) . '-01-01';
+    }
+
+    /**
+     * Fecha de corte (último día del trimestre seleccionado).
+     * El SIFSE es acumulado: muestra todo desde enero 1 hasta esta fecha.
      */
     private function getTrimesterCutoffDate(): string
     {
@@ -78,6 +87,7 @@ class SifseReport extends Component
     {
         $year = (int) $this->filterYear;
         $daneCode = $this->school->dane_code ?? '';
+        $yearStart = $this->getYearStart();
         $cutoff = $this->getTrimesterCutoffDate();
 
         // Get all expense budgets for this school/year
@@ -92,63 +102,104 @@ class SifseReport extends Component
             ->get();
 
         $budgetIds = $budgets->pluck('id')->toArray();
+        $distIds   = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
+        $validDistIds = array_flip($distIds);
 
-        // --- Modifications up to cutoff per budget ---
-        $additionsByBudget = [];
-        $reductionsByBudget = [];
+        // ========================================================================
+        // MODIFICACIONES POR DISTRIBUCIÓN (budget_modification_lines)
+        // Regla: solo las líneas impactan distribuciones. Adiciones "generales" sin
+        // líneas afectan el saldo del budget pero NO aparecen acá (no están distribuidas).
+        // Se ignoran líneas anteriores al año fiscal (son el histórico del inicial).
+        // Se incluyen líneas dentro del rango [yearStart, cutoff].
+        // ========================================================================
+        $additionsByDist = [];
+        $reductionsByDist = [];
+
         if (!empty($budgetIds)) {
             $mods = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds)
-                ->where(function ($q) use ($cutoff) {
-                    $q->where('document_date', '<=', $cutoff)
-                      ->orWhere(function ($q2) use ($cutoff) {
-                          $q2->whereNull('document_date')
-                             ->where('created_at', '<=', $cutoff . ' 23:59:59');
-                      });
-                })
+                ->whereHas('lines')
+                ->with('lines')
                 ->get();
 
             foreach ($mods as $mod) {
-                if ($mod->type === 'addition') {
-                    $additionsByBudget[$mod->budget_id] = ($additionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
-                } else {
-                    $reductionsByBudget[$mod->budget_id] = ($reductionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
+                $isAddition = $mod->type === 'addition';
+                $modDate    = $mod->document_date;
+
+                foreach ($mod->lines as $line) {
+                    if (!isset($validDistIds[$line->expense_distribution_id])) continue;
+
+                    // Fecha fiscal efectiva: document_date propio o del mod padre.
+                    // Nunca se usa created_at (es la fecha de registro, no la fiscal).
+                    $lineDate = $line->document_date ?? $modDate;
+                    if (!$lineDate) continue;
+
+                    $lineDateStr = $lineDate instanceof \Carbon\Carbon
+                        ? $lineDate->toDateString()
+                        : (string) $lineDate;
+
+                    // Fuera del año fiscal → es histórico del inicial, no es movimiento del año
+                    if ($lineDateStr < $yearStart) continue;
+                    // Acumulado hasta cutoff
+                    if ($lineDateStr > $cutoff) continue;
+
+                    $delta = abs((float) $line->amount_after - (float) $line->amount_before);
+                    $did   = $line->expense_distribution_id;
+
+                    if ($isAddition) {
+                        $additionsByDist[$did] = ($additionsByDist[$did] ?? 0) + $delta;
+                    } else {
+                        $reductionsByDist[$did] = ($reductionsByDist[$did] ?? 0) + $delta;
+                    }
                 }
             }
         }
 
-        // --- Transfers up to cutoff per budget ---
-        $creditsByBudget = [];
-        $contracreditsByBudget = [];
+        // ========================================================================
+        // TRASLADOS (créditos/contracréditos) con asignación EXACTA
+        // ========================================================================
+        $creditsByDist = [];
+        $contracreditsByDist = [];
+
         if (!empty($budgetIds)) {
-            $transfers = \App\Models\BudgetTransfer::where(function ($q) use ($budgetIds) {
+            $transfers = \App\Models\BudgetTransfer::where('school_id', $this->schoolId)
+                ->where('fiscal_year', $year)
+                ->where(function ($q) use ($budgetIds) {
                     $q->whereIn('source_budget_id', $budgetIds)
                       ->orWhereIn('destination_budget_id', $budgetIds);
                 })
-                ->where(function ($q) use ($cutoff) {
-                    $q->where('document_date', '<=', $cutoff)
-                      ->orWhere(function ($q2) use ($cutoff) {
-                          $q2->whereNull('document_date')
-                             ->where('created_at', '<=', $cutoff . ' 23:59:59');
-                      });
-                })
+                ->whereBetween('document_date', [$yearStart, $cutoff])
                 ->get();
 
             foreach ($transfers as $t) {
-                if (in_array($t->destination_budget_id, $budgetIds)) {
-                    $creditsByBudget[$t->destination_budget_id] = ($creditsByBudget[$t->destination_budget_id] ?? 0) + (float) $t->amount;
+                $amt = (float) $t->amount;
+
+                // Crédito (entra al rubro destino)
+                if (in_array($t->destination_budget_id, $budgetIds)
+                    && !empty($t->destination_expense_distribution_id)
+                    && isset($validDistIds[$t->destination_expense_distribution_id])) {
+                    $creditsByDist[$t->destination_expense_distribution_id] =
+                        ($creditsByDist[$t->destination_expense_distribution_id] ?? 0) + $amt;
                 }
-                if (in_array($t->source_budget_id, $budgetIds)) {
-                    $contracreditsByBudget[$t->source_budget_id] = ($contracreditsByBudget[$t->source_budget_id] ?? 0) + (float) $t->amount;
+
+                // Contracrédito (sale del rubro origen)
+                if (in_array($t->source_budget_id, $budgetIds)
+                    && !empty($t->source_expense_distribution_id)
+                    && isset($validDistIds[$t->source_expense_distribution_id])) {
+                    $contracreditsByDist[$t->source_expense_distribution_id] =
+                        ($contracreditsByDist[$t->source_expense_distribution_id] ?? 0) + $amt;
                 }
             }
         }
 
-        // --- Commitments (RP) up to cutoff per expense_distribution ---
-        // Usa asignación exacta vía cdp.convocatoria_distribution_id cuando existe,
-        // con fallback a prorrateo por amount dentro del budget para CDPs legacy.
-        $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
-
+        // ========================================================================
+        // COMPROMISOS (RPs) con asignación EXACTA vía cdp.convocatoria_distribution_id
+        // Con fallback legacy: si el CDP tiene convocatoria pero no distribución, y la
+        // convocatoria tiene UNA sola distribución que cae en el mismo budget del rfs,
+        // se asume esa.
+        // Fecha efectiva del RP: COALESCE(otrosi_date, contract.start_date)
+        // ========================================================================
         $commitmentsByDist = [];
+
         if (!empty($distIds)) {
             $rpRows = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
                 ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
@@ -157,47 +208,81 @@ class SifseReport extends Component
                 ->leftJoin('convocatoria_distributions as cvd', 'cvd.id', '=', 'cdp.convocatoria_distribution_id')
                 ->where('cr.status', '!=', 'cancelled')
                 ->where('c.status', '!=', 'annulled')
-                ->whereRaw('COALESCE(cr.otrosi_date, c.start_date) <= ?', [$cutoff])
-                ->selectRaw('rfs.budget_id, rfs.amount as rfs_amount, cvd.expense_distribution_id as exact_dist_id')
+                ->whereRaw('COALESCE(cr.otrosi_date, c.start_date) BETWEEN ? AND ?', [$yearStart, $cutoff])
+                ->selectRaw('rfs.budget_id, rfs.amount as rfs_amount, cvd.expense_distribution_id as exact_dist_id, cdp.convocatoria_id as conv_id')
                 ->get();
 
-            $distsByBudget = [];
-            foreach ($budgets as $b) {
-                $distsByBudget[$b->id] = $b->distributions->map(fn($d) => [
-                    'id'     => $d->id,
-                    'amount' => (float) $d->amount,
-                ])->values()->all();
+            // Mapa convocatoria → distribuciones (para fallback legacy)
+            $convIds = collect($rpRows)->pluck('conv_id')->filter()->unique()->all();
+            $convToDists = [];
+            if (!empty($convIds)) {
+                $cvdRows = \Illuminate\Support\Facades\DB::table('convocatoria_distributions as cvd')
+                    ->join('expense_distributions as ed', 'ed.id', '=', 'cvd.expense_distribution_id')
+                    ->whereIn('cvd.convocatoria_id', $convIds)
+                    ->selectRaw('cvd.convocatoria_id, cvd.expense_distribution_id, ed.budget_id')
+                    ->get();
+                foreach ($cvdRows as $cvdRow) {
+                    $convToDists[$cvdRow->convocatoria_id][] = [
+                        'dist_id'   => (int) $cvdRow->expense_distribution_id,
+                        'budget_id' => (int) $cvdRow->budget_id,
+                    ];
+                }
             }
-            $validDistIds = array_flip($distIds);
 
             foreach ($rpRows as $row) {
                 $rfsAmount = (float) $row->rfs_amount;
 
+                // Ruta A: asignación exacta
                 if (!empty($row->exact_dist_id) && isset($validDistIds[$row->exact_dist_id])) {
                     $commitmentsByDist[$row->exact_dist_id] =
                         ($commitmentsByDist[$row->exact_dist_id] ?? 0) + $rfsAmount;
                     continue;
                 }
 
-                $dists = $distsByBudget[$row->budget_id] ?? [];
-                if (empty($dists)) continue;
-                $totalDist = array_sum(array_column($dists, 'amount'));
-                foreach ($dists as $d) {
-                    if (!isset($validDistIds[$d['id']])) continue;
-                    $ratio = $totalDist > 0 ? $d['amount'] / $totalDist : 0;
-                    $commitmentsByDist[$d['id']] =
-                        ($commitmentsByDist[$d['id']] ?? 0) + $rfsAmount * $ratio;
+                // Ruta B: legacy — convocatoria con UNA sola distribución en el budget del rfs
+                if (!empty($row->conv_id) && isset($convToDists[$row->conv_id])) {
+                    $candidates = array_values(array_filter(
+                        $convToDists[$row->conv_id],
+                        fn($c) => $c['budget_id'] === (int) $row->budget_id
+                                 && isset($validDistIds[$c['dist_id']])
+                    ));
+                    if (count($candidates) === 1) {
+                        $commitmentsByDist[$candidates[0]['dist_id']] =
+                            ($commitmentsByDist[$candidates[0]['dist_id']] ?? 0) + $rfsAmount;
+                        continue;
+                    }
                 }
+
+                // Sin resolución exacta: data incompleta, no se agrega.
+            }
+
+            // Pagos directos CON expense_lines: son compromisos ya ejecutados.
+            // Fecha fiscal: payment_date del PaymentOrder.
+            $directWithLinesByDist = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
+                ->join('payment_orders as po', 'po.id', '=', 'pol.payment_order_id')
+                ->whereIn('pol.expense_distribution_id', $distIds)
+                ->where('po.payment_type', 'direct')
+                ->whereIn('po.status', ['approved', 'paid'])
+                ->whereBetween('po.payment_date', [$yearStart, $cutoff])
+                ->selectRaw('pol.expense_distribution_id, SUM(pol.total) as total')
+                ->groupBy('pol.expense_distribution_id')
+                ->pluck('total', 'expense_distribution_id')
+                ->toArray();
+
+            foreach ($directWithLinesByDist as $dId => $total) {
+                $commitmentsByDist[$dId] = ($commitmentsByDist[$dId] ?? 0) + (float) $total;
             }
         }
 
-        // --- Payments up to cutoff per expense_distribution ---
+        // ========================================================================
+        // PAGOS (obligaciones/pagos) vía expense_lines. Asignación EXACTA por distribución.
+        // ========================================================================
         $paymentsByDist = [];
         if (!empty($distIds)) {
             $paymentsByDist = PaymentOrderExpenseLine::whereIn('expense_distribution_id', $distIds)
                 ->whereHas('paymentOrder', fn($q) => $q
                     ->whereIn('status', ['approved', 'paid'])
-                    ->where('payment_date', '<=', $cutoff)
+                    ->whereBetween('payment_date', [$yearStart, $cutoff])
                 )
                 ->selectRaw('expense_distribution_id, SUM(total) as total_paid')
                 ->groupBy('expense_distribution_id')
@@ -205,74 +290,64 @@ class SifseReport extends Component
                 ->toArray();
         }
 
-        // --- Direct payments up to cutoff per budget_item ---
-        $budgetItemIds = $budgets->pluck('budget_item_id')->unique()->toArray();
-        $directPaymentsByItem = [];
-        if (!empty($budgetItemIds)) {
-            $directPaymentsByItem = \App\Models\PaymentOrder::where('school_id', $this->schoolId)
-                ->where('fiscal_year', $year)
-                ->where('payment_type', 'direct')
-                ->whereIn('budget_item_id', $budgetItemIds)
-                ->whereIn('status', ['approved', 'paid'])
-                ->where('payment_date', '<=', $cutoff)
-                ->selectRaw('budget_item_id, SUM(total) as total_paid')
-                ->groupBy('budget_item_id')
-                ->pluck('total_paid', 'budget_item_id')
-                ->toArray();
-        }
-
-        // Build raw rows per funding_source + sifse_code
+        // ========================================================================
+        // CONSTRUCCIÓN DE FILAS: agrupadas por funding_source_code + sifse_code
+        // Cada distribución contribuye a su fila única.
+        // Initial se deriva del budget.initial_amount prorrateado por peso del rubro.
+        // ========================================================================
         $rawRows = [];
 
         foreach ($budgets as $budget) {
-            $initial = (float) $budget->initial_amount;
-            $additions = (float) ($additionsByBudget[$budget->id] ?? 0);
-            $reductions = (float) ($reductionsByBudget[$budget->id] ?? 0);
-            $credits = (float) ($creditsByBudget[$budget->id] ?? 0);
-            $contracredits = (float) ($contracreditsByBudget[$budget->id] ?? 0);
-            $definitive = $initial + $additions - $reductions + $credits - $contracredits;
-            $fundingCode = $budget->fundingSource?->code ?? '';
-
             $distributions = $budget->distributions;
+            if ($distributions->isEmpty()) continue;
 
-            if ($distributions->isEmpty()) {
-                continue;
-            }
-
-            $totalDistAmount = $distributions->sum('amount');
-            $directPayments = (float) ($directPaymentsByItem[$budget->budget_item_id] ?? 0);
+            $budgetInitial     = (float) $budget->initial_amount;
+            $totalDistInitial  = (float) $distributions->sum('initial_amount');
+            $fundingCode       = $budget->fundingSource?->code ?? '';
 
             foreach ($distributions as $dist) {
-                $expCode = $dist->expenseCode;
-                $sifseCode = $expCode?->sifse_code ?? '';
-                $distPayments = (float) ($paymentsByDist[$dist->id] ?? 0);
-                $distCommitments = (float) ($commitmentsByDist[$dist->id] ?? 0);
-                $ratio = $totalDistAmount > 0 ? (float) $dist->amount / $totalDistAmount : 0;
-                $directProrated = round($directPayments * $ratio, 2);
+                $sifseCode = $dist->expenseCode?->sifse_code ?? '';
+
+                // Apropiación inicial del rubro: si budget nació con monto > 0, se reparte
+                // según initial_amount del rubro (peso histórico). Si budget nació en 0
+                // (superávit/adición), el rubro también nace en 0.
+                $distInitial = 0;
+                if ($budgetInitial > 0 && $totalDistInitial > 0) {
+                    $distInitial = round($budgetInitial * ((float) $dist->initial_amount / $totalDistInitial), 2);
+                }
+
+                $distAdditions     = (float) ($additionsByDist[$dist->id] ?? 0);
+                $distReductions    = (float) ($reductionsByDist[$dist->id] ?? 0);
+                $distCredits       = (float) ($creditsByDist[$dist->id] ?? 0);
+                $distContracredits = (float) ($contracreditsByDist[$dist->id] ?? 0);
+                $distDefinitive    = $distInitial + $distAdditions - $distReductions
+                                   + $distCredits - $distContracredits;
+
+                $distCommitments   = (float) ($commitmentsByDist[$dist->id] ?? 0);
+                $distPayments      = (float) ($paymentsByDist[$dist->id] ?? 0);
 
                 $key = "{$fundingCode}|{$sifseCode}";
-
                 if (!isset($rawRows[$key])) {
                     $rawRows[$key] = [
                         'funding_source_code' => $fundingCode,
-                        'sifse_code' => $sifseCode,
-                        'initial' => 0,
-                        'definitive' => 0,
-                        'commitments' => 0,
-                        'obligations' => 0,
-                        'payments' => 0,
+                        'sifse_code'          => $sifseCode,
+                        'initial'             => 0,
+                        'definitive'          => 0,
+                        'commitments'         => 0,
+                        'obligations'         => 0,
+                        'payments'            => 0,
                     ];
                 }
 
-                $rawRows[$key]['initial'] += round($initial * $ratio, 2);
-                $rawRows[$key]['definitive'] += round($definitive * $ratio, 2);
-                $rawRows[$key]['commitments'] += $distCommitments + $directProrated;
-                $rawRows[$key]['obligations'] += $distPayments + $directProrated;
-                $rawRows[$key]['payments'] += $distPayments + $directProrated;
+                $rawRows[$key]['initial']     += $distInitial;
+                $rawRows[$key]['definitive']  += $distDefinitive;
+                $rawRows[$key]['commitments'] += $distCommitments;
+                $rawRows[$key]['obligations'] += $distPayments;
+                $rawRows[$key]['payments']    += $distPayments;
             }
         }
 
-        // Sort by funding_source_code, then sifse_code
+        // Ordenar por fuente, luego por código SIFSE
         $sorted = collect($rawRows)->sortBy([
             ['funding_source_code', 'asc'],
             ['sifse_code', 'asc'],
@@ -281,25 +356,25 @@ class SifseReport extends Component
         $trimester = $this->filterTrimester ?: (string) ceil(now()->month / 3);
 
         $this->expenseRows = $sorted->map(fn($row) => [
-            'dane_code' => $daneCode,
-            'year' => $year,
-            'trimester' => $trimester,
+            'dane_code'           => $daneCode,
+            'year'                => $year,
+            'trimester'           => $trimester,
             'funding_source_code' => $row['funding_source_code'],
-            'sifse_code' => $row['sifse_code'],
-            'initial' => $row['initial'],
-            'definitive' => $row['definitive'],
-            'commitments' => $row['commitments'],
-            'obligations' => $row['obligations'],
-            'payments' => $row['payments'],
+            'sifse_code'          => $row['sifse_code'],
+            'initial'             => $row['initial'],
+            'definitive'          => $row['definitive'],
+            'commitments'         => $row['commitments'],
+            'obligations'         => $row['obligations'],
+            'payments'            => $row['payments'],
         ])->toArray();
 
         $c = collect($this->expenseRows);
         $this->expenseTotals = [
-            'initial' => $c->sum('initial'),
-            'definitive' => $c->sum('definitive'),
+            'initial'     => $c->sum('initial'),
+            'definitive'  => $c->sum('definitive'),
             'commitments' => $c->sum('commitments'),
             'obligations' => $c->sum('obligations'),
-            'payments' => $c->sum('payments'),
+            'payments'    => $c->sum('payments'),
         ];
     }
 
@@ -308,6 +383,7 @@ class SifseReport extends Component
         $year = (int) $this->filterYear;
         $daneCode = $this->school->dane_code ?? '';
         $trimester = $this->filterTrimester ?: (string) ceil(now()->month / 3);
+        $yearStart = $this->getYearStart();
         $cutoff = $this->getTrimesterCutoffDate();
 
         // Get all income budgets for this school/year
@@ -319,99 +395,97 @@ class SifseReport extends Component
 
         $budgetIds = $budgets->pluck('id')->toArray();
 
-        // --- Modifications up to cutoff per budget ---
-        $additionsByBudget = [];
+        // --- Modificaciones de ingresos acumuladas hasta cutoff ---
+        // Los ingresos se modifican a nivel budget (no por distribución).
+        // Fecha fiscal efectiva: document_date del mod (NO created_at).
+        $additionsByBudget  = [];
         $reductionsByBudget = [];
         if (!empty($budgetIds)) {
             $mods = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds)
-                ->where(function ($q) use ($cutoff) {
-                    $q->where('document_date', '<=', $cutoff)
-                      ->orWhere(function ($q2) use ($cutoff) {
-                          $q2->whereNull('document_date')
-                             ->where('created_at', '<=', $cutoff . ' 23:59:59');
-                      });
-                })
+                ->whereNotNull('document_date')
+                ->whereBetween('document_date', [$yearStart, $cutoff])
                 ->get();
 
             foreach ($mods as $mod) {
                 if ($mod->type === 'addition') {
-                    $additionsByBudget[$mod->budget_id] = ($additionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
+                    $additionsByBudget[$mod->budget_id] =
+                        ($additionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
                 } else {
-                    $reductionsByBudget[$mod->budget_id] = ($reductionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
+                    $reductionsByBudget[$mod->budget_id] =
+                        ($reductionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
                 }
             }
         }
 
-        // --- Transfers up to cutoff per budget ---
+        // --- Traslados de ingresos hasta cutoff ---
         $creditsByBudget = [];
         $contracreditsByBudget = [];
         if (!empty($budgetIds)) {
-            $transfers = \App\Models\BudgetTransfer::where(function ($q) use ($budgetIds) {
+            $transfers = \App\Models\BudgetTransfer::where('school_id', $this->schoolId)
+                ->where('fiscal_year', $year)
+                ->where(function ($q) use ($budgetIds) {
                     $q->whereIn('source_budget_id', $budgetIds)
                       ->orWhereIn('destination_budget_id', $budgetIds);
                 })
-                ->where(function ($q) use ($cutoff) {
-                    $q->where('document_date', '<=', $cutoff)
-                      ->orWhere(function ($q2) use ($cutoff) {
-                          $q2->whereNull('document_date')
-                             ->where('created_at', '<=', $cutoff . ' 23:59:59');
-                      });
-                })
+                ->whereBetween('document_date', [$yearStart, $cutoff])
                 ->get();
 
             foreach ($transfers as $t) {
                 if (in_array($t->destination_budget_id, $budgetIds)) {
-                    $creditsByBudget[$t->destination_budget_id] = ($creditsByBudget[$t->destination_budget_id] ?? 0) + (float) $t->amount;
+                    $creditsByBudget[$t->destination_budget_id] =
+                        ($creditsByBudget[$t->destination_budget_id] ?? 0) + (float) $t->amount;
                 }
                 if (in_array($t->source_budget_id, $budgetIds)) {
-                    $contracreditsByBudget[$t->source_budget_id] = ($contracreditsByBudget[$t->source_budget_id] ?? 0) + (float) $t->amount;
+                    $contracreditsByBudget[$t->source_budget_id] =
+                        ($contracreditsByBudget[$t->source_budget_id] ?? 0) + (float) $t->amount;
                 }
             }
         }
 
-        // --- Incomes up to cutoff grouped by funding_source_id ---
+        // --- Ingresos recaudados hasta cutoff agrupados por funding_source_id ---
         $incomesByFunding = Income::forSchool($this->schoolId)
             ->forYear($year)
-            ->where('date', '<=', $cutoff)
+            ->whereBetween('date', [$yearStart, $cutoff])
             ->selectRaw('funding_source_id, SUM(amount) as total_collected')
             ->groupBy('funding_source_id')
             ->pluck('total_collected', 'funding_source_id')
             ->toArray();
 
-        // Group budgets by funding_source code
+        // Agrupar budgets por código de fuente
         $grouped = [];
 
         foreach ($budgets as $budget) {
-            $fundingCode = $budget->fundingSource?->code ?? '';
+            $fundingCode     = $budget->fundingSource?->code ?? '';
             $fundingSourceId = $budget->funding_source_id;
 
             if (!isset($grouped[$fundingCode])) {
                 $grouped[$fundingCode] = [
                     'funding_source_code' => $fundingCode,
-                    'initial' => 0,
-                    'definitive' => 0,
-                    'collected' => 0,
+                    'initial'             => 0,
+                    'definitive'          => 0,
+                    'collected'           => 0,
+                    '_fs_counted'         => [],
                 ];
             }
 
-            $initial = (float) $budget->initial_amount;
-            $additions = (float) ($additionsByBudget[$budget->id] ?? 0);
-            $reductions = (float) ($reductionsByBudget[$budget->id] ?? 0);
-            $credits = (float) ($creditsByBudget[$budget->id] ?? 0);
+            $initial       = (float) $budget->initial_amount;
+            $additions     = (float) ($additionsByBudget[$budget->id] ?? 0);
+            $reductions    = (float) ($reductionsByBudget[$budget->id] ?? 0);
+            $credits       = (float) ($creditsByBudget[$budget->id] ?? 0);
             $contracredits = (float) ($contracreditsByBudget[$budget->id] ?? 0);
-            $definitive = $initial + $additions - $reductions + $credits - $contracredits;
+            $definitive    = $initial + $additions - $reductions + $credits - $contracredits;
 
-            $grouped[$fundingCode]['initial'] += $initial;
+            $grouped[$fundingCode]['initial']    += $initial;
             $grouped[$fundingCode]['definitive'] += $definitive;
 
-            // Accumulate incomes for this funding source (avoid double-counting)
+            // Evitar doble conteo si hay varios budgets sobre la misma fuente
             if (!isset($grouped[$fundingCode]['_fs_counted'][$fundingSourceId])) {
                 $grouped[$fundingCode]['collected'] += (float) ($incomesByFunding[$fundingSourceId] ?? 0);
                 $grouped[$fundingCode]['_fs_counted'][$fundingSourceId] = true;
             }
         }
 
-        // Also check for funding sources that have incomes but no budget
+        // Fuentes con ingresos pero sin budget (casos borde)
         foreach ($incomesByFunding as $fsId => $amount) {
             $fs = \App\Models\FundingSource::find($fsId);
             if (!$fs) continue;
@@ -419,9 +493,10 @@ class SifseReport extends Component
             if (!isset($grouped[$code])) {
                 $grouped[$code] = [
                     'funding_source_code' => $code,
-                    'initial' => 0,
-                    'definitive' => 0,
-                    'collected' => (float) $amount,
+                    'initial'             => 0,
+                    'definitive'          => 0,
+                    'collected'           => (float) $amount,
+                    '_fs_counted'         => [$fsId => true],
                 ];
             }
         }
@@ -435,20 +510,20 @@ class SifseReport extends Component
             ->values();
 
         $this->incomeRows = $sorted->map(fn($row) => [
-            'dane_code' => $daneCode,
-            'year' => $year,
-            'trimester' => $trimester,
+            'dane_code'           => $daneCode,
+            'year'                => $year,
+            'trimester'           => $trimester,
             'funding_source_code' => $row['funding_source_code'],
-            'initial' => $row['initial'],
-            'definitive' => $row['definitive'],
-            'collected' => $row['collected'],
+            'initial'             => $row['initial'],
+            'definitive'          => $row['definitive'],
+            'collected'           => $row['collected'],
         ])->toArray();
 
         $c = collect($this->incomeRows);
         $this->incomeTotals = [
-            'initial' => $c->sum('initial'),
+            'initial'    => $c->sum('initial'),
             'definitive' => $c->sum('definitive'),
-            'collected' => $c->sum('collected'),
+            'collected'  => $c->sum('collected'),
         ];
     }
 

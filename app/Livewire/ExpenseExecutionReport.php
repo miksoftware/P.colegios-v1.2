@@ -343,29 +343,20 @@ class ExpenseExecutionReport extends Component
                     $distInitial = round($budgetInitial * ((float) $dist->initial_amount / $totalDistInitial), 2);
                 }
 
-                // Apropiación definitiva: valor actual del rubro (directo, sin cálculos).
+                // Apropiación definitiva: valor actual del rubro (directo).
                 $distDefinitive = (float) $dist->amount;
 
-                // Adiciones/reducciones del rubro:
-                //   - Si hay líneas de modificación específicas, se usan esos deltas exactos.
-                //   - Si no hay líneas, lo que excede o falta del inicial es adición/reducción
-                //     implícita (cubre tanto adiciones generales al budget como distribuciones
-                //     hechas después de una adición).
-                $exactAdd = (float) ($additionsByDist[$dist->id] ?? 0);
-                $exactRed = (float) ($reductionsByDist[$dist->id] ?? 0);
-                if ($exactAdd > 0 || $exactRed > 0) {
-                    $distAdditions  = $exactAdd;
-                    $distReductions = $exactRed;
+                // Adiciones/reducciones del rubro: el neto entre definitiva y (inicial
+                // + traslados). Esto captura tanto adiciones explícitas (vía líneas de
+                // modificación) como implícitas (distribuciones hechas después de una
+                // adición general al budget).
+                $netChange = $distDefinitive - $distInitial - $distCredits + $distContracredits;
+                if ($netChange >= 0) {
+                    $distAdditions  = $netChange;
+                    $distReductions = 0;
                 } else {
-                    // Implícitas: el delta entre definitiva y (inicial + créditos - contracréditos)
-                    $netChange = $distDefinitive - $distInitial - $distCredits + $distContracredits;
-                    if ($netChange >= 0) {
-                        $distAdditions  = $netChange;
-                        $distReductions = 0;
-                    } else {
-                        $distAdditions  = 0;
-                        $distReductions = abs($netChange);
-                    }
+                    $distAdditions  = 0;
+                    $distReductions = abs($netChange);
                 }
 
                 $this->rows[] = [

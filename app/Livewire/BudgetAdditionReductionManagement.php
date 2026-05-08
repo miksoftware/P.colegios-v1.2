@@ -33,11 +33,14 @@ class BudgetAdditionReductionManagement extends Component
     public $amount = '';
     public $reason = '';
     public $document_number = '';
+    public $document_date = '';
 
     // Modal de historial
     public $showHistoryModal = false;
     public $historyIncomeBudget = null;
     public $historyExpenseBudget = null;
+    public $editingModId = null;
+    public $editingModDate = '';
 
     // Info de distribuciones afectadas
     public $affectedDistributions = [];
@@ -53,6 +56,7 @@ class BudgetAdditionReductionManagement extends Component
     public $principalAmount = '';
     public $principalReason = '';
     public $principalDocumentNumber = '';
+    public $principalDocumentDate = '';
     public $principalBudgetItems = [];
     public $principalFundingSources = [];
 
@@ -72,14 +76,17 @@ class BudgetAdditionReductionManagement extends Component
             'amount'          => $byDistributions ? 'nullable' : 'required|numeric|min:0.01',
             'reason'          => 'required|string|min:10',
             'document_number' => 'nullable|string|max:50',
+            'document_date'   => 'required|date',
         ];
     }
 
     protected $messages = [
-        'amount.required' => 'El monto es obligatorio.',
-        'amount.min' => 'El monto debe ser mayor a 0.',
-        'reason.required' => 'La observación es obligatoria.',
-        'reason.min' => 'La observación debe tener al menos 10 caracteres.',
+        'amount.required'        => 'El monto es obligatorio.',
+        'amount.min'             => 'El monto debe ser mayor a 0.',
+        'reason.required'        => 'La observación es obligatoria.',
+        'reason.min'             => 'La observación debe tener al menos 10 caracteres.',
+        'document_date.required' => 'La fecha de realización es obligatoria.',
+        'document_date.date'     => 'La fecha de realización no es válida.',
     ];
 
     public function mount()
@@ -259,6 +266,7 @@ class BudgetAdditionReductionManagement extends Component
         $this->amount = '';
         $this->reason = '';
         $this->document_number = '';
+        $this->document_date = now()->format('Y-m-d');
         $this->distributionReductions = [];
         $this->additionMode = 'general';
         $this->resetValidation();
@@ -356,7 +364,7 @@ class BudgetAdditionReductionManagement extends Component
                     'new_amount'          => $incomeNew,
                     'reason'              => $this->reason,
                     'document_number'     => $this->document_number ?: null,
-                    'document_date'       => now(),
+                    'document_date'       => $this->document_date,
                     'created_by'          => auth()->id(),
                 ]);
                 $incomeBudget->update(['current_amount' => $incomeNew]);
@@ -373,7 +381,7 @@ class BudgetAdditionReductionManagement extends Component
                     'new_amount'          => $expenseNew,
                     'reason'              => $this->reason,
                     'document_number'     => $this->document_number ?: null,
-                    'document_date'       => now(),
+                    'document_date'       => $this->document_date,
                     'created_by'          => auth()->id(),
                 ]);
                 $expenseBudget->update(['current_amount' => $expenseNew]);
@@ -443,7 +451,7 @@ class BudgetAdditionReductionManagement extends Component
                 'new_amount' => $incomeNew,
                 'reason' => $this->reason,
                 'document_number' => $this->document_number ?: null,
-                'document_date' => now(),
+                'document_date' => $this->document_date,
                 'created_by' => auth()->id(),
             ]);
             $incomeBudget->update(['current_amount' => $incomeNew]);
@@ -463,7 +471,7 @@ class BudgetAdditionReductionManagement extends Component
                 'new_amount' => $expenseNew,
                 'reason' => $this->reason,
                 'document_number' => $this->document_number ?: null,
-                'document_date' => now(),
+                'document_date' => $this->document_date,
                 'created_by' => auth()->id(),
             ]);
             $expenseBudget->update(['current_amount' => $expenseNew]);
@@ -508,6 +516,7 @@ class BudgetAdditionReductionManagement extends Component
         $this->principalAmount = '';
         $this->principalReason = '';
         $this->principalDocumentNumber = '';
+        $this->principalDocumentDate = now()->format('Y-m-d');
         $this->principalFundingSources = [];
         $this->resetValidation();
 
@@ -561,18 +570,21 @@ class BudgetAdditionReductionManagement extends Component
         }
 
         $this->validate([
-            'principalBudgetItemId' => 'required|exists:budget_items,id',
+            'principalBudgetItemId'   => 'required|exists:budget_items,id',
             'principalFundingSourceId' => 'required|exists:funding_sources,id',
-            'principalAmount' => 'required|numeric|min:0.01',
-            'principalReason' => 'required|string|min:10',
+            'principalAmount'         => 'required|numeric|min:0.01',
+            'principalReason'         => 'required|string|min:10',
             'principalDocumentNumber' => 'nullable|string|max:50',
+            'principalDocumentDate'   => 'required|date',
         ], [
-            'principalBudgetItemId.required' => 'Debe seleccionar un rubro.',
+            'principalBudgetItemId.required'   => 'Debe seleccionar un rubro.',
             'principalFundingSourceId.required' => 'Debe seleccionar una fuente de financiación.',
-            'principalAmount.required' => 'El monto de adición es obligatorio.',
-            'principalAmount.min' => 'El monto debe ser mayor a 0.',
-            'principalReason.required' => 'La observación es obligatoria.',
-            'principalReason.min' => 'La observación debe tener al menos 10 caracteres.',
+            'principalAmount.required'         => 'El monto de adición es obligatorio.',
+            'principalAmount.min'              => 'El monto debe ser mayor a 0.',
+            'principalReason.required'         => 'La observación es obligatoria.',
+            'principalReason.min'              => 'La observación debe tener al menos 10 caracteres.',
+            'principalDocumentDate.required'   => 'La fecha de realización es obligatoria.',
+            'principalDocumentDate.date'       => 'La fecha de realización no es válida.',
         ]);
 
         $year = (int) ($this->filterYear ?: date('Y'));
@@ -615,7 +627,7 @@ class BudgetAdditionReductionManagement extends Component
                 'new_amount' => $amount,
                 'reason' => $this->principalReason,
                 'document_number' => $this->principalDocumentNumber ?: null,
-                'document_date' => now(),
+                'document_date' => $this->principalDocumentDate,
                 'created_by' => auth()->id(),
             ]);
 
@@ -642,7 +654,7 @@ class BudgetAdditionReductionManagement extends Component
                 'new_amount' => $amount,
                 'reason' => $this->principalReason,
                 'document_number' => $this->principalDocumentNumber ?: null,
-                'document_date' => now(),
+                'document_date' => $this->principalDocumentDate,
                 'created_by' => auth()->id(),
             ]);
 
@@ -664,6 +676,7 @@ class BudgetAdditionReductionManagement extends Component
         $this->principalAmount = '';
         $this->principalReason = '';
         $this->principalDocumentNumber = '';
+        $this->principalDocumentDate = '';
         $this->principalBudgetItems = [];
         $this->principalFundingSources = [];
         $this->resetValidation();
@@ -685,6 +698,7 @@ class BudgetAdditionReductionManagement extends Component
         $this->amount = '';
         $this->reason = '';
         $this->document_number = '';
+        $this->document_date = '';
         $this->resetValidation();
     }
 
@@ -700,6 +714,51 @@ class BudgetAdditionReductionManagement extends Component
         $this->reset(['search']);
         $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->resetPage();
+    }
+
+    // ======================================================
+    // EDITAR FECHA DE MODIFICACIÓN EXISTENTE
+    // ======================================================
+
+    public function startEditModDate(int $modId, ?string $currentDate)
+    {
+        $this->editingModId = $modId;
+        $this->editingModDate = $currentDate ?: now()->format('Y-m-d');
+    }
+
+    public function cancelEditModDate()
+    {
+        $this->editingModId = null;
+        $this->editingModDate = '';
+    }
+
+    public function saveModificationDate()
+    {
+        if (!auth()->user()->can('budget_modifications.create')) {
+            $this->dispatch('toast', message: 'No tienes permisos para esta acción.', type: 'error');
+            return;
+        }
+        $this->validate(
+            ['editingModDate' => 'required|date'],
+            ['editingModDate.required' => 'La fecha es obligatoria.', 'editingModDate.date' => 'La fecha no es válida.']
+        );
+
+        BudgetModification::whereHas('budget', fn($q) => $q->where('school_id', $this->schoolId))
+            ->findOrFail($this->editingModId)
+            ->update(['document_date' => $this->editingModDate]);
+
+        $incomeId   = $this->historyIncomeBudget->id;
+        $expenseId  = $this->historyExpenseBudget->id;
+        $this->historyIncomeBudget = Budget::forSchool($this->schoolId)
+            ->with(['budgetItem', 'fundingSource', 'modifications.creator'])
+            ->findOrFail($incomeId);
+        $this->historyExpenseBudget = Budget::forSchool($this->schoolId)
+            ->with(['modifications.creator'])
+            ->findOrFail($expenseId);
+
+        $this->editingModId   = null;
+        $this->editingModDate = '';
+        $this->dispatch('toast', message: 'Fecha actualizada exitosamente.', type: 'success');
     }
 
     #[Layout('layouts.app')]

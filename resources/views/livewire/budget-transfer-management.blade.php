@@ -285,6 +285,13 @@
                         <input type="text" wire:model="document_number" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Ej: RES-001-2026">
                     </div>
 
+                    <!-- Fecha de Realización -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Realización *</label>
+                        <input type="date" wire:model="document_date" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        @error('document_date') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+
                     <div class="flex justify-end gap-3 pt-4 border-t">
                         <button type="button" wire:click="closeModal" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium">Cancelar</button>
                         <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium">Registrar Traslado</button>
@@ -372,6 +379,31 @@
                         <span class="text-sm font-medium">{{ $detailTransfer->document_number }}</span>
                     </div>
                     @endif
+
+                    <!-- Fecha de Realización -->
+                    <div class="py-2 border-t">
+                        @if($editingTransferId === $detailTransfer->id)
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-500 flex-shrink-0">Fecha Realización</span>
+                            <input type="date" wire:model="editingTransferDate" class="flex-1 rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
+                            <button wire:click="saveTransferDate" class="px-2 py-1 bg-blue-600 text-white text-xs rounded-lg">Guardar</button>
+                            <button wire:click="cancelEditTransferDate" class="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded-lg">✕</button>
+                        </div>
+                        @error('editingTransferDate') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        @else
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-500">Fecha Realización</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-medium">{{ $detailTransfer->document_date ? $detailTransfer->document_date->format('d/m/Y') : 'Sin fecha' }}</span>
+                                @can('budget_transfers.create')
+                                <button wire:click="startEditTransferDate({{ $detailTransfer->id }}, '{{ $detailTransfer->document_date?->format('Y-m-d') }}')" class="text-blue-500 hover:text-blue-700">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+                                @endcan
+                            </div>
+                        </div>
+                        @endif
+                    </div>
 
                     <div class="flex justify-between py-2 border-t">
                         <span class="text-sm text-gray-500">Registrado por</span>

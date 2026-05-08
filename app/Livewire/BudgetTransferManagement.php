@@ -39,6 +39,7 @@ class BudgetTransferManagement extends Component
     public $amount = '';
     public $reason = '';
     public $document_number = '';
+    public $document_date = '';
 
     // Datos dinámicos para selects
     public $availableFundingSources = [];
@@ -52,6 +53,10 @@ class BudgetTransferManagement extends Component
     // Modal de detalle
     public $showDetailModal = false;
     public $detailTransfer = null;
+
+    // Editar fecha de traslado existente
+    public $editingTransferId = null;
+    public $editingTransferDate = '';
 
     protected $queryString = [
         'search' => ['except' => ''],
@@ -67,6 +72,7 @@ class BudgetTransferManagement extends Component
             'amount' => 'required|numeric|min:0.01',
             'reason' => 'required|string|min:10',
             'document_number' => 'nullable|string|max:50',
+            'document_date' => 'required|date',
         ];
     }
 
@@ -78,6 +84,8 @@ class BudgetTransferManagement extends Component
         'amount.min' => 'El monto debe ser mayor a 0.',
         'reason.required' => 'La justificación es obligatoria.',
         'reason.min' => 'La justificación debe tener al menos 10 caracteres.',
+        'document_date.required' => 'La fecha de realización es obligatoria.',
+        'document_date.date' => 'La fecha de realización no es válida.',
     ];
 
     public function mount()
@@ -302,6 +310,7 @@ class BudgetTransferManagement extends Component
 
         $this->resetForm();
         $this->loadAvailableFundingSources();
+        $this->document_date = now()->format('Y-m-d');
         $this->showModal = true;
     }
 
@@ -393,7 +402,7 @@ class BudgetTransferManagement extends Component
                 'destination_new_amount' => $destPrev + $amount,
                 'reason' => $this->reason,
                 'document_number' => $this->document_number ?: null,
-                'document_date' => now(),
+                'document_date' => $this->document_date,
                 'fiscal_year' => (int) $this->filterYear,
                 'created_by' => auth()->id(),
             ]);
@@ -444,6 +453,7 @@ class BudgetTransferManagement extends Component
         $this->amount = '';
         $this->reason = '';
         $this->document_number = '';
+        $this->document_date = '';
         $this->availableFundingSources = [];
         $this->sourceDistributions = [];
         $this->destinationExpenseCodes = [];
@@ -457,6 +467,54 @@ class BudgetTransferManagement extends Component
         $this->reset(['search']);
         $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->resetPage();
+    }
+
+    // ======================================================
+    // EDITAR FECHA DE TRASLADO EXISTENTE
+    // ======================================================
+
+    public function startEditTransferDate(int $id, ?string $currentDate)
+    {
+        $this->editingTransferId = $id;
+        $this->editingTransferDate = $currentDate ?: now()->format('Y-m-d');
+    }
+
+    public function cancelEditTransferDate()
+    {
+        $this->editingTransferId = null;
+        $this->editingTransferDate = '';
+    }
+
+    public function saveTransferDate()
+    {
+        if (!auth()->user()->can('budget_transfers.create')) {
+            $this->dispatch('toast', message: 'No tienes permisos para esta acción.', type: 'error');
+            return;
+        }
+        $this->validate(
+            ['editingTransferDate' => 'required|date'],
+            ['editingTransferDate.required' => 'La fecha es obligatoria.', 'editingTransferDate.date' => 'La fecha no es válida.']
+        );
+
+        BudgetTransfer::forSchool($this->schoolId)
+            ->findOrFail($this->editingTransferId)
+            ->update(['document_date' => $this->editingTransferDate]);
+
+        $this->detailTransfer = BudgetTransfer::forSchool($this->schoolId)
+            ->with([
+                'sourceBudget.budgetItem',
+                'destinationBudget.budgetItem',
+                'sourceFundingSource',
+                'destinationFundingSource',
+                'sourceExpenseDistribution.expenseCode',
+                'destinationExpenseDistribution.expenseCode',
+                'creator',
+            ])
+            ->findOrFail($this->editingTransferId);
+
+        $this->editingTransferId   = null;
+        $this->editingTransferDate = '';
+        $this->dispatch('toast', message: 'Fecha actualizada exitosamente.', type: 'success');
     }
 
     #[Layout('layouts.app')]

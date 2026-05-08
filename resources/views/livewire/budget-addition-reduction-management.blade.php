@@ -442,6 +442,13 @@
                         <input type="text" wire:model="document_number" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Ej: RES-001-2024">
                     </div>
 
+                    <!-- Fecha de Realización -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Realización *</label>
+                        <input type="date" wire:model="document_date" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        @error('document_date') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+
                     <!-- Preview del resultado -->
                     @php
                         $previewAmount = 0;
@@ -546,6 +553,27 @@
                             @if($mod->document_number)
                             <div class="text-xs text-gray-500 mt-1">Doc: {{ $mod->document_number }}</div>
                             @endif
+                            <!-- Fecha de realización -->
+                            <div class="mt-2">
+                                @if($editingModId === $mod->id)
+                                <div class="flex items-center gap-2">
+                                    <input type="date" wire:model="editingModDate" class="flex-1 rounded-lg border-gray-300 text-xs focus:border-blue-500 focus:ring-blue-500">
+                                    <button wire:click="saveModificationDate" class="px-2 py-1 bg-blue-600 text-white text-xs rounded-lg">Guardar</button>
+                                    <button wire:click="cancelEditModDate" class="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded-lg">✕</button>
+                                </div>
+                                @error('editingModDate') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                @else
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs text-gray-500">Fecha: {{ $mod->document_date ? $mod->document_date->format('d/m/Y') : 'Sin fecha' }}</span>
+                                    @can('budget_modifications.create')
+                                    <button wire:click="startEditModDate({{ $mod->id }}, '{{ $mod->document_date?->format('Y-m-d') }}')" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        Editar fecha
+                                    </button>
+                                    @endcan
+                                </div>
+                                @endif
+                            </div>
                         </div>
                         @endforeach
                     </div>
@@ -650,6 +678,13 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Número de Documento <span class="text-gray-400 text-xs">(Opcional)</span></label>
                         <input type="text" wire:model="principalDocumentNumber" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500" placeholder="Ej: RES-001-2026">
+                    </div>
+
+                    <!-- Fecha de Realización -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Realización *</label>
+                        <input type="date" wire:model="principalDocumentDate" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500">
+                        @error('principalDocumentDate') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     <!-- Preview -->

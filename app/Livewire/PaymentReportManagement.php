@@ -103,6 +103,7 @@ class PaymentReportManagement extends Component
                 'expenseLines.expenseDistribution.budget.budgetItem',
                 'expenseLines.expenseDistribution.budget.fundingSource',
                 'expenseLines.expenseCode',
+                'bankLines.bankAccount.bank',
             ]);
 
         if ($this->filterPeriodType === 'monthly' && $this->filterMonth) {
@@ -178,24 +179,35 @@ class PaymentReportManagement extends Component
             $rp  = $po->contractRp ?? $contract?->rps->first();
             $cdp = $rp?->cdp ?? $po->cdp ?? $convocatoria?->cdps->first();
 
+            // Cuenta(s) bancaria(s) desde las que sale el dinero (bank lines del PO)
+            $bankAccountInfo = $po->bankLines->map(function ($bl) {
+                $ba = $bl->bankAccount;
+                return trim(($ba?->bank?->name ?? '') . ' - ' . ($ba?->account_number ?? ''), ' -');
+            })->filter()->implode(' / ');
+
+            // Concepto de retención a nivel de orden de pago (fallback para casos sin expense lines)
+            $poRetentionName = PaymentOrder::RETENTION_CONCEPTS[$po->retention_concept] ?? ($po->retention_concept ?? '');
+
             // Datos comunes a todas las filas que se generen para este PO
             $baseData = [
-                'id'                => $po->id,
-                'payment_number'    => $po->payment_number,
-                'formatted_number'  => $po->formatted_number,
-                'payment_date'      => $po->payment_date?->format('Y/m/d'),
-                'invoice_number'    => $po->invoice_number,
-                'invoice_date'      => $po->invoice_date?->format('Y/m/d'),
-                'supplier_name'     => $supplier?->full_name ?? '',
-                'supplier_document' => $supplier?->document_number ?? '',
-                'supplier_address'  => $supplier?->address ?? '',
-                'detail'            => $contract?->object ?? $po->description ?? '',
-                'sede'              => 'RECTORÍA',
-                'contract_number'   => $contract ? "CONTRATO No. {$contract->formatted_number}" : ($po->payment_type === 'direct' ? 'PAGO DIRECTO' : ''),
-                'contract_date'     => $contract?->start_date?->format('Y/m/d'),
-                'cdp_number'        => $cdp?->cdp_number ?? '',
-                'rp_number'         => $rp?->rp_number ?? '',
-                'status'            => $po->status,
+                'id'                      => $po->id,
+                'payment_number'          => $po->payment_number,
+                'formatted_number'        => $po->formatted_number,
+                'payment_date'            => $po->payment_date?->format('Y/m/d'),
+                'invoice_number'          => $po->invoice_number,
+                'invoice_date'            => $po->invoice_date?->format('Y/m/d'),
+                'supplier_name'           => $supplier?->full_name ?? '',
+                'supplier_document'       => $supplier?->document_number ?? '',
+                'supplier_address'        => $supplier?->address ?? '',
+                'detail'                  => $contract?->object ?? $po->description ?? '',
+                'sede'                    => 'RECTORÍA',
+                'contract_number'         => $contract ? "CONTRATO No. {$contract->formatted_number}" : ($po->payment_type === 'direct' ? 'PAGO DIRECTO' : ''),
+                'contract_date'           => $contract?->start_date?->format('Y/m/d'),
+                'cdp_number'              => $cdp?->cdp_number ?? '',
+                'rp_number'               => $rp?->rp_number ?? '',
+                'status'                  => $po->status,
+                'retention_concept_name'  => $poRetentionName,
+                'bank_account'            => $bankAccountInfo,
             ];
 
             // Fuentes del RP (para mapear budget_id → fuente como fallback)
@@ -239,17 +251,20 @@ class PaymentReportManagement extends Component
                     }
 
                     $rows[] = array_merge($baseData, [
-                        'cdp_number'     => $lineCdp,
-                        'rp_number'      => $lineRp,
-                        'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
-                        'rubro_code'     => $ec?->code ?? $bi?->code ?? '',
-                        'rubro_name'     => $ec?->name ?? $bi?->name ?? '',
-                        'total'          => (float) $line->total,
-                        'retefuente'     => (float) $line->retefuente,
-                        'reteiva'        => (float) $line->reteiva,
-                        'estampillas'    => (float) $line->estampilla_produlto_mayor + (float) $line->estampilla_procultura,
-                        'otros_impuestos'=> (float) $line->retencion_ica,
-                        'net_payment'    => (float) $line->net_payment,
+                        'cdp_number'             => $lineCdp,
+                        'rp_number'              => $lineRp,
+                        'funding_source'         => $fs ? "{$fs->name} ({$fs->code})" : '',
+                        'rubro_code'             => $ec?->code ?? $bi?->code ?? '',
+                        'rubro_name'             => $ec?->name ?? $bi?->name ?? '',
+                        'subtotal'               => (float) $line->subtotal,
+                        'iva'                    => (float) $line->iva,
+                        'total'                  => (float) $line->total,
+                        'retention_concept_name' => PaymentOrder::RETENTION_CONCEPTS[$line->retention_concept] ?? ($line->retention_concept ?? ''),
+                        'retefuente'             => (float) $line->retefuente,
+                        'reteiva'                => (float) $line->reteiva,
+                        'estampillas'            => (float) $line->estampilla_produlto_mayor + (float) $line->estampilla_procultura,
+                        'otros_impuestos'        => (float) $line->retencion_ica,
+                        'net_payment'            => (float) $line->net_payment,
                     ]);
                 }
                 continue;
@@ -267,6 +282,8 @@ class PaymentReportManagement extends Component
                         'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
                         'rubro_code'     => $bi?->code ?? '',
                         'rubro_name'     => $bi?->name ?? '',
+                        'subtotal'       => round((float) $po->subtotal * $ratio, 2),
+                        'iva'            => round((float) $po->iva * $ratio, 2),
                         'total'          => round($poTotal * $ratio, 2),
                         'retefuente'     => round((float) $po->retefuente * $ratio, 2),
                         'reteiva'        => round((float) $po->reteiva * $ratio, 2),
@@ -284,6 +301,8 @@ class PaymentReportManagement extends Component
                 'funding_source' => '',
                 'rubro_code'     => $bi?->code ?? '',
                 'rubro_name'     => $bi?->name ?? '',
+                'subtotal'       => (float) $po->subtotal,
+                'iva'            => (float) $po->iva,
                 'total'          => (float) $po->total,
                 'retefuente'     => (float) $po->retefuente,
                 'reteiva'        => (float) $po->reteiva,

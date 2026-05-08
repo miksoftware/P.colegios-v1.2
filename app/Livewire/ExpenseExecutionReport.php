@@ -308,6 +308,7 @@ class ExpenseExecutionReport extends Component
         foreach ($budgets as $budget) {
             $fundingCode = $budget->fundingSource?->code ?? '';
             $fundingName = $budget->fundingSource?->name ?? '';
+            $budgetInitial = (float) $budget->initial_amount;
 
             $distributions = $budget->distributions;
 
@@ -317,6 +318,10 @@ class ExpenseExecutionReport extends Component
                 continue;
             }
 
+            // Suma de initial_amount de todas las distribuciones, para calcular
+            // la proporción de cada rubro en la apropiación inicial del budget.
+            $totalDistInitial = (float) $distributions->sum('initial_amount');
+
             foreach ($distributions as $dist) {
                 $expCode = $dist->expenseCode;
 
@@ -324,23 +329,44 @@ class ExpenseExecutionReport extends Component
                 //   - Compromisos: RP → CDP → distribución
                 //   - Pagos: expense_line → distribución
                 //   - Créditos/contracréditos: source/destination_expense_distribution_id
-                //   - Adiciones/reducciones: budget_modification_lines
                 $distCommitments   = (float) ($commitmentsByDist[$dist->id] ?? 0);
                 $distPayments      = (float) ($paymentsByDist[$dist->id] ?? 0);
                 $distCredits       = (float) ($creditsByDist[$dist->id] ?? 0);
                 $distContracredits = (float) ($contracreditsByDist[$dist->id] ?? 0);
-                $distAdditions     = (float) ($additionsByDist[$dist->id] ?? 0);
-                $distReductions    = (float) ($reductionsByDist[$dist->id] ?? 0);
 
-                // Apropiación inicial: valor histórico del rubro al crear la distribución.
-                // Fallback a amount actual si initial_amount es 0 (registros legacy).
-                $distInitial = (float) $dist->initial_amount;
-                if ($distInitial <= 0) {
-                    $distInitial = (float) $dist->amount;
+                // Apropiación inicial del rubro: derivada del budget.
+                // Si el budget nació en 0, el rubro también nace en 0 (todo es adición).
+                // Si el budget tuvo apropiación inicial, se reparte proporcional a la
+                // participación del rubro en el total distribuido original.
+                $distInitial = 0;
+                if ($budgetInitial > 0 && $totalDistInitial > 0) {
+                    $distInitial = round($budgetInitial * ((float) $dist->initial_amount / $totalDistInitial), 2);
                 }
 
-                // Apropiación definitiva: valor actual del rubro.
+                // Apropiación definitiva: valor actual del rubro (directo, sin cálculos).
                 $distDefinitive = (float) $dist->amount;
+
+                // Adiciones/reducciones del rubro:
+                //   - Si hay líneas de modificación específicas, se usan esos deltas exactos.
+                //   - Si no hay líneas, lo que excede o falta del inicial es adición/reducción
+                //     implícita (cubre tanto adiciones generales al budget como distribuciones
+                //     hechas después de una adición).
+                $exactAdd = (float) ($additionsByDist[$dist->id] ?? 0);
+                $exactRed = (float) ($reductionsByDist[$dist->id] ?? 0);
+                if ($exactAdd > 0 || $exactRed > 0) {
+                    $distAdditions  = $exactAdd;
+                    $distReductions = $exactRed;
+                } else {
+                    // Implícitas: el delta entre definitiva y (inicial + créditos - contracréditos)
+                    $netChange = $distDefinitive - $distInitial - $distCredits + $distContracredits;
+                    if ($netChange >= 0) {
+                        $distAdditions  = $netChange;
+                        $distReductions = 0;
+                    } else {
+                        $distAdditions  = 0;
+                        $distReductions = abs($netChange);
+                    }
+                }
 
                 $this->rows[] = [
                     'budget_id' => $budget->id,

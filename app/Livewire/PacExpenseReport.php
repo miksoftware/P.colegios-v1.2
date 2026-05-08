@@ -5,7 +5,6 @@ namespace App\Livewire;
 use App\Models\Budget;
 use App\Models\ExpenseDistribution;
 use App\Models\PaymentOrderExpenseLine;
-use App\Models\RpFundingSource;
 use App\Models\School;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
@@ -43,6 +42,8 @@ class PacExpenseReport extends Component
     public function loadReport()
     {
         $year = (int) $this->filterYear;
+        $yearStart = "{$year}-01-01";
+        $yearEnd   = "{$year}-12-31";
 
         // Get all expense budgets for this school/year
         $budgets = Budget::forSchool($this->schoolId)
@@ -51,180 +52,260 @@ class PacExpenseReport extends Component
             ->with([
                 'budgetItem',
                 'fundingSource',
-                'modifications',
-                'outgoingTransfers',
-                'incomingTransfers',
                 'distributions.expenseCode',
             ])
             ->orderBy('budget_item_id')
             ->get();
 
-        // Pre-load commitments (RP amounts) per budget
         $budgetIds = $budgets->pluck('id')->toArray();
+        $distIds   = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
+        $validDistIds = array_flip($distIds);
 
-        $commitmentsByBudget = [];
+        // ========================================================================
+        // MODIFICACIONES POR DISTRIBUCIÓN (adiciones/reducciones por línea)
+        // Solo las líneas dentro del año fiscal cuentan. Las anteriores son el inicial.
+        // Cada línea se ubica en su mes según document_date (de la línea, fallback al mod).
+        // ========================================================================
+        $additionsByDistMonth = [];   // [dist_id => [mes => total]]
+        $reductionsByDistMonth = [];
+        $additionsByDistTotal = [];
+        $reductionsByDistTotal = [];
+
         if (!empty($budgetIds)) {
-            $commitmentsByBudget = RpFundingSource::whereIn('budget_id', $budgetIds)
-                ->whereHas('contractRp', fn($q) => $q->where('status', '!=', 'cancelled'))
-                ->selectRaw('budget_id, SUM(amount) as total')
-                ->groupBy('budget_id')
-                ->pluck('total', 'budget_id')
-                ->toArray();
-        }
-
-        // Pre-load payments per expense_distribution grouped by RP month (no payment month)
-        // El PAC refleja el MOMENTO DEL COMPROMISO (RP), no el pago.
-        // Cadena: rp_funding_sources → contract_rps → contracts → convocatoria_distributions
-        $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
-
-        $paymentsByDistMonth = [];
-        if (!empty($distIds)) {
-            $rawRps = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
-                ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
-                ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
-                ->join('convocatoria_distributions as cd', 'cd.convocatoria_id', '=', 'c.convocatoria_id')
-                ->join('expense_distributions as ed', function ($join) {
-                    $join->on('ed.id', '=', 'cd.expense_distribution_id')
-                         ->on('ed.budget_id', '=', 'rfs.budget_id');
-                })
-                ->whereIn('cd.expense_distribution_id', $distIds)
-                ->where('cr.status', '!=', 'cancelled')
-                ->where('c.status', '!=', 'annulled')
-                ->selectRaw('cd.expense_distribution_id, MONTH(COALESCE(cr.otrosi_date, cr.created_at)) as pay_month, SUM(rfs.amount) as total_amount')
-                ->groupBy('cd.expense_distribution_id', 'pay_month')
+            $mods = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds)
+                ->whereHas('lines')
+                ->with('lines')
                 ->get();
 
-            foreach ($rawRps as $rp) {
-                $paymentsByDistMonth[$rp->expense_distribution_id][$rp->pay_month] = (float) $rp->total_amount;
+            foreach ($mods as $mod) {
+                $isAddition = $mod->type === 'addition';
+                $modDate    = $mod->document_date;
+
+                foreach ($mod->lines as $line) {
+                    if (!isset($validDistIds[$line->expense_distribution_id])) continue;
+                    $lineDate = $line->document_date ?? $modDate;
+                    if (!$lineDate) continue;
+
+                    $lineDateStr = $lineDate instanceof \Carbon\Carbon
+                        ? $lineDate->toDateString()
+                        : (string) $lineDate;
+
+                    // Solo líneas dentro del año fiscal del reporte
+                    if ($lineDateStr < $yearStart || $lineDateStr > $yearEnd) continue;
+
+                    $month = (int) ($lineDate instanceof \Carbon\Carbon
+                        ? $lineDate->format('n')
+                        : substr($lineDateStr, 5, 2));
+
+                    $delta = abs((float) $line->amount_after - (float) $line->amount_before);
+                    $did   = $line->expense_distribution_id;
+
+                    if ($isAddition) {
+                        $additionsByDistMonth[$did][$month] = ($additionsByDistMonth[$did][$month] ?? 0) + $delta;
+                        $additionsByDistTotal[$did] = ($additionsByDistTotal[$did] ?? 0) + $delta;
+                    } else {
+                        $reductionsByDistMonth[$did][$month] = ($reductionsByDistMonth[$did][$month] ?? 0) + $delta;
+                        $reductionsByDistTotal[$did] = ($reductionsByDistTotal[$did] ?? 0) + $delta;
+                    }
+                }
+            }
+        }
+
+        // ========================================================================
+        // TRASLADOS (créditos/contracréditos) con asignación EXACTA
+        // Distribuidos por mes según document_date del traslado.
+        // ========================================================================
+        $creditsByDistMonth = [];
+        $contracreditsByDistMonth = [];
+        $creditsByDistTotal = [];
+        $contracreditsByDistTotal = [];
+
+        if (!empty($budgetIds)) {
+            $transferQuery = \App\Models\BudgetTransfer::where('school_id', $this->schoolId)
+                ->where('fiscal_year', $year)
+                ->where(function ($q) use ($budgetIds) {
+                    $q->whereIn('source_budget_id', $budgetIds)
+                      ->orWhereIn('destination_budget_id', $budgetIds);
+                });
+            $transfers = $transferQuery->get();
+
+            foreach ($transfers as $t) {
+                $amt = (float) $t->amount;
+                $tDate = $t->document_date;
+                if (!$tDate) continue;
+                $tDateStr = $tDate instanceof \Carbon\Carbon ? $tDate->toDateString() : (string) $tDate;
+                if ($tDateStr < $yearStart || $tDateStr > $yearEnd) continue;
+
+                $month = (int) ($tDate instanceof \Carbon\Carbon ? $tDate->format('n') : substr($tDateStr, 5, 2));
+
+                // Crédito (entra al rubro destino)
+                if (in_array($t->destination_budget_id, $budgetIds)
+                    && !empty($t->destination_expense_distribution_id)
+                    && isset($validDistIds[$t->destination_expense_distribution_id])) {
+                    $did = $t->destination_expense_distribution_id;
+                    $creditsByDistMonth[$did][$month] = ($creditsByDistMonth[$did][$month] ?? 0) + $amt;
+                    $creditsByDistTotal[$did] = ($creditsByDistTotal[$did] ?? 0) + $amt;
+                }
+
+                // Contracrédito (sale del rubro origen)
+                if (in_array($t->source_budget_id, $budgetIds)
+                    && !empty($t->source_expense_distribution_id)
+                    && isset($validDistIds[$t->source_expense_distribution_id])) {
+                    $did = $t->source_expense_distribution_id;
+                    $contracreditsByDistMonth[$did][$month] = ($contracreditsByDistMonth[$did][$month] ?? 0) + $amt;
+                    $contracreditsByDistTotal[$did] = ($contracreditsByDistTotal[$did] ?? 0) + $amt;
+                }
+            }
+        }
+
+        // ========================================================================
+        // COMPROMISOS (RPs) con asignación EXACTA por distribución.
+        // El PAC refleja el mes del COMPROMISO, que es la fecha del RP:
+        //   - Adiciones: otrosi_date
+        //   - RPs normales: contract.start_date (fecha fiscal de expedición del RP)
+        // ========================================================================
+        $commitmentsByDistMonth = [];
+        $commitmentsByDistTotal = [];
+
+        if (!empty($distIds)) {
+            $rpQuery = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
+                ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
+                ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
+                ->leftJoin('cdps as cdp', 'cdp.id', '=', 'cr.cdp_id')
+                ->leftJoin('convocatoria_distributions as cvd', 'cvd.id', '=', 'cdp.convocatoria_distribution_id')
+                ->where('cr.status', '!=', 'cancelled')
+                ->where('c.status', '!=', 'annulled')
+                ->selectRaw('rfs.id as rfs_id, rfs.budget_id, rfs.amount as rfs_amount, cvd.expense_distribution_id as exact_dist_id, cdp.convocatoria_id as conv_id, COALESCE(cr.otrosi_date, c.start_date) as effective_date');
+
+            $rpRows = $rpQuery->get();
+
+            // Mapa convocatoria → distribuciones (para CDPs legacy sin convocatoria_distribution_id)
+            $convIds = collect($rpRows)->pluck('conv_id')->filter()->unique()->all();
+            $convToDists = [];
+            if (!empty($convIds)) {
+                $cvdRows = \Illuminate\Support\Facades\DB::table('convocatoria_distributions as cvd')
+                    ->join('expense_distributions as ed', 'ed.id', '=', 'cvd.expense_distribution_id')
+                    ->whereIn('cvd.convocatoria_id', $convIds)
+                    ->selectRaw('cvd.convocatoria_id, cvd.expense_distribution_id, ed.budget_id')
+                    ->get();
+                foreach ($cvdRows as $cvdRow) {
+                    $convToDists[$cvdRow->convocatoria_id][] = [
+                        'dist_id'   => (int) $cvdRow->expense_distribution_id,
+                        'budget_id' => (int) $cvdRow->budget_id,
+                    ];
+                }
             }
 
-            // Pagos directos con expense_lines: atribuir al mes del payment_date
-            // (no tienen RP propio de contrato, representan compromiso y pago simultáneos)
-            $rawDirectLines = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
+            foreach ($rpRows as $row) {
+                $rfsAmount = (float) $row->rfs_amount;
+                $effDate   = $row->effective_date;
+                if (!$effDate) continue;
+                if ($effDate < $yearStart || $effDate > $yearEnd) continue;
+                $month = (int) substr($effDate, 5, 2);
+
+                $targetDistId = null;
+
+                // Ruta A: asignación exacta vía convocatoria_distribution_id
+                if (!empty($row->exact_dist_id) && isset($validDistIds[$row->exact_dist_id])) {
+                    $targetDistId = $row->exact_dist_id;
+                }
+                // Ruta B: legacy — si la convocatoria tiene UNA sola distribución en el budget
+                elseif (!empty($row->conv_id) && isset($convToDists[$row->conv_id])) {
+                    $candidates = array_values(array_filter(
+                        $convToDists[$row->conv_id],
+                        fn($c) => $c['budget_id'] === (int) $row->budget_id
+                                 && isset($validDistIds[$c['dist_id']])
+                    ));
+                    if (count($candidates) === 1) {
+                        $targetDistId = $candidates[0]['dist_id'];
+                    }
+                }
+
+                if ($targetDistId) {
+                    $commitmentsByDistMonth[$targetDistId][$month] = ($commitmentsByDistMonth[$targetDistId][$month] ?? 0) + $rfsAmount;
+                    $commitmentsByDistTotal[$targetDistId] = ($commitmentsByDistTotal[$targetDistId] ?? 0) + $rfsAmount;
+                }
+            }
+
+            // Pagos directos CON expense_line (pagos sin contrato pero con línea a un rubro):
+            // se cuentan como compromiso+ejecución del mes del payment_date.
+            $directWithLines = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
                 ->join('payment_orders as po', 'po.id', '=', 'pol.payment_order_id')
                 ->whereIn('pol.expense_distribution_id', $distIds)
                 ->where('po.payment_type', 'direct')
                 ->whereIn('po.status', ['approved', 'paid'])
-                ->selectRaw('pol.expense_distribution_id, MONTH(po.payment_date) as pay_month, SUM(pol.total) as total_paid')
-                ->groupBy('pol.expense_distribution_id', 'pay_month')
+                ->whereBetween('po.payment_date', [$yearStart, $yearEnd])
+                ->selectRaw('pol.expense_distribution_id, MONTH(po.payment_date) as m, SUM(pol.total) as total')
+                ->groupBy('pol.expense_distribution_id', 'm')
                 ->get();
 
-            foreach ($rawDirectLines as $dp) {
-                $m = (int) $dp->pay_month;
-                $paymentsByDistMonth[$dp->expense_distribution_id][$m] = ($paymentsByDistMonth[$dp->expense_distribution_id][$m] ?? 0) + (float) $dp->total_paid;
+            foreach ($directWithLines as $row) {
+                $did = $row->expense_distribution_id;
+                $month = (int) $row->m;
+                $amt = (float) $row->total;
+                $commitmentsByDistMonth[$did][$month] = ($commitmentsByDistMonth[$did][$month] ?? 0) + $amt;
+                $commitmentsByDistTotal[$did] = ($commitmentsByDistTotal[$did] ?? 0) + $amt;
             }
         }
 
-        // Also get total payments per distribution (for summary) — usar mismos datos
-        $totalPaymentsByDist = [];
-        foreach ($paymentsByDistMonth as $distId => $months) {
-            $totalPaymentsByDist[$distId] = array_sum($months);
-        }
-
-        // Pre-load direct payments per budget_item grouped by month (pagos directos puros).
-        // Los pagos directos sin CDP/RP representan compromiso+pago simultáneos,
-        // por lo que usamos payment_date como mes del compromiso.
-        $budgetItemIds = $budgets->pluck('budget_item_id')->unique()->toArray();
-        $directPaymentsByItemMonth = [];
-        $directPaymentsTotalByItem = [];
-        if (!empty($budgetItemIds)) {
-            $rawDirect = \App\Models\PaymentOrder::where('school_id', $this->schoolId)
-                ->where('fiscal_year', $year)
-                ->where('payment_type', 'direct')
-                ->whereNull('cdp_id')
-                ->whereIn('budget_item_id', $budgetItemIds)
-                ->whereIn('status', ['approved', 'paid'])
-                ->whereDoesntHave('expenseLines')
-                ->whereDoesntHave('taxLines')
-                ->selectRaw('budget_item_id, MONTH(payment_date) as pay_month, SUM(total) as total_paid')
-                ->groupBy('budget_item_id', 'pay_month')
-                ->get();
-
-            foreach ($rawDirect as $dp) {
-                $directPaymentsByItemMonth[$dp->budget_item_id][$dp->pay_month] = (float) $dp->total_paid;
-                $directPaymentsTotalByItem[$dp->budget_item_id] = ($directPaymentsTotalByItem[$dp->budget_item_id] ?? 0) + (float) $dp->total_paid;
-            }
-        }
-
-        // Build rows: aggregate by expense code across all budgets
-        $codeRows = [];
+        // ========================================================================
+        // CONSTRUCCIÓN DE FILAS: una por cada expense_distribution
+        // ========================================================================
+        $this->rows = [];
 
         foreach ($budgets as $budget) {
-            $initial = (float) $budget->initial_amount;
-            $additions = (float) $budget->modifications->where('type', 'addition')->sum('amount');
-            $reductions = (float) $budget->modifications->where('type', 'reduction')->sum('amount');
-            $credits = (float) $budget->incomingTransfers->sum('amount');
-            $contracredits = (float) $budget->outgoingTransfers->sum('amount');
-            $definitive = (float) $budget->current_amount;
-
             $distributions = $budget->distributions;
+            if ($distributions->isEmpty()) continue;
 
-            if ($distributions->isEmpty()) {
-                $code = $budget->budgetItem?->code ?? '';
-                $name = $budget->budgetItem?->name ?? '';
-                $key = $code ?: 'no-code-' . $budget->id;
+            $budgetInitial = (float) $budget->initial_amount;
+            $totalDistInitial = (float) $distributions->sum('initial_amount');
 
-                if (!isset($codeRows[$key])) {
-                    $codeRows[$key] = $this->emptyRow($code, $name);
+            foreach ($distributions as $dist) {
+                $expCode = $dist->expenseCode;
+
+                // Apropiación inicial del rubro: se deriva del budget.
+                // Si el budget nació > 0, se reparte proporcional al initial_amount del rubro.
+                // Si el budget nació en 0, el rubro nace en 0 (es superávit/adición).
+                $distInitial = 0;
+                if ($budgetInitial > 0 && $totalDistInitial > 0) {
+                    $distInitial = round($budgetInitial * ((float) $dist->initial_amount / $totalDistInitial), 2);
                 }
 
-                $codeRows[$key]['initial'] += $initial;
-                $codeRows[$key]['additions'] += $additions;
-                $codeRows[$key]['reductions'] += $reductions;
-                $codeRows[$key]['credits'] += $credits;
-                $codeRows[$key]['contracredits'] += $contracredits;
-                $codeRows[$key]['definitive'] += $definitive;
+                $additions     = (float) ($additionsByDistTotal[$dist->id] ?? 0);
+                $reductions    = (float) ($reductionsByDistTotal[$dist->id] ?? 0);
+                $credits       = (float) ($creditsByDistTotal[$dist->id] ?? 0);
+                $contracredits = (float) ($contracreditsByDistTotal[$dist->id] ?? 0);
+                $commitTotal   = (float) ($commitmentsByDistTotal[$dist->id] ?? 0);
 
-                // Add direct payments by month for this budget item
-                $directMonthly = $directPaymentsByItemMonth[$budget->budget_item_id] ?? [];
+                // Apropiación definitiva CALCULADA: inicial + movimientos del año
+                $definitive = $distInitial + $additions - $reductions + $credits - $contracredits;
+
+                // Meses
+                $months = [];
                 for ($m = 1; $m <= 12; $m++) {
-                    $codeRows[$key]['months'][$m] += (float) ($directMonthly[$m] ?? 0);
+                    $months[$m] = (float) ($commitmentsByDistMonth[$dist->id][$m] ?? 0);
                 }
-            } else {
-                $totalDistAmount = $distributions->sum('amount');
 
-                foreach ($distributions as $dist) {
-                    $expCode = $dist->expenseCode;
-                    $code = $expCode?->code ?? '';
-                    $name = $expCode?->name ?? '';
-                    $key = $code ?: 'no-code-dist-' . $dist->id;
-
-                    if (!isset($codeRows[$key])) {
-                        $codeRows[$key] = $this->emptyRow($code, $name);
-                    }
-
-                    $ratio = $totalDistAmount > 0 ? (float) $dist->amount / $totalDistAmount : 0;
-
-                    $codeRows[$key]['initial'] += round($initial * $ratio, 2);
-                    $codeRows[$key]['additions'] += round($additions * $ratio, 2);
-                    $codeRows[$key]['reductions'] += round($reductions * $ratio, 2);
-                    $codeRows[$key]['credits'] += round($credits * $ratio, 2);
-                    $codeRows[$key]['contracredits'] += round($contracredits * $ratio, 2);
-                    $codeRows[$key]['definitive'] += round($definitive * $ratio, 2);
-
-                    // Monthly commitments: RPs (via contrato) + pagos directos con línea
-                    $monthlyData = $paymentsByDistMonth[$dist->id] ?? [];
-                    for ($m = 1; $m <= 12; $m++) {
-                        $codeRows[$key]['months'][$m] += (float) ($monthlyData[$m] ?? 0);
-                    }
-                    // Nota: los pagos directos sin expense_lines (budgetItem-level)
-                    // se agregan solo al presupuesto sin distribuciones (caso superior).
-                }
+                $this->rows[] = [
+                    'code'          => $expCode?->code ?? '',
+                    'name'          => $expCode?->name ?? '',
+                    'initial'       => $distInitial,
+                    'additions'     => $additions,
+                    'reductions'    => $reductions,
+                    'credits'       => $credits,
+                    'contracredits' => $contracredits,
+                    'definitive'    => $definitive,
+                    'months'        => $months,
+                    'executed'      => $commitTotal,
+                    'pending'       => $definitive - $commitTotal,
+                ];
             }
         }
 
-        // Calculate executed and pending for each row
-        foreach ($codeRows as &$row) {
-            $row['executed'] = array_sum($row['months']);
-            $row['pending'] = $row['definitive'] - $row['executed'];
-        }
-        unset($row);
+        // Ordenar por código
+        usort($this->rows, fn($a, $b) => strcmp($a['code'], $b['code']));
 
-        // Sort by code
-        ksort($codeRows);
-        $this->rows = array_values($codeRows);
-
-        // Totals
+        // Totales
         $c = collect($this->rows);
         $monthTotals = [];
         for ($m = 1; $m <= 12; $m++) {
@@ -232,40 +313,18 @@ class PacExpenseReport extends Component
         }
 
         $this->totals = [
-            'initial' => $c->sum('initial'),
-            'additions' => $c->sum('additions'),
-            'reductions' => $c->sum('reductions'),
-            'credits' => $c->sum('credits'),
+            'initial'       => $c->sum('initial'),
+            'additions'     => $c->sum('additions'),
+            'reductions'    => $c->sum('reductions'),
+            'credits'       => $c->sum('credits'),
             'contracredits' => $c->sum('contracredits'),
-            'definitive' => $c->sum('definitive'),
-            'months' => $monthTotals,
-            'executed' => $c->sum('executed'),
-            'pending' => $c->sum('pending'),
+            'definitive'    => $c->sum('definitive'),
+            'months'        => $monthTotals,
+            'executed'      => $c->sum('executed'),
+            'pending'       => $c->sum('pending'),
         ];
 
         $this->dispatch('reportLoaded');
-    }
-
-    private function emptyRow(string $code, string $name): array
-    {
-        $months = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $months[$m] = 0;
-        }
-
-        return [
-            'code' => $code,
-            'name' => $name,
-            'initial' => 0,
-            'additions' => 0,
-            'reductions' => 0,
-            'credits' => 0,
-            'contracredits' => 0,
-            'definitive' => 0,
-            'months' => $months,
-            'executed' => 0,
-            'pending' => 0,
-        ];
     }
 
     public function getApprovalDateProperty(): string

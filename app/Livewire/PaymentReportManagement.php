@@ -94,11 +94,13 @@ class PaymentReportManagement extends Component
                 'contract.rps.cdp',
                 'contract.rps.fundingSources.fundingSource',
                 'contract.rps.fundingSources.budget.budgetItem',
+                'contract.rps.fundingSources.bankAccount.bank',
                 'supplier',
                 'cdp.fundingSources.fundingSource',
                 'contractRp.cdp',
                 'contractRp.fundingSources.fundingSource',
                 'contractRp.fundingSources.budget.budgetItem',
+                'contractRp.fundingSources.bankAccount.bank',
                 'budgetItem',
                 'expenseLines.expenseDistribution.budget.budgetItem',
                 'expenseLines.expenseDistribution.budget.fundingSource',
@@ -179,11 +181,37 @@ class PaymentReportManagement extends Component
             $rp  = $po->contractRp ?? $contract?->rps->first();
             $cdp = $rp?->cdp ?? $po->cdp ?? $convocatoria?->cdps->first();
 
-            // Cuenta(s) bancaria(s) desde las que sale el dinero (bank lines del PO)
-            $bankAccountInfo = $po->bankLines->map(function ($bl) {
-                $ba = $bl->bankAccount;
-                return trim(($ba?->bank?->name ?? '') . ' - ' . ($ba?->account_number ?? ''), ' -');
-            })->filter()->implode(' / ');
+            // Cuenta(s) bancaria(s) desde las que sale el dinero.
+            // Fuente 1: bank_lines (pagos directos / cuentas por pagar)
+            // Fuente 2: RP funding sources (pagos con contrato)
+            // Fuente 3: supplier_bank_name snapshot (fallback legacy)
+            $bankAccountParts = collect();
+
+            if ($po->bankLines->isNotEmpty()) {
+                foreach ($po->bankLines as $bl) {
+                    $ba = $bl->bankAccount;
+                    $part = trim(($ba?->bank?->name ?? '') . ' - ' . ($ba?->account_number ?? ''), ' -');
+                    if ($part) $bankAccountParts->push($part);
+                }
+            }
+
+            if ($bankAccountParts->isEmpty()) {
+                $rpForBank = $po->contractRp ?? $contract?->rps->first();
+                if ($rpForBank) {
+                    foreach ($rpForBank->fundingSources as $rpFs) {
+                        $ba   = $rpFs->bankAccount;
+                        $bank = $ba?->bank ?? $rpFs->bank;
+                        $part = trim(($bank?->name ?? '') . ' - ' . ($ba?->account_number ?? ''), ' -');
+                        if ($part) $bankAccountParts->push($part);
+                    }
+                }
+            }
+
+            if ($bankAccountParts->isEmpty() && $po->supplier_bank_name) {
+                $bankAccountParts->push(trim($po->supplier_bank_name . ' - ' . ($po->supplier_account_number ?? ''), ' -'));
+            }
+
+            $bankAccountInfo = $bankAccountParts->unique()->implode(' / ');
 
             // Concepto de retención a nivel de orden de pago (fallback para casos sin expense lines)
             $poRetentionName = PaymentOrder::RETENTION_CONCEPTS[$po->retention_concept] ?? ($po->retention_concept ?? '');

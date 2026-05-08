@@ -16,14 +16,16 @@ class ExpenseDistribution extends Model
         'budget_id',
         'expense_code_id',
         'amount',
+        'initial_amount',
         'description',
         'is_active',
         'created_by',
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'is_active' => 'boolean',
+        'amount'         => 'decimal:2',
+        'initial_amount' => 'decimal:2',
+        'is_active'      => 'boolean',
     ];
 
     protected static function getActivityModule(): string

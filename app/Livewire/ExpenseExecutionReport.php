@@ -89,28 +89,49 @@ class ExpenseExecutionReport extends Component
         $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
         $validDistIds = array_flip($distIds);
 
-        // --- Modificaciones (adición/reducción) filtradas por corte ---
-        // BudgetModification no tiene expense_distribution_id, así que se mantiene
-        // el prorrateo por amount de distribución dentro del budget.
-        $additionsByBudget = [];
-        $reductionsByBudget = [];
+        // --- Modificaciones filtradas por corte ---
+        // Regla: SOLO las líneas de budget_modification_lines impactan distribuciones.
+        // Las adiciones/reducciones "generales" (sin líneas) afectan budget.current_amount
+        // pero NO se muestran en el reporte de ejecución de gastos, porque ese monto
+        // aún no está distribuido en ningún rubro (queda como saldo disponible del budget).
+        //
+        // Cada línea puede tener su propio document_date (fecha fiscal del movimiento)
+        // que puede diferir de la fecha de la modificación padre. Se respeta la fecha
+        // de la línea para el filtrado por periodo.
+        $additionsByDist  = []; // asignación exacta a expense_distribution
+        $reductionsByDist = [];
         if (!empty($budgetIds)) {
-            $modQuery = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds);
-            if ($dateFrom && $dateTo) {
-                $modQuery->where(function ($q) use ($dateFrom, $dateTo) {
-                    $q->whereBetween('document_date', [$dateFrom, $dateTo])
-                      ->orWhere(function ($q2) use ($dateFrom, $dateTo) {
-                          $q2->whereNull('document_date')
-                             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
-                      });
-                });
-            }
-            $mods = $modQuery->get();
+            // Solo necesitamos modificaciones que tengan al menos una línea
+            $mods = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds)
+                ->whereHas('lines')
+                ->with('lines')
+                ->get();
+
+            $inRange = function ($date) use ($dateFrom, $dateTo) {
+                if (!$dateFrom || !$dateTo) return true;
+                if (!$date) return false;
+                $d = $date instanceof \Carbon\Carbon ? $date->toDateString() : (string) $date;
+                return $d >= $dateFrom && $d <= $dateTo;
+            };
+
             foreach ($mods as $mod) {
-                if ($mod->type === 'addition') {
-                    $additionsByBudget[$mod->budget_id] = ($additionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
-                } else {
-                    $reductionsByBudget[$mod->budget_id] = ($reductionsByBudget[$mod->budget_id] ?? 0) + (float) $mod->amount;
+                $isAddition = $mod->type === 'addition';
+                $modDate    = $mod->document_date ?? $mod->created_at;
+
+                foreach ($mod->lines as $line) {
+                    if (!isset($validDistIds[$line->expense_distribution_id])) continue;
+                    $lineDate = $line->document_date ?? $modDate;
+                    if (!$inRange($lineDate)) continue;
+
+                    $delta = abs((float) $line->amount_after - (float) $line->amount_before);
+
+                    if ($isAddition) {
+                        $additionsByDist[$line->expense_distribution_id] =
+                            ($additionsByDist[$line->expense_distribution_id] ?? 0) + $delta;
+                    } else {
+                        $reductionsByDist[$line->expense_distribution_id] =
+                            ($reductionsByDist[$line->expense_distribution_id] ?? 0) + $delta;
+                    }
                 }
             }
         }
@@ -180,11 +201,14 @@ class ExpenseExecutionReport extends Component
         $commitmentsByDist = [];
         if (!empty($distIds)) {
             // --- Compromisos reales: RPs vía CDP → convocatoria_distribution → expense_distribution.
-            // La asignación exacta se obtiene por:
-            //   rp_funding_sources → contract_rps → cdps → convocatoria_distributions → expense_distribution_id
-            // Si el CDP tiene convocatoria_distribution_id se conoce la distribución EXACTA del RP
-            // (no hay prorrateo). Si no la tiene (CDPs legacy o RP de adición sin convocatoria),
-            // se cae al comportamiento anterior: prorrateo por monto de distribución dentro del budget.
+            // Estrategia de asignación:
+            //   1) Si el CDP tiene convocatoria_distribution_id → se conoce la distribución EXACTA.
+            //   2) Si el CDP tiene convocatoria_id pero NO convocatoria_distribution_id:
+            //      - Si la convocatoria tiene UNA sola distribución en el mismo budget del RP
+            //        (caso común en contratos simples) → usar esa distribución como exacta.
+            //      - Si tiene varias → prorratear entre ESAS (no entre todas las del budget).
+            //   3) Si el CDP no tiene convocatoria → prorratear entre todas las distribuciones
+            //      del budget (legacy).
             $rpQuery = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
                 ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
                 ->join('contracts as c', 'c.id', '=', 'cr.contract_id')
@@ -196,15 +220,31 @@ class ExpenseExecutionReport extends Component
                 // Fecha efectiva del RP:
                 //   - Adiciones: otrosi_date (fecha del otrosí)
                 //   - RPs normales: start_date del contrato (fecha de firma y expedición del RP)
-                // NO se usa cr.created_at porque es la fecha del registro en BD (p.ej. data
-                // cargada posteriormente), no la fecha fiscal del RP.
                 $rpQuery->whereRaw('COALESCE(cr.otrosi_date, c.start_date) BETWEEN ? AND ?', [$dateFrom, $dateTo]);
             }
             $rpRows = $rpQuery
-                ->selectRaw('rfs.id as rfs_id, rfs.budget_id, rfs.amount as rfs_amount, cvd.expense_distribution_id as exact_dist_id')
+                ->selectRaw('rfs.id as rfs_id, rfs.budget_id, rfs.amount as rfs_amount, cvd.expense_distribution_id as exact_dist_id, cdp.convocatoria_id as conv_id')
                 ->get();
 
-            // Mapa budget_id → colección de distribuciones (id + amount) para el prorrateo fallback
+            // Mapa convocatoria → distribuciones (fallback cuando el CDP tiene convocatoria
+            // pero no convocatoria_distribution_id)
+            $convIds = $rpRows->pluck('conv_id')->filter()->unique()->all();
+            $convToDists = [];
+            if (!empty($convIds)) {
+                $cvdRows = \Illuminate\Support\Facades\DB::table('convocatoria_distributions as cvd')
+                    ->join('expense_distributions as ed', 'ed.id', '=', 'cvd.expense_distribution_id')
+                    ->whereIn('cvd.convocatoria_id', $convIds)
+                    ->selectRaw('cvd.convocatoria_id, cvd.expense_distribution_id, ed.budget_id')
+                    ->get();
+                foreach ($cvdRows as $cvdRow) {
+                    $convToDists[$cvdRow->convocatoria_id][] = [
+                        'dist_id'   => (int) $cvdRow->expense_distribution_id,
+                        'budget_id' => (int) $cvdRow->budget_id,
+                    ];
+                }
+            }
+
+            // Mapa budget_id → colección de distribuciones (id + amount)
             $distsByBudget = [];
             foreach ($budgets as $b) {
                 $distsByBudget[$b->id] = $b->distributions->map(fn($d) => [
@@ -212,7 +252,6 @@ class ExpenseExecutionReport extends Component
                     'amount' => (float) $d->amount,
                 ])->values()->all();
             }
-            $validDistIds = array_flip($distIds);
 
             foreach ($rpRows as $row) {
                 $rfsAmount = (float) $row->rfs_amount;
@@ -224,8 +263,47 @@ class ExpenseExecutionReport extends Component
                     continue;
                 }
 
-                // Caso 2: CDP sin convocatoria_distribution (legacy) → prorratear entre
-                // las distribuciones del budget según su amount.
+                // Caso 2: CDP tiene convocatoria_id pero no convocatoria_distribution_id.
+                if (!empty($row->conv_id) && isset($convToDists[$row->conv_id])) {
+                    // Filtrar las distribuciones de la convocatoria que caen en el mismo budget
+                    // del rfs y que están dentro del reporte.
+                    $candidates = array_values(array_filter(
+                        $convToDists[$row->conv_id],
+                        fn($c) => $c['budget_id'] === (int) $row->budget_id
+                                 && isset($validDistIds[$c['dist_id']])
+                    ));
+
+                    if (count($candidates) === 1) {
+                        // Una sola distribución → asignación exacta a esa
+                        $commitmentsByDist[$candidates[0]['dist_id']] =
+                            ($commitmentsByDist[$candidates[0]['dist_id']] ?? 0) + $rfsAmount;
+                        continue;
+                    }
+                    if (count($candidates) > 1) {
+                        // Varias → prorratear entre ESAS (no entre todas las del budget)
+                        $candDistAmts = [];
+                        foreach ($candidates as $c) {
+                            foreach ($distsByBudget[$row->budget_id] ?? [] as $d) {
+                                if ($d['id'] === $c['dist_id']) {
+                                    $candDistAmts[$c['dist_id']] = $d['amount'];
+                                    break;
+                                }
+                            }
+                        }
+                        $total = array_sum($candDistAmts);
+                        if ($total > 0) {
+                            foreach ($candDistAmts as $did => $amt) {
+                                $ratio = $amt / $total;
+                                $commitmentsByDist[$did] =
+                                    ($commitmentsByDist[$did] ?? 0) + $rfsAmount * $ratio;
+                            }
+                            continue;
+                        }
+                    }
+                }
+
+                // Caso 3: CDP sin convocatoria o sin candidatos válidos → prorratear entre
+                // las distribuciones del budget según su amount (legacy).
                 $dists = $distsByBudget[$row->budget_id] ?? [];
                 if (empty($dists)) continue;
 
@@ -325,8 +403,11 @@ class ExpenseExecutionReport extends Component
 
         foreach ($budgets as $budget) {
             $initial = (float) $budget->initial_amount;
-            $additions = (float) ($additionsByBudget[$budget->id] ?? 0);
-            $reductions = (float) ($reductionsByBudget[$budget->id] ?? 0);
+            // Nota: las adiciones/reducciones generales (sin líneas por rubro) ya NO se
+            // muestran en este reporte. Solo impactan budget.current_amount y quedan
+            // como saldo disponible hasta que el usuario las distribuya.
+            $additions = 0;
+            $reductions = 0;
             // Traslados que no tienen distribución exacta (fallback prorrateable)
             $credits = (float) ($creditsByBudget[$budget->id] ?? 0);
             $contracredits = (float) ($contracreditsByBudget[$budget->id] ?? 0);
@@ -338,28 +419,9 @@ class ExpenseExecutionReport extends Component
             $distributions = $budget->distributions;
 
             if ($distributions->isEmpty()) {
-                // Presupuesto sin distribuciones: todos los movimientos van a la única fila.
-                // Aquí también debemos sumar traslados exactos si apuntaron a distribuciones de este budget
-                // (no debería pasar, pero por seguridad sumamos el fallback + exactos del budget).
-                $definitive = $initial + $additions - $reductions + $credits - $contracredits;
-                $totalObligations = $directPayments;
-                $this->rows[] = [
-                    'budget_id' => $budget->id,
-                    'rubro_code' => $budget->budgetItem?->code ?? '',
-                    'rubro_name' => $budget->budgetItem?->name ?? '',
-                    'funding_source_code' => $fundingCode,
-                    'funding_source_name' => $fundingName,
-                    'initial' => $initial,
-                    'additions' => $additions,
-                    'reductions' => $reductions,
-                    'credits' => $credits,
-                    'contracredits' => $contracredits,
-                    'definitive' => $definitive,
-                    'commitments' => $totalBudgetCommitments + $directPayments,
-                    'obligations' => $totalObligations,
-                    'payments' => $totalObligations,
-                    'pending' => $definitive - $totalBudgetCommitments - $directPayments,
-                ];
+                // Presupuesto sin distribuciones: no se muestra porque el dinero
+                // aún no está asignado a ningún rubro de gasto.
+                continue;
             } else {
                 $totalDistAmount = $distributions->sum('amount');
 
@@ -377,10 +439,21 @@ class ExpenseExecutionReport extends Component
                     $distCredits       = $exactCred + round($credits * $ratio, 2);
                     $distContracredits = $exactCont + round($contracredits * $ratio, 2);
 
-                    $distInitial    = round($initial * $ratio, 2);
-                    $distAdditions  = round($additions * $ratio, 2);
-                    $distReductions = round($reductions * $ratio, 2);
-                    $distDefinitive = $distInitial + $distAdditions - $distReductions + $distCredits - $distContracredits;
+                    // Adiciones/reducciones SOLO las que tienen línea por rubro
+                    $distAdditions  = (float) ($additionsByDist[$dist->id] ?? 0);
+                    $distReductions = (float) ($reductionsByDist[$dist->id] ?? 0);
+
+                    // Apropiación inicial: valor histórico del rubro al momento de crearlo
+                    // (initial_amount). Si por alguna razón está en 0 (registros muy viejos
+                    // antes del backfill) usamos el amount actual como fallback.
+                    $distInitial = (float) $dist->initial_amount;
+                    if ($distInitial <= 0) {
+                        $distInitial = (float) $dist->amount;
+                    }
+
+                    // Apropiación definitiva: valor actual del rubro (refleja todas
+                    // las adiciones/reducciones por línea y los traslados).
+                    $distDefinitive = (float) $dist->amount;
 
                     $this->rows[] = [
                         'budget_id' => $budget->id,

@@ -388,7 +388,7 @@
                         <h3 class="text-lg font-bold text-purple-900">Distribuir Presupuesto</h3>
                         <p class="text-sm text-purple-700">{{ $selectedBudget->budgetItem?->name }} - {{ $selectedBudget->fundingSource?->name }}</p>
                     </div>
-                    
+
                     <div class="p-6 space-y-4">
                         {{-- Info del presupuesto --}}
                         <div class="bg-gray-50 rounded-xl p-4 grid grid-cols-2 gap-4 text-sm">
@@ -406,19 +406,54 @@
                             </div>
                         </div>
 
+                        {{-- Selector de modo --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Código de Gasto <span class="text-red-500">*</span></label>
-                            <select wire:model="distributeExpenseCodeId" class="w-full rounded-xl border-gray-300">
-                                <option value="">Seleccionar código...</option>
-                                @foreach($this->expenseCodes as $code)
-                                    <option value="{{ $code->id }}">{{ $code->code }} - {{ Str::limit($code->name, 60) }}</option>
-                                @endforeach
-                            </select>
-                            @error('distributeExpenseCodeId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de distribución</label>
+                            <div class="flex gap-2">
+                                <button type="button" wire:click="$set('distributeMode', 'create')"
+                                    class="flex-1 py-2 px-3 rounded-xl text-sm font-semibold border transition {{ $distributeMode === 'create' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-300 hover:border-purple-400' }}">
+                                    Nuevo rubro de gasto
+                                </button>
+                                <button type="button" wire:click="$set('distributeMode', 'add')"
+                                    @if($selectedBudget->distributions->isEmpty()) disabled @endif
+                                    class="flex-1 py-2 px-3 rounded-xl text-sm font-semibold border transition {{ $distributeMode === 'add' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400' }} disabled:opacity-40 disabled:cursor-not-allowed">
+                                    Adicionar a rubro existente
+                                </button>
+                            </div>
+                            @if($distributeMode === 'add' && $selectedBudget->distributions->isNotEmpty())
+                                <p class="text-xs text-gray-500 mt-1">Suma el monto al rubro que ya existe en este presupuesto.</p>
+                            @endif
                         </div>
 
+                        @if($distributeMode === 'create')
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Código de Gasto <span class="text-red-500">*</span></label>
+                                <select wire:model="distributeExpenseCodeId" class="w-full rounded-xl border-gray-300">
+                                    <option value="">Seleccionar código...</option>
+                                    @foreach($this->expenseCodes as $code)
+                                        <option value="{{ $code->id }}">{{ $code->code }} - {{ Str::limit($code->name, 60) }}</option>
+                                    @endforeach
+                                </select>
+                                @error('distributeExpenseCodeId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                        @else
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Rubro existente <span class="text-red-500">*</span></label>
+                                <select wire:model="distributeExistingDistributionId" class="w-full rounded-xl border-gray-300">
+                                    <option value="">Seleccionar rubro...</option>
+                                    @foreach($selectedBudget->distributions as $dist)
+                                        <option value="{{ $dist->id }}">{{ $dist->expenseCode->code }} - {{ Str::limit($dist->expenseCode->name, 50) }} (actual: ${{ number_format($dist->amount, 2, ',', '.') }})</option>
+                                    @endforeach
+                                </select>
+                                @error('distributeExistingDistributionId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                        @endif
+
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Monto a Distribuir <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                {{ $distributeMode === 'create' ? 'Monto a distribuir' : 'Monto a adicionar' }}
+                                <span class="text-red-500">*</span>
+                            </label>
                             <div class="flex">
                                 <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500">$</span>
                                 <input type="number" wire:model="distributeAmount" step="0.01" min="0.01" class="flex-1 rounded-r-xl border-gray-300" placeholder="0.00">
@@ -426,15 +461,37 @@
                             @error('distributeAmount') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción (opcional)</label>
-                            <textarea wire:model="distributeDescription" rows="2" class="w-full rounded-xl border-gray-300" placeholder="Notas adicionales..."></textarea>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Realización <span class="text-red-500">*</span></label>
+                                <input type="date" wire:model="distributeDocumentDate" class="w-full rounded-xl border-gray-300">
+                                @error('distributeDocumentDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                <p class="mt-1 text-xs text-gray-500">Fecha fiscal real del movimiento (puede ser distinta a hoy).</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Acto / Documento</label>
+                                <input type="text" wire:model="distributeDocumentNumber" maxlength="50" class="w-full rounded-xl border-gray-300" placeholder="Opcional">
+                            </div>
                         </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Observación / Motivo</label>
+                            <textarea wire:model="distributeReason" rows="2" class="w-full rounded-xl border-gray-300" placeholder="Razón de la {{ $distributeMode === 'create' ? 'distribución' : 'adición' }}..."></textarea>
+                        </div>
+
+                        @if($distributeMode === 'create')
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Descripción adicional (opcional)</label>
+                                <textarea wire:model="distributeDescription" rows="2" class="w-full rounded-xl border-gray-300" placeholder="Notas internas de la distribución..."></textarea>
+                            </div>
+                        @endif
                     </div>
-                    
+
                     <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
                         <button type="button" wire:click="closeDistributeModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700">Distribuir</button>
+                        <button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700">
+                            {{ $distributeMode === 'create' ? 'Distribuir' : 'Adicionar' }}
+                        </button>
                     </div>
                 </form>
             </div>

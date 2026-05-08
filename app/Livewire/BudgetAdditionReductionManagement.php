@@ -786,8 +786,13 @@ class BudgetAdditionReductionManagement extends Component
             ['editingModDate.required' => 'La fecha es obligatoria.', 'editingModDate.date' => 'La fecha no es válida.']
         );
 
-        BudgetModification::whereHas('budget', fn($q) => $q->where('school_id', $this->schoolId))
-            ->findOrFail($this->editingModId)
+        $incomeMod = BudgetModification::whereHas('budget', fn($q) => $q->where('school_id', $this->schoolId))
+            ->findOrFail($this->editingModId);
+        $incomeMod->update(['document_date' => $this->editingModDate]);
+
+        // También actualizar la modificación de gasto con el mismo modification_number
+        BudgetModification::where('budget_id', $this->historyExpenseBudget->id)
+            ->where('modification_number', $incomeMod->modification_number)
             ->update(['document_date' => $this->editingModDate]);
 
         $incomeId   = $this->historyIncomeBudget->id;

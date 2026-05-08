@@ -18,12 +18,17 @@ class ExpenseManagement extends Component
     public $filterBudgetItem = '';
     public $search = '';
 
-    // Modal de distribución
+    // Modal de distribución (crear nuevo rubro O adicionar a uno existente)
     public $showDistributeModal = false;
     public $selectedBudget = null;
+    public $distributeMode = 'create'; // 'create' | 'add'
     public $distributeExpenseCodeId = '';
+    public $distributeExistingDistributionId = '';
     public $distributeAmount = '';
     public $distributeDescription = '';
+    public $distributeDocumentDate = '';
+    public $distributeDocumentNumber = '';
+    public $distributeReason = '';
 
     // Modal de detalle
     public $showDetailModal = false;
@@ -146,14 +151,26 @@ class ExpenseManagement extends Component
             return;
         }
 
-        $this->selectedBudget = Budget::with(['budgetItem', 'fundingSource', 'distributions'])->find($budgetId);
+        $this->selectedBudget = Budget::with(['budgetItem', 'fundingSource', 'distributions.expenseCode'])->find($budgetId);
         if (!$this->selectedBudget) {
             $this->dispatch('toast', message: 'Presupuesto no encontrado.', type: 'error');
             return;
         }
 
         $this->resetDistributeForm();
+        $this->distributeMode = 'create';
+        $this->distributeDocumentDate = now()->format('Y-m-d');
         $this->showDistributeModal = true;
+    }
+
+    public function updatedDistributeMode($value)
+    {
+        // Al cambiar de modo limpiar los campos específicos del otro modo
+        $this->distributeExpenseCodeId = '';
+        $this->distributeExistingDistributionId = '';
+        $this->distributeAmount = '';
+        $this->distributeDescription = '';
+        $this->resetValidation();
     }
 
     public function saveDistribution()
@@ -163,23 +180,25 @@ class ExpenseManagement extends Component
             return;
         }
 
-        $this->validate([
-            'distributeExpenseCodeId' => 'required|exists:expense_codes,id',
-            'distributeAmount' => 'required|numeric|min:0.01',
-        ], [
-            'distributeExpenseCodeId.required' => 'Seleccione un código de gasto.',
-            'distributeAmount.required' => 'Ingrese el monto a distribuir.',
-            'distributeAmount.min' => 'El monto debe ser mayor a 0.',
-        ]);
-
-        $exists = ExpenseDistribution::where('budget_id', $this->selectedBudget->id)
-            ->where('expense_code_id', $this->distributeExpenseCodeId)
-            ->exists();
-
-        if ($exists) {
-            $this->dispatch('toast', message: 'Este código de gasto ya está asignado a este presupuesto.', type: 'error');
-            return;
+        // Reglas de validación según el modo
+        $rules = [
+            'distributeAmount'        => 'required|numeric|min:0.01',
+            'distributeDocumentDate'  => 'required|date',
+        ];
+        $messages = [
+            'distributeAmount.required'       => 'Ingrese el monto a distribuir.',
+            'distributeAmount.min'            => 'El monto debe ser mayor a 0.',
+            'distributeDocumentDate.required' => 'La fecha de realización es obligatoria.',
+            'distributeDocumentDate.date'     => 'La fecha de realización no es válida.',
+        ];
+        if ($this->distributeMode === 'create') {
+            $rules['distributeExpenseCodeId'] = 'required|exists:expense_codes,id';
+            $messages['distributeExpenseCodeId.required'] = 'Seleccione un código de gasto.';
+        } else {
+            $rules['distributeExistingDistributionId'] = 'required|exists:expense_distributions,id';
+            $messages['distributeExistingDistributionId.required'] = 'Seleccione el rubro al cual adicionar.';
         }
+        $this->validate($rules, $messages);
 
         $currentDistributed = $this->selectedBudget->distributions->sum('amount');
         $available = round($this->selectedBudget->current_amount - $currentDistributed, 2);
@@ -189,23 +208,99 @@ class ExpenseManagement extends Component
             $this->dispatch('toast', message: 'El monto supera el disponible ($' . number_format($available, 2, ',', '.') . ').', type: 'error');
             return;
         }
-
-        // Ajustar si es prácticamente igual al disponible (diferencia por redondeo)
         if ($amount > $available) {
             $amount = $available;
         }
 
-        ExpenseDistribution::create([
-            'school_id' => $this->schoolId,
-            'budget_id' => $this->selectedBudget->id,
-            'expense_code_id' => $this->distributeExpenseCodeId,
-            'amount' => $amount,
-            'description' => $this->distributeDescription,
-            'created_by' => auth()->id(),
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        try {
+            if ($this->distributeMode === 'create') {
+                // Crear nueva distribución
+                $exists = ExpenseDistribution::where('budget_id', $this->selectedBudget->id)
+                    ->where('expense_code_id', $this->distributeExpenseCodeId)
+                    ->exists();
+
+                if ($exists) {
+                    \Illuminate\Support\Facades\DB::rollBack();
+                    $this->dispatch('toast', message: 'Este código de gasto ya está asignado. Use la opción "Adicionar a rubro existente".', type: 'error');
+                    return;
+                }
+
+                $distribution = ExpenseDistribution::create([
+                    'school_id'       => $this->schoolId,
+                    'budget_id'       => $this->selectedBudget->id,
+                    'expense_code_id' => $this->distributeExpenseCodeId,
+                    'amount'          => $amount,
+                    'initial_amount'  => $amount,
+                    'description'     => $this->distributeDescription,
+                    'created_by'      => auth()->id(),
+                ]);
+
+                // Registrar línea de adición (amount_before = 0) para trazabilidad
+                $this->recordModificationLine($distribution, 0, $amount);
+
+                $msg = 'Distribución creada exitosamente.';
+            } else {
+                // Adicionar a distribución existente
+                $distribution = ExpenseDistribution::where('budget_id', $this->selectedBudget->id)
+                    ->where('id', $this->distributeExistingDistributionId)
+                    ->firstOrFail();
+
+                $before = (float) $distribution->amount;
+                $after  = $before + $amount;
+                $distribution->update(['amount' => $after]);
+
+                $this->recordModificationLine($distribution, $before, $after);
+
+                $msg = 'Adición a rubro existente registrada exitosamente.';
+            }
+
+            \Illuminate\Support\Facades\DB::commit();
+            $this->dispatch('toast', message: $msg, type: 'success');
+            $this->closeDistributeModal();
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+    /**
+     * Registra una línea en la última modificación de adición del budget o crea una nueva
+     * modificación "implícita" para dejar traza con la fecha indicada por el usuario.
+     */
+    private function recordModificationLine(ExpenseDistribution $distribution, float $before, float $after): void
+    {
+        $delta = $after - $before;
+        if ($delta <= 0) return;
+
+        $docDate = $this->distributeDocumentDate ?: now()->toDateString();
+        $reason  = $this->distributeReason ?: 'Distribución desde módulo de gastos';
+        $docNum  = $this->distributeDocumentNumber ?: null;
+
+        // Crear una BudgetModification "implícita" tipo addition por el delta,
+        // para que los reportes puedan identificarla igual que las del módulo de adición/reducción.
+        $budget = $this->selectedBudget;
+        $prev   = (float) $budget->current_amount;
+        $mod = \App\Models\BudgetModification::create([
+            'budget_id'           => $budget->id,
+            'modification_number' => $budget->getNextModificationNumber(),
+            'type'                => 'addition',
+            'amount'              => $delta,
+            'previous_amount'     => $prev,
+            'new_amount'          => $prev, // no cambia current_amount porque viene de distribución
+            'reason'              => $reason,
+            'document_number'     => $docNum,
+            'document_date'       => $docDate,
+            'created_by'          => auth()->id(),
         ]);
 
-        $this->dispatch('toast', message: 'Distribución creada exitosamente.', type: 'success');
-        $this->closeDistributeModal();
+        \App\Models\BudgetModificationLine::create([
+            'budget_modification_id'  => $mod->id,
+            'expense_distribution_id' => $distribution->id,
+            'amount_before'           => $before,
+            'amount_after'            => $after,
+            'document_date'           => $docDate,
+        ]);
     }
 
     public function getAvailableForDistribution()
@@ -217,9 +312,14 @@ class ExpenseManagement extends Component
 
     public function resetDistributeForm()
     {
+        $this->distributeMode = 'create';
         $this->distributeExpenseCodeId = '';
+        $this->distributeExistingDistributionId = '';
         $this->distributeAmount = '';
         $this->distributeDescription = '';
+        $this->distributeDocumentDate = '';
+        $this->distributeDocumentNumber = '';
+        $this->distributeReason = '';
         $this->resetValidation();
     }
 

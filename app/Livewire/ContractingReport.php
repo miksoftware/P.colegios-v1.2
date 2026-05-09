@@ -546,9 +546,11 @@ class ContractingReport extends Component
 
         foreach ($directPayments as $po) {
             $supplier = $po->supplier;
-            $cdp      = $po->cdp;
             $rp       = $po->contractRp;
             if (!$rp) continue;
+            // El CDP correcto es el del RP. $po->cdp puede ser null si el PO no guarda cdp_id
+            // directo (aunque sí tiene contract_rp_id), así que preferimos el CDP del RP.
+            $cdp      = $rp->cdp ?? $po->cdp;
 
             // Banco/cuenta a nivel RP (primera fuente). Abajo cada fila sobreescribe con la suya.
             $firstRpFs          = $rp->fundingSources->first();
@@ -568,16 +570,17 @@ class ContractingReport extends Component
                         ?? '';
 
             // Próximo disponible del RP = CDP total - pagos ya realizados contra este RP
-            $rpPaid     = (float) \App\Models\PaymentOrder::where('contract_rp_id', $rp->id)
+            $rpPaid       = (float) \App\Models\PaymentOrder::where('contract_rp_id', $rp->id)
                 ->whereIn('status', ['approved', 'paid'])
                 ->sum('total');
-            $rpProxDisp = max(0, (float) ($cdp?->total_amount ?? $rp->total_amount ?? 0) - $rpPaid);
+            $cdpTotalAmt  = (float) ($cdp?->total_amount ?? $rp->total_amount ?? 0);
+            $rpProxDisp   = max(0, $cdpTotalAmt - $rpPaid);
 
             // Datos base compartidos entre filas del mismo pago directo
             $baseDirectRow = [
                 'prox_disp'               => $rpProxDisp,
                 'cdp_number'              => $cdp?->cdp_number ?? '',
-                'disponibilidad'          => (float) ($cdp?->total_amount ?? $rp->total_amount ?? 0),
+                'disponibilidad'          => $cdpTotalAmt,
                 'fecha_cdp'               => $fechaCdp,
                 'supplier_name'           => $supplier?->full_name ?? '',
                 'supplier_first_surname'  => $supplier?->first_surname ?? '',

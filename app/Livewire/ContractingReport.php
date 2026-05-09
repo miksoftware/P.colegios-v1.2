@@ -104,11 +104,12 @@ class ContractingReport extends Component
                 ->leftJoin('expense_distributions as ed', 'ed.id', '=', 'cvd.expense_distribution_id')
                 ->leftJoin('expense_codes as ec', 'ec.id', '=', 'ed.expense_code_id')
                 ->whereIn('cdp.id', $cdpIds)
-                ->selectRaw('cdp.id cdp_id, ed.id ed_id, ed.budget_id, ec.code ec_code, ec.name ec_name, ec.sifse_code')
+                ->selectRaw('cdp.id cdp_id, ed.id ed_id, ed.budget_id, ed.amount ed_amount, ec.code ec_code, ec.name ec_name, ec.sifse_code')
                 ->get();
             foreach ($rows as $row) {
                 $distByCdp[$row->cdp_id] = [
                     'ed_id'     => $row->ed_id,
+                    'ed_amount' => (float) ($row->ed_amount ?? 0),
                     'budget_id' => $row->budget_id,
                     'ec_code'   => $row->ec_code,
                     'ec_name'   => $row->ec_name,
@@ -117,7 +118,7 @@ class ContractingReport extends Component
             }
         }
 
-        // Precargar pagos por RP para calcular "próximo disponible" (CDP - pagos)
+        // Precargar pagos por RP para calcular "próximo disponible" (dist.amount - pagos)
         $rpIds = $contracts->flatMap(fn($c) => $c->rps->pluck('id'))->filter()->unique()->values()->all();
         $paymentsByRp = [];
         if (!empty($rpIds)) {
@@ -128,6 +129,20 @@ class ContractingReport extends Component
                 ->pluck('total_paid', 'contract_rp_id')
                 ->toArray();
         }
+
+        // Precargar pagos por expense_distribution para calcular prox_disp por rubro.
+        // Se usa para TODOS los rubros (no solo los asociados a CDPs con contrato),
+        // incluyendo los rubros tocados por pagos directos.
+        $paymentsByDist = [];
+        $paymentsByDist = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
+            ->join('payment_orders as po', 'po.id', '=', 'pol.payment_order_id')
+            ->where('po.school_id', $this->schoolId)
+            ->where('po.fiscal_year', (int) $this->filterYear)
+            ->whereIn('po.status', ['approved', 'paid'])
+            ->selectRaw('pol.expense_distribution_id, SUM(pol.total) as total_paid')
+            ->groupBy('pol.expense_distribution_id')
+            ->pluck('total_paid', 'expense_distribution_id')
+            ->toArray();
 
         $this->rows = [];
 
@@ -211,10 +226,6 @@ class ContractingReport extends Component
                     ? (is_string($rpConvDate) ? $rpConvDate : $rpConvDate->format('Y-m-d'))
                     : '';
 
-                // Próximo disponible del RP = CDP total - pagos ya realizados contra este RP
-                $rpPaid  = (float) ($paymentsByRp[$rp->id] ?? 0);
-                $rpProxDisp = max(0, (float) ($rp->cdp?->total_amount ?? 0) - $rpPaid);
-
                 foreach ($rp->fundingSources as $rpFs) {
                     $fs = $rpFs->fundingSource;
                     $b  = $rpFs->budget;
@@ -227,10 +238,14 @@ class ContractingReport extends Component
                     $sifseCode = '';
                     $rubroCode = '';
                     $rubroName = '';
+                    $distId    = null;
+                    $distAmt   = 0.0;
                     if ($exactInfo && (int) $exactInfo['budget_id'] === (int) $rpFs->budget_id) {
                         $rubroCode = $exactInfo['ec_code'] ?? '';
                         $rubroName = $exactInfo['ec_name'] ?? '';
                         $sifseCode = $exactInfo['sifse'] ?? '';
+                        $distId    = $exactInfo['ed_id'];
+                        $distAmt   = (float) $exactInfo['ed_amount'];
                     } else {
                         // Fallback legacy: primera distribución del budget
                         $dist = $b?->distributions->first();
@@ -238,7 +253,14 @@ class ContractingReport extends Component
                         $rubroCode = $ec?->code ?? $bi?->code ?? '';
                         $rubroName = $ec?->name ?? $bi?->name ?? '';
                         $sifseCode = $ec?->sifse_code ?? '';
+                        $distId    = $dist?->id;
+                        $distAmt   = (float) ($dist?->amount ?? 0);
                     }
+
+                    // Disponibilidad del rubro = monto total asignado a la expense_distribution.
+                    // Prox. Disp. = disponibilidad - pagos reales hechos a ese rubro.
+                    $distPaid   = $distId ? (float) ($paymentsByDist[$distId] ?? 0) : 0;
+                    $rpProxDisp = max(0, $distAmt - $distPaid);
 
                     $fsCode = $fs?->code ?? '';
                     $fsName = $fs?->name ?? '';
@@ -262,7 +284,9 @@ class ContractingReport extends Component
                                               ?? '',
                             'cdp_number'   => $rpCdpNumber,
                             'cdp_date'     => $rpCdpDate,
-                            'cdp_amount'   => (float) ($rp->cdp?->total_amount ?? 0),
+                            // Disponibilidad = monto del rubro (expense_distribution.amount)
+                            'cdp_amount'   => $distAmt,
+                            // Prox. Disp. = disponibilidad - pagos al rubro
                             'prox_disp'    => $rpProxDisp,
                             'rubro_code'   => $rubroCode,
                             'rubro_name'   => $rubroName,
@@ -296,10 +320,14 @@ class ContractingReport extends Component
 
                     foreach ($cdp->fundingSources as $cdpFs) {
                         $fs = $cdpFs->fundingSource;
+                        $distId = null;
+                        $distAmt = 0.0;
                         if ($cdpInfo && $cdpInfo['budget_id'] === $cdpFs->budget_id) {
-                            $rubroCode = $cdpInfo['ec_code'] ?? '';
-                            $rubroName = $cdpInfo['ec_name'] ?? '';
+                            $rubroCode    = $cdpInfo['ec_code'] ?? '';
+                            $rubroName    = $cdpInfo['ec_name'] ?? '';
                             $sifseCodeRow = $cdpInfo['sifse'] ?? '';
+                            $distId       = $cdpInfo['ed_id'];
+                            $distAmt      = (float) $cdpInfo['ed_amount'];
                         } else {
                             $rubroCode = $bi?->code ?? '';
                             $rubroName = $bi?->name ?? '';
@@ -308,6 +336,10 @@ class ContractingReport extends Component
                         $fsCode    = $fs?->code ?? '';
                         $fsName    = $fs?->name ?? '';
                         $key       = "cdp{$cdp->id}|{$rubroCode}|{$fsCode}";
+
+                        $distPaid    = $distId ? (float) ($paymentsByDist[$distId] ?? 0) : 0;
+                        $cdpProxDisp = $distAmt > 0 ? max(0, $distAmt - $distPaid) : 0;
+
                         if (!isset($rubroFuenteRows[$key])) {
                             $rubroFuenteRows[$key] = [
                                 'rp_id'        => null,
@@ -315,8 +347,9 @@ class ContractingReport extends Component
                                 'rp_date'      => '',
                                 'cdp_number'   => $cdp->cdp_number,
                                 'cdp_date'     => $cdpDateFiscal,
-                                'cdp_amount'   => (float) $cdp->total_amount,
-                                'prox_disp'    => (float) $cdp->total_amount,
+                                // Disponibilidad = monto del rubro si tenemos distribución exacta
+                                'cdp_amount'   => $distAmt > 0 ? $distAmt : (float) $cdp->total_amount,
+                                'prox_disp'    => $distAmt > 0 ? $cdpProxDisp : (float) $cdp->total_amount,
                                 'rubro_code'   => $rubroCode,
                                 'rubro_name'   => $rubroName,
                                 'sifse_code'   => $sifseCodeRow,
@@ -569,18 +602,13 @@ class ContractingReport extends Component
                         ?? $rp->created_at?->format('Y-m-d')
                         ?? '';
 
-            // Próximo disponible del RP = CDP total - pagos ya realizados contra este RP
-            $rpPaid       = (float) \App\Models\PaymentOrder::where('contract_rp_id', $rp->id)
-                ->whereIn('status', ['approved', 'paid'])
-                ->sum('total');
-            $cdpTotalAmt  = (float) ($cdp?->total_amount ?? $rp->total_amount ?? 0);
-            $rpProxDisp   = max(0, $cdpTotalAmt - $rpPaid);
-
-            // Datos base compartidos entre filas del mismo pago directo
+            // Datos base compartidos entre filas del mismo pago directo.
+            // disponibilidad y prox_disp se sobreescribirán por fila con los datos
+            // de cada expense_distribution individual.
             $baseDirectRow = [
-                'prox_disp'               => $rpProxDisp,
+                'prox_disp'               => 0,
                 'cdp_number'              => $cdp?->cdp_number ?? '',
-                'disponibilidad'          => $cdpTotalAmt,
+                'disponibilidad'          => 0,
                 'fecha_cdp'               => $fechaCdp,
                 'supplier_name'           => $supplier?->full_name ?? '',
                 'supplier_first_surname'  => $supplier?->first_surname ?? '',
@@ -672,6 +700,12 @@ class ContractingReport extends Component
                     $rpBankName = $rpBank?->name ?? $rpBankNameDefault;
                     $rpBankAcct = $matchedRpFs?->bankAccount?->account_number ?? $rpBankAcctDefault;
 
+                    // Disponibilidad del rubro = expense_distribution.amount
+                    // Prox. Disp. = amount del rubro - pagos reales contra ese rubro
+                    $distAmt       = (float) ($dist?->amount ?? 0);
+                    $distPaidTotal = $dist?->id ? (float) ($paymentsByDist[$dist->id] ?? 0) : 0;
+                    $distProxDisp  = max(0, $distAmt - $distPaidTotal);
+
                     $directRows[] = [
                         'rubro_code'   => $ec?->code ?? $bi?->code ?? '',
                         'rubro_name'   => $ec?->name ?? $bi?->name ?? '',
@@ -683,6 +717,8 @@ class ContractingReport extends Component
                         'fs_name'      => $fs?->name ?? '',
                         'bank_name'    => $rpBankName,
                         'bank_account' => $rpBankAcct,
+                        'disponibilidad' => $distAmt,
+                        'prox_disp'    => $distProxDisp,
                         'amount'       => (float) $line->total,
                         'subtotal'     => (float) $line->subtotal,
                         'iva'          => (float) $line->iva,
@@ -702,6 +738,11 @@ class ContractingReport extends Component
                     $rpBankName = $rpBank?->name ?? '';
                     $rpBankAcct = $rpFs->bankAccount?->account_number ?? '';
 
+                    // Disponibilidad del rubro = amount de la distribución (si existe)
+                    $distAmt       = (float) ($dist?->amount ?? 0);
+                    $distPaidTotal = $dist?->id ? (float) ($paymentsByDist[$dist->id] ?? 0) : 0;
+                    $distProxDisp  = $distAmt > 0 ? max(0, $distAmt - $distPaidTotal) : 0;
+
                     $directRows[] = [
                         'rubro_code'   => $ec?->code ?? $bi?->code ?? '',
                         'rubro_name'   => $ec?->name ?? $bi?->name ?? '',
@@ -713,6 +754,8 @@ class ContractingReport extends Component
                         'fs_name'      => $fs?->name ?? '',
                         'bank_name'    => $rpBankName,
                         'bank_account' => $rpBankAcct,
+                        'disponibilidad' => $distAmt,
+                        'prox_disp'    => $distProxDisp,
                         'amount'       => (float) $rpFs->amount,
                         'subtotal'     => 0,
                         'iva'          => 0,
@@ -743,6 +786,9 @@ class ContractingReport extends Component
                 $row['funding_source_codes']  = $r['fs_code'];
                 if (!empty($r['bank_name']))    $row['bank_name']    = $r['bank_name'];
                 if (!empty($r['bank_account'])) $row['bank_account'] = $r['bank_account'];
+                // Disponibilidad y prox. disp. del rubro (expense_distribution.amount)
+                $row['disponibilidad']        = $r['disponibilidad'] ?? 0;
+                $row['prox_disp']             = $r['prox_disp'] ?? 0;
                 $row['subtotal']              = $r['subtotal'] > 0 ? $r['subtotal'] : round((float) $po->subtotal * $ratio, 2);
                 $row['iva']                   = $r['iva'] > 0      ? $r['iva']      : round((float) $po->iva * $ratio, 2);
                 $row['total']                 = round($r['amount'], 2);

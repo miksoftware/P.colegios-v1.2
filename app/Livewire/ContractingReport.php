@@ -130,19 +130,42 @@ class ContractingReport extends Component
                 ->toArray();
         }
 
-        // Precargar pagos por expense_distribution para calcular prox_disp por rubro.
-        // Se usa para TODOS los rubros (no solo los asociados a CDPs con contrato),
-        // incluyendo los rubros tocados por pagos directos.
-        $paymentsByDist = [];
-        $paymentsByDist = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
+        // Precargar COMPROMISOS (CDPs/RPs) por expense_distribution para calcular prox_disp.
+        // Dos rutas:
+        //   A) RPs cuyo CDP apunta exactamente a la distribución vía convocatoria_distribution_id
+        //      → se cuenta rp_funding_source.amount como compromiso.
+        //   B) Pagos directos con expense_lines (sin convocatoria de por medio)
+        //      → se cuenta pol.total como compromiso.
+        $commitmentsByDist = [];
+
+        // Ruta A: RPs con CDP que apunta a una distribución exacta
+        $rpCommits = \Illuminate\Support\Facades\DB::table('rp_funding_sources as rfs')
+            ->join('contract_rps as cr', 'cr.id', '=', 'rfs.contract_rp_id')
+            ->join('cdps as cdp', 'cdp.id', '=', 'cr.cdp_id')
+            ->join('convocatoria_distributions as cvd', 'cvd.id', '=', 'cdp.convocatoria_distribution_id')
+            ->where('cdp.school_id', $this->schoolId)
+            ->where('cdp.fiscal_year', (int) $this->filterYear)
+            ->where('cr.status', '!=', 'cancelled')
+            ->selectRaw('cvd.expense_distribution_id as dist_id, SUM(rfs.amount) as total')
+            ->groupBy('cvd.expense_distribution_id')
+            ->get();
+        foreach ($rpCommits as $row) {
+            $commitmentsByDist[$row->dist_id] = ($commitmentsByDist[$row->dist_id] ?? 0) + (float) $row->total;
+        }
+
+        // Ruta B: pagos directos con expense_lines (payment_type='direct')
+        $directCommits = \Illuminate\Support\Facades\DB::table('payment_order_expense_lines as pol')
             ->join('payment_orders as po', 'po.id', '=', 'pol.payment_order_id')
             ->where('po.school_id', $this->schoolId)
             ->where('po.fiscal_year', (int) $this->filterYear)
+            ->where('po.payment_type', 'direct')
             ->whereIn('po.status', ['approved', 'paid'])
-            ->selectRaw('pol.expense_distribution_id, SUM(pol.total) as total_paid')
+            ->selectRaw('pol.expense_distribution_id as dist_id, SUM(pol.total) as total')
             ->groupBy('pol.expense_distribution_id')
-            ->pluck('total_paid', 'expense_distribution_id')
-            ->toArray();
+            ->get();
+        foreach ($directCommits as $row) {
+            $commitmentsByDist[$row->dist_id] = ($commitmentsByDist[$row->dist_id] ?? 0) + (float) $row->total;
+        }
 
         $this->rows = [];
 
@@ -258,9 +281,10 @@ class ContractingReport extends Component
                     }
 
                     // Disponibilidad del rubro = monto total asignado a la expense_distribution.
-                    // Prox. Disp. = disponibilidad - pagos reales hechos a ese rubro.
-                    $distPaid   = $distId ? (float) ($paymentsByDist[$distId] ?? 0) : 0;
-                    $rpProxDisp = max(0, $distAmt - $distPaid);
+                    // Prox. Disp. = disponibilidad - compromisos reales (RPs/CDPs activos sobre ese rubro).
+                    // Los compromisos ya incluyen los pagos hechos (son la misma plata).
+                    $distCommitted = $distId ? (float) ($commitmentsByDist[$distId] ?? 0) : 0;
+                    $rpProxDisp    = max(0, $distAmt - $distCommitted);
 
                     $fsCode = $fs?->code ?? '';
                     $fsName = $fs?->name ?? '';
@@ -337,8 +361,8 @@ class ContractingReport extends Component
                         $fsName    = $fs?->name ?? '';
                         $key       = "cdp{$cdp->id}|{$rubroCode}|{$fsCode}";
 
-                        $distPaid    = $distId ? (float) ($paymentsByDist[$distId] ?? 0) : 0;
-                        $cdpProxDisp = $distAmt > 0 ? max(0, $distAmt - $distPaid) : 0;
+                        $distCommitted = $distId ? (float) ($commitmentsByDist[$distId] ?? 0) : 0;
+                        $cdpProxDisp   = $distAmt > 0 ? max(0, $distAmt - $distCommitted) : 0;
 
                         if (!isset($rubroFuenteRows[$key])) {
                             $rubroFuenteRows[$key] = [
@@ -701,10 +725,10 @@ class ContractingReport extends Component
                     $rpBankAcct = $matchedRpFs?->bankAccount?->account_number ?? $rpBankAcctDefault;
 
                     // Disponibilidad del rubro = expense_distribution.amount
-                    // Prox. Disp. = amount del rubro - pagos reales contra ese rubro
+                    // Prox. Disp. = amount del rubro - compromisos reales contra ese rubro
                     $distAmt       = (float) ($dist?->amount ?? 0);
-                    $distPaidTotal = $dist?->id ? (float) ($paymentsByDist[$dist->id] ?? 0) : 0;
-                    $distProxDisp  = max(0, $distAmt - $distPaidTotal);
+                    $distCommitted = $dist?->id ? (float) ($commitmentsByDist[$dist->id] ?? 0) : 0;
+                    $distProxDisp  = max(0, $distAmt - $distCommitted);
 
                     $directRows[] = [
                         'rubro_code'   => $ec?->code ?? $bi?->code ?? '',
@@ -740,8 +764,8 @@ class ContractingReport extends Component
 
                     // Disponibilidad del rubro = amount de la distribución (si existe)
                     $distAmt       = (float) ($dist?->amount ?? 0);
-                    $distPaidTotal = $dist?->id ? (float) ($paymentsByDist[$dist->id] ?? 0) : 0;
-                    $distProxDisp  = $distAmt > 0 ? max(0, $distAmt - $distPaidTotal) : 0;
+                    $distCommitted = $dist?->id ? (float) ($commitmentsByDist[$dist->id] ?? 0) : 0;
+                    $distProxDisp  = $distAmt > 0 ? max(0, $distAmt - $distCommitted) : 0;
 
                     $directRows[] = [
                         'rubro_code'   => $ec?->code ?? $bi?->code ?? '',

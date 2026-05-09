@@ -67,8 +67,10 @@ class ContractingReport extends Component
                 'convocatoria.distributionDetails.expenseDistribution.budget.fundingSource',
                 'convocatoria.selectedProposal',
                 'convocatoria.proposals',
-                'rps.cdp',
+                'rps.cdp.convocatoria',
                 'rps.fundingSources.fundingSource',
+                'rps.fundingSources.bank',
+                'rps.fundingSources.bankAccount.bank',
                 'rps.fundingSources.budget.budgetItem.accountingAccount.parent.parent',
                 'rps.fundingSources.budget.distributions.expenseCode',
                 'paymentOrders' => fn($q) => $q->whereIn('status', ['approved', 'paid']),
@@ -115,6 +117,18 @@ class ContractingReport extends Component
             }
         }
 
+        // Precargar pagos por RP para calcular "próximo disponible" (CDP - pagos)
+        $rpIds = $contracts->flatMap(fn($c) => $c->rps->pluck('id'))->filter()->unique()->values()->all();
+        $paymentsByRp = [];
+        if (!empty($rpIds)) {
+            $paymentsByRp = \App\Models\PaymentOrder::whereIn('contract_rp_id', $rpIds)
+                ->whereIn('status', ['approved', 'paid'])
+                ->selectRaw('contract_rp_id, SUM(total) as total_paid')
+                ->groupBy('contract_rp_id')
+                ->pluck('total_paid', 'contract_rp_id')
+                ->toArray();
+        }
+
         $this->rows = [];
 
         foreach ($contracts as $contract) {
@@ -152,13 +166,20 @@ class ContractingReport extends Component
             // Propuesta seleccionada
             $selectedProposal = $convocatoria?->selectedProposal;
 
-            // Banco del proveedor
-            $supplierBank = $supplier?->bankAccounts?->first();
-            $bankName = $supplierBank?->bank_name ?? '';
-            $bankAccountNumber = $supplierBank?->account_number ?? '';
+            // Cuenta y banco DE DONDE SALE EL DINERO (lado del colegio, no del proveedor).
+            // Se toma del primer rp_funding_source del primer RP activo; cada fila del
+            // desglose puede sobreescribir estos valores con su propia fuente específica.
+            $firstRpFs = $firstRp?->fundingSources?->first();
+            $rpBankFirst = $firstRpFs?->bank ?? $firstRpFs?->bankAccount?->bank;
+            $bankName    = $rpBankFirst?->name ?? '';
+            $bankAccountNumber = $firstRpFs?->bankAccount?->account_number ?? '';
 
-            // Fecha CDP
-            $fechaCdp = $firstCdp?->created_at?->format('Y-m-d') ?? '';
+            // Fecha CDP: se usa la fecha fiscal de la convocatoria (start_date) en lugar
+            // del created_at (que es cuándo se registró en el sistema).
+            $convocatoriaDate = $convocatoria?->start_date;
+            $fechaCdp = $convocatoriaDate
+                ? (is_string($convocatoriaDate) ? $convocatoriaDate : $convocatoriaDate->format('Y-m-d'))
+                : '';
 
             // Fecha RP
             $fechaRp = $firstRp?->created_at?->format('Y-m-d') ?? '';
@@ -184,7 +205,15 @@ class ContractingReport extends Component
                 $exactInfo = $distByCdp[$rp->cdp_id] ?? null;
                 // CDP número específico de este RP
                 $rpCdpNumber = $rp->cdp?->cdp_number ?? '';
-                $rpCdpDate   = $rp->cdp?->created_at?->format('Y-m-d') ?? '';
+                // Fecha del CDP = fecha fiscal de la convocatoria a la que pertenece
+                $rpConvDate  = $rp->cdp?->convocatoria?->start_date;
+                $rpCdpDate   = $rpConvDate
+                    ? (is_string($rpConvDate) ? $rpConvDate : $rpConvDate->format('Y-m-d'))
+                    : '';
+
+                // Próximo disponible del RP = CDP total - pagos ya realizados contra este RP
+                $rpPaid  = (float) ($paymentsByRp[$rp->id] ?? 0);
+                $rpProxDisp = max(0, (float) ($rp->cdp?->total_amount ?? 0) - $rpPaid);
 
                 foreach ($rp->fundingSources as $rpFs) {
                     $fs = $rpFs->fundingSource;
@@ -216,6 +245,13 @@ class ContractingReport extends Component
                     // Key = rp_id + rubro + fs para que cada combinación quede en fila propia.
                     $key    = "{$rp->id}|{$rubroCode}|{$fsCode}";
 
+                    // Banco / cuenta bancaria de DONDE SALE el dinero (lado del colegio,
+                    // no del proveedor). Se toma del rp_funding_source.
+                    $rpBank        = $rpFs->bank ?? $rpFs->bankAccount?->bank;
+                    $rpBankAccount = $rpFs->bankAccount;
+                    $rpBankName    = $rpBank?->name ?? '';
+                    $rpBankAcctNum = $rpBankAccount?->account_number ?? '';
+
                     if (!isset($rubroFuenteRows[$key])) {
                         $rubroFuenteRows[$key] = [
                             'rp_id'        => $rp->id,
@@ -227,6 +263,7 @@ class ContractingReport extends Component
                             'cdp_number'   => $rpCdpNumber,
                             'cdp_date'     => $rpCdpDate,
                             'cdp_amount'   => (float) ($rp->cdp?->total_amount ?? 0),
+                            'prox_disp'    => $rpProxDisp,
                             'rubro_code'   => $rubroCode,
                             'rubro_name'   => $rubroName,
                             'sifse_code'   => $sifseCode,
@@ -235,6 +272,8 @@ class ContractingReport extends Component
                             'acct_parent'  => $acct?->parent,
                             'fs_code'      => $fsCode,
                             'fs_name'      => $fsName,
+                            'bank_name'    => $rpBankName,
+                            'bank_account' => $rpBankAcctNum,
                             'amount'       => 0,
                         ];
                     }
@@ -249,7 +288,11 @@ class ContractingReport extends Component
                     $acct = $bi?->accountingAccount;
 
                     // Para CDP también intentamos asignación exacta si tiene convocatoria_distribution_id
-                    $cdpInfo = $distByCdp[$cdp->id] ?? null;
+                    $cdpInfo  = $distByCdp[$cdp->id] ?? null;
+                    // Fecha fiscal del CDP = fecha de la convocatoria
+                    $cdpDateFiscal = $convocatoriaDate
+                        ? (is_string($convocatoriaDate) ? $convocatoriaDate : $convocatoriaDate->format('Y-m-d'))
+                        : '';
 
                     foreach ($cdp->fundingSources as $cdpFs) {
                         $fs = $cdpFs->fundingSource;
@@ -270,6 +313,10 @@ class ContractingReport extends Component
                                 'rp_id'        => null,
                                 'rp_number'    => '',
                                 'rp_date'      => '',
+                                'cdp_number'   => $cdp->cdp_number,
+                                'cdp_date'     => $cdpDateFiscal,
+                                'cdp_amount'   => (float) $cdp->total_amount,
+                                'prox_disp'    => (float) $cdp->total_amount,
                                 'rubro_code'   => $rubroCode,
                                 'rubro_name'   => $rubroName,
                                 'sifse_code'   => $sifseCodeRow,
@@ -278,6 +325,8 @@ class ContractingReport extends Component
                                 'acct_parent'  => $acct?->parent,
                                 'fs_code'      => $fsCode,
                                 'fs_name'      => $fsName,
+                                'bank_name'    => '',
+                                'bank_account' => '',
                                 'amount'       => 0,
                             ];
                         }
@@ -306,6 +355,10 @@ class ContractingReport extends Component
                     'rp_id'        => null,
                     'rp_number'    => $rpNumber,
                     'rp_date'      => $fechaRp,
+                    'cdp_number'   => $firstCdp?->cdp_number ?? '',
+                    'cdp_date'     => $fechaCdp,
+                    'cdp_amount'   => (float) ($firstCdp?->total_amount ?? 0),
+                    'prox_disp'    => (float) ($firstCdp?->total_amount ?? 0),
                     'rubro_code'   => $rubroCode ?? '',
                     'rubro_name'   => $rubroName ?? '',
                     'sifse_code'   => $sifseCode ?? '',
@@ -314,6 +367,8 @@ class ContractingReport extends Component
                     'acct_parent'  => $acctParent,
                     'fs_code'      => '',
                     'fs_name'      => '',
+                    'bank_name'    => '',
+                    'bank_account' => '',
                     'amount'       => (float) $contract->total,
                 ];
             }
@@ -429,16 +484,25 @@ class ContractingReport extends Component
                 // Sobreescribir CDP con el CDP específico del RP (cada RP tiene su propio CDP)
                 if (!empty($r['cdp_number'])) {
                     $row['cdp_number']     = $r['cdp_number'];
+                    // Disponibilidad = monto total del CDP (reserva inicial)
                     $row['disponibilidad'] = $r['cdp_amount'] ?? 0;
                 }
                 if (!empty($r['cdp_date'])) {
                     $row['fecha_cdp']          = $r['cdp_date'];
                     $row['fecha_certificacion']= $r['cdp_date'];
                 }
+                // Próximo disponible = CDP - pagos ya realizados contra el RP
+                $row['prox_disp']                 = $r['prox_disp'] ?? 0;
+                // Cuenta y banco de donde sale el dinero (lado del colegio): del rp_funding_source
+                if (!empty($r['bank_name']))    $row['bank_name']    = $r['bank_name'];
+                if (!empty($r['bank_account'])) $row['bank_account'] = $r['bank_account'];
                 $row['subtotal']                  = round((float) $contract->subtotal * $ratio, 2);
                 $row['iva']                       = round((float) $contract->iva * $ratio, 2);
                 $row['total']                     = round($r['amount'], 2);
-                $row['valor_letras']              = '';
+                // Valor en letras del total de la fila
+                $row['valor_letras']              = $r['amount'] > 0
+                    ? \App\Http\Controllers\PrecontractualPdfController::amountToWords($r['amount'])
+                    : '';
                 $this->rows[]                     = $row;
             }
         }
@@ -459,8 +523,11 @@ class ContractingReport extends Component
                 'supplier.bankAccounts',
                 'cdp.budgetItem.accountingAccount.parent.parent',
                 'cdp.fundingSources.fundingSource',
-                'contractRp.cdp',
+                'cdp.convocatoria',
+                'contractRp.cdp.convocatoria',
                 'contractRp.fundingSources.fundingSource',
+                'contractRp.fundingSources.bank',
+                'contractRp.fundingSources.bankAccount.bank',
                 'contractRp.fundingSources.budget.budgetItem.accountingAccount.parent.parent',
                 'contractRp.fundingSources.budget.distributions.expenseCode',
                 'expenseLines.expenseCode',
@@ -483,15 +550,32 @@ class ContractingReport extends Component
             $rp       = $po->contractRp;
             if (!$rp) continue;
 
-            $supplierBank       = $supplier?->bankAccounts?->first();
-            $bankName           = $supplierBank?->bank_name ?? '';
-            $bankAccountNumber  = $supplierBank?->account_number ?? '';
-            $fechaCdp           = $cdp?->created_at?->format('Y-m-d') ?? '';
-            $fechaRp            = $rp->created_at?->format('Y-m-d') ?? '';
+            // Banco/cuenta a nivel RP (primera fuente). Abajo cada fila sobreescribe con la suya.
+            $firstRpFs          = $rp->fundingSources->first();
+            $rpBankDefault      = $firstRpFs?->bank ?? $firstRpFs?->bankAccount?->bank;
+            $rpBankNameDefault  = $rpBankDefault?->name ?? '';
+            $rpBankAcctDefault  = $firstRpFs?->bankAccount?->account_number ?? '';
+
+            // Fecha CDP: se usa la fecha fiscal de la convocatoria (start_date) si existe,
+            // con fallback al payment_date del PO (no se usa created_at).
+            $convDate = $cdp?->convocatoria?->start_date ?? $rp->cdp?->convocatoria?->start_date;
+            $fechaCdp = $convDate
+                ? (is_string($convDate) ? $convDate : $convDate->format('Y-m-d'))
+                : ($po->payment_date?->format('Y-m-d') ?? '');
+            $fechaRp  = $rp->otrosi_date?->format('Y-m-d')
+                        ?? $po->payment_date?->format('Y-m-d')
+                        ?? $rp->created_at?->format('Y-m-d')
+                        ?? '';
+
+            // Próximo disponible del RP = CDP total - pagos ya realizados contra este RP
+            $rpPaid     = (float) \App\Models\PaymentOrder::where('contract_rp_id', $rp->id)
+                ->whereIn('status', ['approved', 'paid'])
+                ->sum('total');
+            $rpProxDisp = max(0, (float) ($cdp?->total_amount ?? $rp->total_amount ?? 0) - $rpPaid);
 
             // Datos base compartidos entre filas del mismo pago directo
             $baseDirectRow = [
-                'prox_disp'               => 0,
+                'prox_disp'               => $rpProxDisp,
                 'cdp_number'              => $cdp?->cdp_number ?? '',
                 'disponibilidad'          => (float) ($cdp?->total_amount ?? $rp->total_amount ?? 0),
                 'fecha_cdp'               => $fechaCdp,
@@ -525,8 +609,8 @@ class ContractingReport extends Component
                 'contract_formatted'      => 'PAGO DIRECTO',
                 'contract_date'           => $po->payment_date?->format('Y-m-d') ?? '',
                 'dependencia'             => 'RECTORIA',
-                'bank_account'            => $bankAccountNumber,
-                'bank_name'               => $bankName,
+                'bank_account'            => $rpBankAcctDefault,
+                'bank_name'               => $rpBankNameDefault,
                 'fecha_liquidacion'       => $po->payment_date?->format('Y-m-d') ?? '',
                 'plazo'                   => 'N/A',
                 'modalidad'               => 'Pago Directo',
@@ -570,13 +654,20 @@ class ContractingReport extends Component
 
                     // Fuente: la del budget de la distribución, o fallback al primer RP funding source
                     $fs = $dist?->budget?->fundingSource;
-                    if (!$fs && $rpSources->isNotEmpty() && $dist?->budget_id) {
-                        $match = $rpSources->firstWhere('budget_id', $dist->budget_id);
-                        $fs = $match?->fundingSource;
+                    $matchedRpFs = null;
+                    if ($rpSources->isNotEmpty() && $dist?->budget_id) {
+                        $matchedRpFs = $rpSources->firstWhere('budget_id', $dist->budget_id);
+                        if (!$fs) $fs = $matchedRpFs?->fundingSource;
                     }
                     if (!$fs) {
-                        $fs = $rpSources->first()?->fundingSource;
+                        $matchedRpFs = $rpSources->first();
+                        $fs = $matchedRpFs?->fundingSource;
                     }
+
+                    // Banco/cuenta del rp_funding_source correspondiente (lado colegio)
+                    $rpBank     = $matchedRpFs?->bank ?? $matchedRpFs?->bankAccount?->bank;
+                    $rpBankName = $rpBank?->name ?? $rpBankNameDefault;
+                    $rpBankAcct = $matchedRpFs?->bankAccount?->account_number ?? $rpBankAcctDefault;
 
                     $directRows[] = [
                         'rubro_code'   => $ec?->code ?? $bi?->code ?? '',
@@ -587,6 +678,8 @@ class ContractingReport extends Component
                         'acct_parent'  => $acct?->parent,
                         'fs_code'      => $fs?->code ?? '',
                         'fs_name'      => $fs?->name ?? '',
+                        'bank_name'    => $rpBankName,
+                        'bank_account' => $rpBankAcct,
                         'amount'       => (float) $line->total,
                         'subtotal'     => (float) $line->subtotal,
                         'iva'          => (float) $line->iva,
@@ -602,6 +695,10 @@ class ContractingReport extends Component
                     $dist = $b?->distributions->first();
                     $ec   = $dist?->expenseCode;
 
+                    $rpBank     = $rpFs->bank ?? $rpFs->bankAccount?->bank;
+                    $rpBankName = $rpBank?->name ?? '';
+                    $rpBankAcct = $rpFs->bankAccount?->account_number ?? '';
+
                     $directRows[] = [
                         'rubro_code'   => $ec?->code ?? $bi?->code ?? '',
                         'rubro_name'   => $ec?->name ?? $bi?->name ?? '',
@@ -611,6 +708,8 @@ class ContractingReport extends Component
                         'acct_parent'  => $acct?->parent,
                         'fs_code'      => $fs?->code ?? '',
                         'fs_name'      => $fs?->name ?? '',
+                        'bank_name'    => $rpBankName,
+                        'bank_account' => $rpBankAcct,
                         'amount'       => (float) $rpFs->amount,
                         'subtotal'     => 0,
                         'iva'          => 0,
@@ -639,10 +738,14 @@ class ContractingReport extends Component
                 $row['acct_grandparent_name'] = $acctGP?->name ?? '';
                 $row['funding_source']        = $r['fs_name'] ? "{$r['fs_name']} ({$r['fs_code']})" : '';
                 $row['funding_source_codes']  = $r['fs_code'];
+                if (!empty($r['bank_name']))    $row['bank_name']    = $r['bank_name'];
+                if (!empty($r['bank_account'])) $row['bank_account'] = $r['bank_account'];
                 $row['subtotal']              = $r['subtotal'] > 0 ? $r['subtotal'] : round((float) $po->subtotal * $ratio, 2);
                 $row['iva']                   = $r['iva'] > 0      ? $r['iva']      : round((float) $po->iva * $ratio, 2);
                 $row['total']                 = round($r['amount'], 2);
-                $row['valor_letras']          = '';
+                $row['valor_letras']          = $r['amount'] > 0
+                    ? \App\Http\Controllers\PrecontractualPdfController::amountToWords($r['amount'])
+                    : '';
                 $this->rows[] = $row;
             }
         }

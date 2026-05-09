@@ -100,6 +100,7 @@
                             <th class="px-3 py-3 text-left font-medium text-gray-500 uppercase">Nombre Rubro</th>
                             <th class="px-3 py-3 text-center font-medium text-gray-500 uppercase whitespace-nowrap">CDP</th>
                             <th class="px-3 py-3 text-right font-medium text-gray-500 uppercase whitespace-nowrap">Disponibilidad</th>
+                            <th class="px-3 py-3 text-right font-medium text-gray-500 uppercase whitespace-nowrap">Prox. Disp.</th>
                             <th class="px-3 py-3 text-center font-medium text-gray-500 uppercase whitespace-nowrap">Fecha CDP</th>
                             <th class="px-3 py-3 text-left font-medium text-gray-500 uppercase">Proveedor</th>
                             <th class="px-3 py-3 text-center font-medium text-gray-500 uppercase whitespace-nowrap">C&eacute;dula/NIT</th>
@@ -128,6 +129,7 @@
                             <td class="px-3 py-2.5 text-gray-900 max-w-[200px] truncate" title="{{ $r['rubro_name'] }}">{{ $r['rubro_name'] }}</td>
                             <td class="px-3 py-2.5 text-center font-mono text-gray-700">{{ $r['cdp_number'] }}</td>
                             <td class="px-3 py-2.5 text-right whitespace-nowrap font-mono text-gray-700">${{ number_format($r['disponibilidad'], 0, ',', '.') }}</td>
+                            <td class="px-3 py-2.5 text-right whitespace-nowrap font-mono text-emerald-700">${{ number_format($r['prox_disp'] ?? 0, 0, ',', '.') }}</td>
                             <td class="px-3 py-2.5 text-center whitespace-nowrap text-gray-600">{{ $r['fecha_cdp'] }}</td>
                             <td class="px-3 py-2.5">
                                 <div class="font-medium text-gray-900 truncate max-w-[180px]" title="{{ $r['supplier_name'] }}">{{ $r['supplier_name'] }}</div>
@@ -169,7 +171,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="23" class="px-6 py-12 text-center text-gray-500">
+                            <td colspan="24" class="px-6 py-12 text-center text-gray-500">
                                 <p>No se encontraron contratos para la vigencia seleccionada</p>
                             </td>
                         </tr>
@@ -178,7 +180,7 @@
                     @if(count($rows) > 0)
                     <tfoot class="bg-gray-50 font-semibold text-xs">
                         <tr>
-                            <td colspan="8" class="px-3 py-3 text-right text-gray-700 uppercase">Totales:</td>
+                            <td colspan="9" class="px-3 py-3 text-right text-gray-700 uppercase">Totales:</td>
                             <td class="px-3 py-3 text-right whitespace-nowrap font-mono text-gray-900">${{ number_format($summary['total_subtotal'] ?? 0, 0, ',', '.') }}</td>
                             <td class="px-3 py-3 text-right whitespace-nowrap font-mono text-gray-900">${{ number_format($summary['total_iva'] ?? 0, 0, ',', '.') }}</td>
                             <td class="px-3 py-3 text-right whitespace-nowrap font-mono text-gray-900">${{ number_format($summary['total_amount'] ?? 0, 0, ',', '.') }}</td>

@@ -215,69 +215,11 @@ class BankBookReport extends Component
 
     private function calculatePreviousBalance(int $bankAccountId, int $year): float
     {
-        $account = BankAccount::find($bankAccountId);
-        if (!$account) return 0;
-
-        // Sólo se usa el saldo inicial si se configuró explícitamente su año de referencia.
-        // Cuando el colegio registra los saldos de arrastre del año anterior como ingresos
-        // tipo "Recaudo Superávit" con fecha 01/01, NO se debe duplicar usando también
-        // initial_balance — por eso requerimos initial_balance_year no nulo.
-        if (empty($account->initial_balance_year) || $account->initial_balance <= 0) {
-            return 0;
-        }
-
-        $initialBalance = (float) $account->initial_balance;
-        $initialYear    = (int) $account->initial_balance_year;
-
-        // Si el saldo inicial es de vigencia futura, no aplica al corte consultado
-        if ($initialYear > $year) {
-            return 0;
-        }
-
-        // Si el saldo inicial es de la MISMA vigencia → es el saldo de apertura
-        if ($initialYear === $year) {
-            return $initialBalance;
-        }
-
-        // El saldo inicial es de una vigencia ANTERIOR: sumar movimientos desde
-        // ese año hasta el año anterior al consultado.
-        $totalIncome = IncomeBankAccount::where('bank_account_id', $bankAccountId)
-            ->whereHas('income', function ($q) use ($year, $initialYear) {
-                $q->where('school_id', $this->schoolId)
-                  ->whereYear('date', '<', $year)
-                  ->whereYear('date', '>=', $initialYear);
-            })
-            ->sum('amount');
-
-        $totalExpense = 0;
-
-        $rpFundingSources = RpFundingSource::where('bank_account_id', $bankAccountId)
-            ->whereHas('contractRp', fn($q) => $q->where('status', '!=', 'cancelled'))
-            ->with('contractRp')
-            ->get();
-
-        $processedPOs = [];
-        foreach ($rpFundingSources as $rpFs) {
-            if (!$rpFs->contractRp) continue;
-
-            $paymentOrders = PaymentOrder::where('school_id', $this->schoolId)
-                ->where('fiscal_year', '<', $year)
-                ->where('fiscal_year', '>=', $initialYear)
-                ->where('contract_rp_id', $rpFs->contractRp->id)
-                ->whereIn('status', ['approved', 'paid'])
-                ->get();
-
-            foreach ($paymentOrders as $po) {
-                if (in_array($po->id, $processedPOs)) continue;
-                $processedPOs[] = $po->id;
-
-                $totalRpAmount = RpFundingSource::where('contract_rp_id', $rpFs->contractRp->id)->sum('amount');
-                $ratio = $totalRpAmount > 0 ? (float) $rpFs->amount / $totalRpAmount : 1;
-                $totalExpense += (float) $po->net_payment * $ratio;
-            }
-        }
-
-        return $initialBalance + (float) $totalIncome - $totalExpense;
+        // El libro de bancos NO considera saldo anterior. Todo movimiento arranca en 0
+        // y los recaudos/pagos del periodo determinan el saldo acumulado.
+        // Si el colegio necesita traer arrastre, debe registrarlo como un ingreso
+        // real con fecha dentro del periodo (ej. "Recaudo Superávit" 01/01).
+        return 0;
     }
 
     public function getPeriodLabelProperty(): string

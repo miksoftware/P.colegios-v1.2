@@ -43,6 +43,7 @@ class SeedOnce extends Command
         \Database\Seeders\BankPermissionSeeder::class,
         \Database\Seeders\ReportPermissionSeeder::class,
         \Database\Seeders\NewsPermissionSeeder::class,
+        \Database\Seeders\RetentionConfigPermissionSeeder::class,
 
         // 3.5 Permisos de inventario
         \Database\Seeders\InventoryAccountingAccountPermissionSeeder::class,
@@ -58,6 +59,9 @@ class SeedOnce extends Command
 
         // 4.5 Catálogo contable de inventario
         \Database\Seeders\InventoryAccountingAccountSeeder::class,
+
+        // 4.6 Bases de retenciones por colegio y vigencia (idempotente: firstOrCreate)
+        \Database\Seeders\RetentionConfigSeeder::class,
 
         // 5. Usuario administrador de producción
         \Database\Seeders\ProductionUserSeeder::class,

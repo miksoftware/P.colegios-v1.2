@@ -70,6 +70,7 @@ PERMISSION_SEEDERS=(
     "BankPermissionSeeder"
     "ReportPermissionSeeder"
     "NewsPermissionSeeder"
+    "RetentionConfigPermissionSeeder"
     "InventoryAccountingAccountPermissionSeeder"
     "InventoryItemPermissionSeeder"
     "InventoryEntryPermissionSeeder"

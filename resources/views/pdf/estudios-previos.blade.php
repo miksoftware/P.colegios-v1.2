@@ -142,9 +142,6 @@
                 El término para la celebración del presente contrato será de:
                 <span class="bold">{{ $convocatoria->estimated_duration_days ?? $durationDays ?? 'N/A' }} DIAS</span>
                 contados a partir de la fecha de suscripción del acta de inicio de la orden y/o contrato.
-                @if($contract && $contract->start_date && $contract->end_date)
-                    <br>Desde: {{ $contract->start_date->format('d/m/Y') }} hasta {{ $contract->end_date->format('d/m/Y') }}.
-                @endif
             </div>
         </div>
 

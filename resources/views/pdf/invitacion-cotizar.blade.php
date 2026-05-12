@@ -242,7 +242,7 @@
         {{-- ===== DESCUENTOS APLICABLES ===== --}}
         <div class="section-title">Descuentos Aplicables</div>
         <div class="text-block">
-            <span class="bold">1.- DESCUENTOS POR RETENCIÓN EN LA FUENTE:</span> La Institución Educativa realizará los descuentos de Ley por concepto de retención en la fuente por servicios, compras u honorarios según corresponda y siempre y cuando se cumpla la base para realizar el descuento y de Retención de IVA, si es el caso.
+            <span class="bold">1.- DESCUENTOS POR RETENCIÓN EN LA FUENTE Y RETEIVA:</span> La Institución Educativa realizará los descuentos de Ley por concepto de retención en la fuente por servicios, compras u honorarios según corresponda y siempre y cuando se cumpla la base para realizar el descuento y de Retención de IVA, si es el caso.
             <br><br>
             <span class="bold">2.- DESCUENTOS POR ESTAMPILLAS DEPARTAMENTALES:</span> Para la cancelación de la compra o servicio descrito en el presente documento, el Proveedor deberá presentar el recibo de pago de estampillas que se liquidan en la Casa del Libro Total siempre y cuando se cumpla la base para la liquidación.
             <br><br>

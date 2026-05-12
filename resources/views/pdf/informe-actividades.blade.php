@@ -78,11 +78,11 @@
 
         {{-- ACTIVIDADES Y COSTO --}}
         <div class="text-block">
-            De acuerdo con las actividades y objetivos cumplidos dentro del objeto de la
+            De acuerdo con las actividades y objetivos cumplidos dentro del objeto del
             <span class="bold">CONTRATO No. {{ $contract->formatted_number }}</span>
         </div>
         <div class="text-block" style="padding-top: 2px;">
-            El costo de la orden, por el periodo contratado, corresponden a la suma de
+            El costo del contrato, por el periodo contratado, corresponden a la suma de
             <span class="bold">${{ number_format($contract->total, 2, ',', '.') }}</span>
         </div>
 

@@ -13,6 +13,7 @@ use App\Models\FundingSource;
 use App\Models\Budget;
 use App\Models\PaymentOrder;
 use App\Models\PaymentOrderExpenseLine;
+use App\Models\RetentionConfig;
 use App\Models\RpFundingSource;
 use App\Models\School;
 use App\Models\Supplier;
@@ -185,6 +186,19 @@ class PostcontractualManagement extends Component
     // ══════════════════════════════════════════════════════════
     // LISTADO
     // ══════════════════════════════════════════════════════════
+
+    /**
+     * Configuraciones de retención del colegio para la vigencia actual.
+     * Se usa en las vistas informativas (listado de tarifas, etc.).
+     * Se indexa por concepto para acceso rápido: $configs['compras']->rate_declares.
+     */
+    public function getRetentionConfigsProperty()
+    {
+        return RetentionConfig::forSchool($this->schoolId)
+            ->where('fiscal_year', (int) ($this->filterYear ?: now()->year))
+            ->get()
+            ->keyBy('concept');
+    }
 
     public function getPaymentOrdersProperty()
     {
@@ -1156,38 +1170,55 @@ class PostcontractualManagement extends Component
         $concept = $line['retention_concept'] ?? '';
         $declaresRent = (bool) ($line['supplier_declares_rent'] ?? false);
 
-        // Retefuente
+        $fiscalYear = (int) $this->filterYear;
+
+        // ── Retefuente ──
         $line['retefuente'] = 0;
         $line['retention_percentage'] = 0;
 
-        if ($taxRegime !== 'simple' && $concept && isset(PaymentOrder::RETENTION_RATES[$concept])) {
-            if (PaymentOrder::meetsRetentionThreshold($concept, $contractSubtotal)) {
-                $rate = PaymentOrder::getRetentionRate($concept, $declaresRent);
+        if ($taxRegime !== 'simple' && $concept) {
+            $config = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $concept);
+            if ($config && $contractSubtotal >= (float) $config->min_base) {
+                $rate = $declaresRent ? (float) $config->rate_declares : (float) $config->rate_not_declares;
                 $line['retention_percentage'] = $rate;
                 $line['retefuente'] = $this->roundRetention($subtotal * ($rate / 100));
             }
         }
 
-        // ReteIVA
+        // ── ReteIVA ──
         $line['reteiva'] = 0;
         $isIvaResponsible = in_array($taxRegime, ['comun', 'gran_contribuyente', 'simple']);
         if ($isIvaResponsible && $iva > 0 && $concept) {
-            if (PaymentOrder::meetsRetentionThreshold($concept, $contractSubtotal)) {
-                $line['reteiva'] = $this->roundRetention($iva * 0.15);
+            $retefuenteConfig = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $concept);
+            $reteivaConfig    = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'reteiva');
+            if ($retefuenteConfig
+                && $reteivaConfig
+                && $contractSubtotal >= (float) $retefuenteConfig->min_base
+                && $iva >= (float) $reteivaConfig->min_base
+            ) {
+                $rate = (float) $reteivaConfig->rate;
+                $line['reteiva'] = $this->roundRetention($iva * ($rate / 100));
             }
         }
 
-        // Otros impuestos (modo split solo aplica a contratos — cálculo automático)
+        // ── Otros impuestos (estampillas / ICA) ──
+        // En modo split de contratos el cálculo es automático: aplica cualquier
+        // configuración activa del colegio/vigencia cuya base mínima se cumpla.
         $line['estampilla_produlto_mayor'] = 0;
         $line['estampilla_procultura'] = 0;
         $line['retencion_ica'] = 0;
-        $municipality = $this->schoolMunicipality;
 
-        if (str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
-            $line['estampilla_produlto_mayor'] = $this->roundRetention($subtotal * 0.02);
-        }
-        if (str_contains($municipality, 'bucaramanga') && $subtotal >= 35018010) {
-            $line['estampilla_procultura'] = $this->roundRetention($subtotal * 0.02);
+        $localConcepts = [
+            'estampilla_produlto_mayor' => 'estampilla_produlto_mayor',
+            'estampilla_procultura'     => 'estampilla_procultura',
+            'retencion_ica'             => 'retencion_ica',
+        ];
+
+        foreach ($localConcepts as $field => $conceptKey) {
+            $cfg = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $conceptKey);
+            if ($cfg && $subtotal >= (float) $cfg->min_base && (float) $cfg->rate > 0) {
+                $line[$field] = $this->roundRetention($subtotal * ((float) $cfg->rate / 100));
+            }
         }
 
         $line['total_retentions'] = $line['retefuente'] + $line['reteiva']
@@ -1239,26 +1270,35 @@ class PostcontractualManagement extends Component
     }
 
     /**
-     * Calcula todas las retenciones según las reglas colombianas:
+     * Calcula todas las retenciones según las reglas colombianas.
+     *
+     * Todas las tarifas y bases mínimas provienen del módulo "Bases de Retenciones"
+     * (tabla `retention_configs`) para el colegio y la vigencia del pago.
      *
      * RETENCIONES DIAN:
-     * - Retefuente: % sobre subtotal del pago, solo si el subtotal del CONTRATO >= base mínima del concepto
-     *   (para pagos parciales, si el contrato cumple la base, TODOS los pagos descuentan proporcionalmente)
-     * - ReteIVA: 15% del IVA, solo para responsables de IVA (régimen común, gran contribuyente, o régimen simple si es responsable de IVA)
-     *   y si la base del contrato sobrepasa para la retención en la fuente de renta
+     * - Retefuente: % (declara / no declara) sobre el subtotal del pago, solo si el
+     *   subtotal del CONTRATO >= base mínima del concepto. Para pagos parciales, si
+     *   el contrato cumple la base, TODOS los pagos descuentan proporcionalmente.
+     * - ReteIVA: % del IVA, solo para responsables de IVA (régimen común, gran
+     *   contribuyente, o régimen simple responsable de IVA) y si la base del
+     *   contrato supera el umbral del concepto de retefuente.
      *
-     * OTROS IMPUESTOS (según municipio del colegio):
-     * - Estampilla Produlto Mayor: 2% del subtotal si >= $1 (solo Bucaramanga)
-     * - Estampilla Procultura: 2% del subtotal si >= $35,018,010 (solo Bucaramanga)
-     * - Retención ICA: solo Piedecuesta y Villanueva
+     * OTROS IMPUESTOS (estampillas, ICA):
+     * - Solo aplican si la configuración del colegio/vigencia está activa y el
+     *   subtotal cumple la base mínima. Los colegios de municipios que no cobran
+     *   estas retenciones simplemente dejan la configuración inactiva.
      *
      * REGLAS DE RÉGIMEN:
-     * - Régimen Simplificado: son personas naturales, NO responsables de IVA,
-     *   hay unos que declaran y otros que no declara
-     * - Régimen Simple: solo se les puede aplicar ReteIVA si son responsables de IVA
-     * - Régimen Común: responsables de IVA y declarantes de renta
-     * - Gran Contribuyente: responsables de IVA y declarantes de renta
-     * - No Responsable de IVA: personas naturales, NO responsables de IVA
+     * - Régimen Simplificado: personas naturales, NO responsables de IVA,
+     *   pueden declarar o no declarar renta.
+     * - Régimen Simple: solo ReteIVA si son responsables de IVA.
+     * - Régimen Común: responsables de IVA y declarantes de renta.
+     * - Gran Contribuyente: responsables de IVA y declarantes de renta.
+     * - No Responsable de IVA: personas naturales, NO responsables de IVA.
+     *
+     * NOTA: Los pagos directos (payment_type = 'direct') NO generan retenciones
+     * automáticas. El flujo "cuentas por pagar" sí aplica retenciones pero permite
+     * al usuario activar/desactivar estampillas manualmente.
      */
     public function calculateRetentions()
     {
@@ -1293,59 +1333,79 @@ class PostcontractualManagement extends Component
         // pero calcular la retención sobre el subtotal del PAGO
         $contractSubtotal = (float) ($this->contractData['subtotal'] ?? $subtotal);
 
+        $fiscalYear = (int) $this->filterYear;
+
         // ── RETEFUENTE ──
         // Proveedores en Régimen Simple de Tributación NO están sujetos a retención en la fuente de renta
         $this->retefuente = 0;
         $this->retentionPercentage = 0;
 
-        if ($taxRegime !== 'simple' && $this->retentionConcept && isset(PaymentOrder::RETENTION_RATES[$this->retentionConcept])) {
-            // Verificar si el subtotal del CONTRATO supera la base mínima
-            if (PaymentOrder::meetsRetentionThreshold($this->retentionConcept, $contractSubtotal)) {
-                $rate = PaymentOrder::getRetentionRate($this->retentionConcept, (bool) $this->supplierDeclaresRent);
+        $retefuenteConfig = null;
+        if ($taxRegime !== 'simple' && $this->retentionConcept) {
+            $retefuenteConfig = RetentionConfig::getForSchoolYearConcept(
+                $this->schoolId, $fiscalYear, $this->retentionConcept
+            );
+
+            if ($retefuenteConfig && $contractSubtotal >= (float) $retefuenteConfig->min_base) {
+                $rate = $this->supplierDeclaresRent
+                    ? (float) $retefuenteConfig->rate_declares
+                    : (float) $retefuenteConfig->rate_not_declares;
                 $this->retentionPercentage = $rate;
-                // Calcular retención sobre el subtotal del PAGO (proporcional)
                 $this->retefuente = $this->roundRetention($subtotal * ($rate / 100));
             }
         }
 
         // ── RETEIVA ──
-        // 15% del IVA, solo para responsables de IVA
-        // Responsables de IVA: régimen común, gran contribuyente, y régimen simple SI es responsable
-        // y solo si la base del contrato sobrepasa el umbral de retención en la fuente
+        // Solo para responsables de IVA y si la base del contrato supera el umbral
+        // del concepto de retefuente. La tarifa sale de la configuración activa.
         $this->reteiva = 0;
         $isIvaResponsible = in_array($taxRegime, ['comun', 'gran_contribuyente', 'simple']);
 
         if ($isIvaResponsible && $iva > 0 && $this->retentionConcept) {
-            if (PaymentOrder::meetsRetentionThreshold($this->retentionConcept, $contractSubtotal)) {
-                $this->reteiva = $this->roundRetention($iva * 0.15);
+            $reteivaConfig = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'reteiva');
+
+            if ($retefuenteConfig
+                && $reteivaConfig
+                && $contractSubtotal >= (float) $retefuenteConfig->min_base
+                && $iva >= (float) $reteivaConfig->min_base
+            ) {
+                $rate = (float) $reteivaConfig->rate;
+                $this->reteiva = $this->roundRetention($iva * ($rate / 100));
             }
         }
 
         $this->totalRetentionsDian = $this->retefuente + $this->reteiva;
 
-        // ── OTROS IMPUESTOS (según municipio del colegio) ──
+        // ── OTROS IMPUESTOS (estampillas / ICA) ──
         $this->estampillaProdultoMayor = 0;
         $this->estampillaProcultura = 0;
         $this->retencionIca = 0;
 
-        $municipality = $this->schoolMunicipality;
+        // Para "cuentas por pagar" el usuario activa/desactiva estampillas manualmente.
+        // Para contratos se calcula automáticamente si la configuración está activa
+        // y el subtotal cumple la base mínima.
+        $estProdultoCfg   = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'estampilla_produlto_mayor');
+        $estProculturaCfg = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'estampilla_procultura');
+        $icaCfg           = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'retencion_ica');
 
         if ($this->paymentType === 'accounts_payable') {
-            // Cuentas por pagar: activación manual mediante checkbox
-            if ($this->applyEstampillaProdulto && str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
-                $this->estampillaProdultoMayor = $this->roundRetention($subtotal * 0.02);
+            if ($this->applyEstampillaProdulto && $estProdultoCfg && $subtotal >= (float) $estProdultoCfg->min_base && (float) $estProdultoCfg->rate > 0) {
+                $this->estampillaProdultoMayor = $this->roundRetention($subtotal * ((float) $estProdultoCfg->rate / 100));
             }
-            if ($this->applyEstampillaProcultura && str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
-                $this->estampillaProcultura = $this->roundRetention($subtotal * 0.02);
+            if ($this->applyEstampillaProcultura && $estProculturaCfg && $subtotal >= (float) $estProculturaCfg->min_base && (float) $estProculturaCfg->rate > 0) {
+                $this->estampillaProcultura = $this->roundRetention($subtotal * ((float) $estProculturaCfg->rate / 100));
             }
         } else {
-            // Contrato: cálculo automático (comportamiento original)
-            if (str_contains($municipality, 'bucaramanga') && $subtotal >= 1) {
-                $this->estampillaProdultoMayor = $this->roundRetention($subtotal * 0.02);
+            if ($estProdultoCfg && $subtotal >= (float) $estProdultoCfg->min_base && (float) $estProdultoCfg->rate > 0) {
+                $this->estampillaProdultoMayor = $this->roundRetention($subtotal * ((float) $estProdultoCfg->rate / 100));
             }
-            if (str_contains($municipality, 'bucaramanga') && $subtotal >= 35018010) {
-                $this->estampillaProcultura = $this->roundRetention($subtotal * 0.02);
+            if ($estProculturaCfg && $subtotal >= (float) $estProculturaCfg->min_base && (float) $estProculturaCfg->rate > 0) {
+                $this->estampillaProcultura = $this->roundRetention($subtotal * ((float) $estProculturaCfg->rate / 100));
             }
+        }
+
+        if ($icaCfg && $subtotal >= (float) $icaCfg->min_base && (float) $icaCfg->rate > 0) {
+            $this->retencionIca = $this->roundRetention($subtotal * ((float) $icaCfg->rate / 100));
         }
 
         $this->otherTaxesTotal = $this->estampillaProdultoMayor + $this->estampillaProcultura + $this->retencionIca;

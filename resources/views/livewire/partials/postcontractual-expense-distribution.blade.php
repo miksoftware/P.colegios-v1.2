@@ -83,8 +83,10 @@
                         <label class="block text-xs font-medium text-gray-600 mb-1">Concepto de Retención</label>
                         <select wire:model.live="expenseLines.{{ $index }}.retention_concept" class="w-full rounded-xl border-gray-300 text-sm focus:border-emerald-500 focus:ring-emerald-500">
                             <option value="">-- Sin retención --</option>
-                            @foreach(\App\Models\PaymentOrder::RETENTION_CONCEPTS as $key => $label)
-                                <option value="{{ $key }}">{{ $label }}</option>
+                            @foreach(\App\Models\RetentionConfig::CONCEPTS as $key => $def)
+                                @if($def['category'] === 'retefuente')
+                                    <option value="{{ $key }}">{{ $def['display_name'] }}</option>
+                                @endif
                             @endforeach
                         </select>
                     </div>

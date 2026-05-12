@@ -103,6 +103,10 @@ class PaymentOrder extends Model
     /**
      * Porcentajes de retención en la fuente según concepto.
      * [concepto => [no_declara, declara]]
+     *
+     * @deprecated Las tarifas se leen ahora desde RetentionConfig por colegio y
+     * vigencia fiscal. Se mantiene este arreglo únicamente como referencia
+     * histórica de los valores iniciales que cargó RetentionConfigSeeder.
      */
     const RETENTION_RATES = [
         'compras'                    => [3.5, 2.5],
@@ -115,6 +119,9 @@ class PaymentOrder extends Model
 
     /**
      * Base mínima (subtotal) a partir de la cual se aplica retención en la fuente.
+     *
+     * @deprecated Las bases mínimas se leen ahora desde RetentionConfig por
+     * colegio y vigencia fiscal.
      */
     const RETENTION_MIN_BASE = [
         'compras'                    => 524000,
@@ -339,6 +346,8 @@ class PaymentOrder extends Model
 
     /**
      * Calcula el porcentaje de retención según concepto y si declara renta.
+     *
+     * @deprecated Usar RetentionConfig::getRetentionRate($schoolId, $year, $concept, $declaresRent).
      */
     public static function getRetentionRate(string $concept, bool $declaresRent): float
     {
@@ -348,6 +357,8 @@ class PaymentOrder extends Model
 
     /**
      * Verifica si el subtotal supera la base mínima para aplicar retención.
+     *
+     * @deprecated Usar RetentionConfig::meetsThreshold($schoolId, $year, $concept, $subtotal).
      */
     public static function meetsRetentionThreshold(string $concept, float $subtotal): bool
     {

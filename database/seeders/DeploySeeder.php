@@ -63,6 +63,7 @@ class DeploySeeder extends Seeder
                 BankPermissionSeeder::class,
                 ReportPermissionSeeder::class,
                 NewsPermissionSeeder::class,
+                RetentionConfigPermissionSeeder::class,
             ],
             // 4. Datos contables y presupuestales
             '[4/6] 💰 Rubros, fuentes y cuentas contables...' => [
@@ -72,6 +73,10 @@ class DeploySeeder extends Seeder
             // 5. Códigos de gasto (refresh: limpia viejos + inserta con SIFSE)
             '[5/6] 📄 Códigos de gasto...' => [
                 RefreshExpenseCodesSeeder::class,
+            ],
+            // 5b. Bases de retenciones por colegio y vigencia actual
+            '[5b/6] 🧾 Bases de retenciones...' => [
+                RetentionConfigSeeder::class,
             ],
             // 6. Usuario administrador
             '[6/6] 👤 Usuario administrador...' => [

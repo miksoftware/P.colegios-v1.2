@@ -139,7 +139,7 @@
                         <tr>
                             <td>{{ $req }}</td>
                             @foreach($proposals as $proposal)
-                                <td class="center">X</td>
+                                <td class="center"></td>
                             @endforeach
                         </tr>
                     @endforeach

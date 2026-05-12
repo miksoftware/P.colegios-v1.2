@@ -42,7 +42,7 @@
                     </div>
 
                     <!-- Navigation -->
-                    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto" x-data="{ registroOpen: {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') || request()->routeIs('accounting.accounts') || request()->routeIs('expense-codes.index') || request()->routeIs('activity.logs') || request()->routeIs('suppliers.index') || request()->routeIs('banks.index') || request()->routeIs('budget.items') || request()->routeIs('funding-sources.index') ? 'true' : 'false' }} }">
+                    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto" x-data="{ registroOpen: {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') || request()->routeIs('accounting.accounts') || request()->routeIs('expense-codes.index') || request()->routeIs('retention-configs.index') || request()->routeIs('activity.logs') || request()->routeIs('suppliers.index') || request()->routeIs('banks.index') || request()->routeIs('budget.items') || request()->routeIs('funding-sources.index') ? 'true' : 'false' }} }">
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-4 py-3 text-sm font-semibold {{ request()->routeIs('dashboard') ? 'text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl shadow-lg shadow-blue-500/30' : 'text-gray-700 hover:bg-gray-100 rounded-xl' }} transition-all">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
@@ -54,7 +54,7 @@
                         <div>
                             <button 
                                 @click="registroOpen = !registroOpen"
-                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') || request()->routeIs('accounting.accounts') || request()->routeIs('expense-codes.index') || request()->routeIs('activity.logs') || request()->routeIs('suppliers.index') || request()->routeIs('banks.index') || request()->routeIs('budget.items') || request()->routeIs('funding-sources.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('school.manage') || request()->routeIs('school.info') || request()->routeIs('users.index') || request()->routeIs('roles.index') || request()->routeIs('accounting.accounts') || request()->routeIs('expense-codes.index') || request()->routeIs('retention-configs.index') || request()->routeIs('activity.logs') || request()->routeIs('suppliers.index') || request()->routeIs('banks.index') || request()->routeIs('budget.items') || request()->routeIs('funding-sources.index') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
                             >
                                 <div class="flex items-center gap-3">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,6 +140,15 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                                         </svg>
                                         Códigos de Gasto
+                                    </a>
+                                @endcan
+
+                                @can('retention_configs.view')
+                                    <a href="{{ route('retention-configs.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('retention-configs.index') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+                                        </svg>
+                                        Bases de Retenciones
                                     </a>
                                 @endcan
 

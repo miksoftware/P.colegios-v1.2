@@ -61,13 +61,13 @@
             En la rectoría el día {{ $contract->end_date?->format('d/m/Y') ?? $contract->start_date?->format('d/m/Y') ?? '' }},
             se reunieron los suscritos,
             <span class="bold">{{ $school->ordenador_gasto_display_name }}</span> como contratante Y
-            <span class="bold">{{ $supplier->full_name ?? '' }}</span> como contratista con el fin de liquidar la orden en mención.
+            <span class="bold">{{ $supplier->full_name ?? '' }}</span> como contratista con el fin de liquidar el contrato en mención.
         </div>
 
         {{-- DATOS DEL CONTRATO --}}
         <table class="info-table">
             <tr><td class="info-label">Contratista:</td><td>{{ $supplier->full_name ?? 'N/A' }}</td></tr>
-            <tr><td class="info-label">Valor de la Orden:</td><td class="bold">${{ number_format($valorOrden, 0, ',', '.') }}</td></tr>
+            <tr><td class="info-label">Valor del Contrato:</td><td class="bold">${{ number_format($valorOrden, 0, ',', '.') }}</td></tr>
             <tr><td class="info-label">Valor Adicional:</td><td>{{ $valorAdicional > 0 ? '$' . number_format($valorAdicional, 0, ',', '.') : '0=' }}</td></tr>
             <tr><td class="info-label">Fecha de Inicio:</td><td>{{ $contract->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}</td></tr>
             <tr><td class="info-label">Plazo:</td><td>{{ $contract->duration_days ?? 'N/A' }} DÍAS</td></tr>
@@ -78,7 +78,7 @@
         {{-- DESARROLLO FINANCIERO --}}
         <div class="section-title">Desarrollo Financiero</div>
         <table class="info-table">
-            <tr><td class="info-label">Valor de la Orden:</td><td class="bold">${{ number_format($valorOrden, 2, ',', '.') }}</td></tr>
+            <tr><td class="info-label">Valor del Contrato:</td><td class="bold">${{ number_format($valorOrden, 2, ',', '.') }}</td></tr>
             <tr><td class="info-label">Valor del Anticipo:</td><td>0=</td></tr>
             <tr><td class="info-label">Valor Pago Parcial:</td><td>{{ $totalPaid > 0 ? '$' . number_format($totalPaid, 2, ',', '.') : '0=' }}</td></tr>
             <tr><td class="info-label">Valor por Pagar:</td><td class="bold">${{ number_format($valorPorPagar, 2, ',', '.') }}</td></tr>
@@ -89,18 +89,18 @@
             En este estado las partes firmantes manifestamos estar de acuerdo con la presente acta de recibo y liquidación y dejamos constancia que:
         </div>
         <div class="text-block" style="padding-top: 2px;">
-            1) El objeto de la presente orden por parte del contratista fue prestado a cabalidad y recibido por el contratante a satisfacción.
+            1) El objeto del presente contrato por parte del contratista fue prestado a cabalidad y recibido por el contratante a satisfacción.
             <br><br>
-            2) En la presente acta de recibo y liquidación de la orden, están incluidos todos los valores contratados.
+            2) En la presente acta de recibo y liquidación del contrato, están incluidos todos los valores contratados.
             <br><br>
             3) El contratista presentará para el pago final la factura correspondiente o documento equivalente.
             <br><br>
-            4) El contratista manifiesta que la institución Educativa cumplió con todas las obligaciones y que por lo tanto renuncia a toda acción, reclamación o demanda contra él en relación con la orden y la presente liquidación.
+            4) El contratista manifiesta que la institución Educativa cumplió con todas las obligaciones y que por lo tanto renuncia a toda acción, reclamación o demanda contra él en relación con el contrato y la presente liquidación.
         </div>
 
         {{-- TEXTO LIQUIDACIÓN --}}
         <div class="text-block" style="border-top: 1px solid #ddd; padding-top: 10px;">
-            En consecuencia dan por liquidada definitivamente la presente orden.
+            En consecuencia dan por liquidado definitivamente el presente contrato.
         </div>
 
         {{-- FIRMAS --}}

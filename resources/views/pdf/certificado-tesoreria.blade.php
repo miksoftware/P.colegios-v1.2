@@ -63,7 +63,7 @@
         </div>
 
         <div class="text-block" style="border-bottom: 1px solid #ddd;">
-            Que existe disponibilidad de tesorería sin comprometer, depositados en la cuenta corriente No.
+            Que existe disponibilidad de tesorería sin comprometer, depositados en la cuenta No.
             <span class="account-box">{{ $accountNumber ?: 'N/A' }}</span>
         </div>
 

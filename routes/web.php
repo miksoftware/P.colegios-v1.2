@@ -72,6 +72,10 @@ Route::get('expense-codes', App\Livewire\ExpenseCodeManagement::class)
     ->middleware(['auth', 'verified', 'can:expense_codes.view'])
     ->name('expense-codes.index');
 
+Route::get('retention-configs', App\Livewire\RetentionConfigManagement::class)
+    ->middleware(['auth', 'verified', 'can:retention_configs.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('retention-configs.index');
+
 Route::get('expenses', App\Livewire\ExpenseManagement::class)
     ->middleware(['auth', 'verified', 'can:expenses.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('expenses.index');

@@ -45,7 +45,7 @@
                 <div class="school-dane">{{ $school->nit }}</div>
             @endif
             <div class="school-muni">{{ $school->municipality ?? '' }}</div>
-            <div class="doc-title">Informe de Supervisión de Contratos y de Órdenes de Compras y de Servicios</div>
+            <div class="doc-title">Informe de Supervisión de Contratos</div>
         </div>
 
         {{-- CONTRATO Y FECHA --}}
@@ -57,11 +57,6 @@
                 <td>{{ $contract->end_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? $contract->start_date?->translatedFormat('d \\d\\e F \\d\\e Y') ?? '' }}</td>
             </tr>
         </table>
-
-        {{-- ACTA DE SUPERVISIÓN --}}
-        <div style="padding: 6px 15px; border-bottom: 1px solid #ddd;">
-            <span class="bold">ACTA DE SUPERVISIÓN No.</span>
-        </div>
 
         {{-- TÍTULO INFORME --}}
         <div class="section-title">Informe de Actividades</div>

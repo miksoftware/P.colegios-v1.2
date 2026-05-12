@@ -67,15 +67,11 @@
             </tr>
             <tr>
                 <td class="info-label">Contratista:</td>
-                <td>{{ $supplier->full_name ?? '' }}</td>
-                <td class="info-label">Representante Legal de la Empresa:</td>
-                <td>{{ $supplier->full_name ?? '' }}</td>
+                <td colspan="3">{{ $supplier->full_name ?? '' }}</td>
             </tr>
             <tr>
                 <td class="info-label">NIT Contratista o Empresa:</td>
-                <td>{{ $supplier->document_number ?? '' }} {{ $supplier->dv ?? '' }}</td>
-                <td class="info-label">Doc. Identidad:</td>
-                <td></td>
+                <td colspan="3">{{ $supplier->document_number ?? '' }} {{ $supplier->dv ?? '' }}</td>
             </tr>
             <tr>
                 <td class="info-label">Dirección Contratista:</td>
@@ -124,17 +120,17 @@
         <div class="section-body">
             EL CONTRATISTA se compromete a cumplir con todas las obligaciones que a continuación se señalan, así como las estipuladas en los estudios previos, la invitación pública del presente proceso de selección y en la oferta presentada y sus anexos, Además de las obligaciones y derechos contemplados en los artículos 4º y 5º de la ley 80 de 1993 y demás normas concordantes y los convenidos en la orden, EL CONTRATISTA se obliga especialmente a:
             <br><br>
-            1) Cumplir con el objeto del contrato, en los términos y condiciones establecidos, de conformidad con lo estipulado en el presente contrato, los estudios previos, en la invitación pública, las adendas y aclaraciones expedidas a la misma y la oferta presentada por el CONTRATISTA, cumpliendo a cabalidad con la entrega de elementos, instalación o prestación de los servicios que hayan sido contratados de acuerdo a las especificaciones técnicas señaladas y estar dispuesto a efectuar las aclaraciones del objeto del contrato al supervisor del contrato en caso que sean requeridos y apliquen a la presente Orden. Igualmente deberá velar por la calidad de los equipos, elementos o servicios que ofrezca y que hayan sido contratados.
+            1) Cumplir con el objeto del contrato, en los términos y condiciones establecidos, de conformidad con lo estipulado en el presente contrato, los estudios previos, en la invitación pública, las adendas y aclaraciones expedidas a la misma y la oferta presentada por el CONTRATISTA, cumpliendo a cabalidad con la entrega de elementos, instalación o prestación de los servicios que hayan sido contratados de acuerdo a las especificaciones técnicas señaladas y estar dispuesto a efectuar las aclaraciones del objeto del contrato al supervisor del contrato en caso que sean requeridos y apliquen a la presente Contrato. Igualmente deberá velar por la calidad de los equipos, elementos o servicios que ofrezca y que hayan sido contratados.
             <br>
             2) Atender en el término de 48 horas cualquier requerimiento que se efectuado por la institución, cuando las necesidades del objeto contratado lo ameriten.
             <br>
-            3) Poner en conocimiento de la institución educativa cualquier situación irregular que se presente o que requiera de su participación, para un cabal cumplimiento de las obligaciones contractuales.
+            3) Poner en conocimiento de la institución educativa cualquier situación irregular que se presente o que requiera de su participación, para el cabal cumplimiento de las obligaciones contractuales.
             <br>
             4) El contratista debe prever todos los costos indirectos y directos durante la ejecución del contrato.
             <br>
             5) Deberá contar con el personal necesario para la ejecución del contrato el cual no tendrá ninguna relación laboral con la institución educativa.
             <br>
-            6) Sufragar los gastos que legalmente haya lugar para la legalización y ejecución del contrato, de conformidad con la normatividad que rige la materia.
+            6) Sufragar los gastos que legalmente haya lugar para la legalización y ejecución del contrato, de conformidad con la normatividad que rige el presente contrato.
             <br>
             7) Asegurar y prestar por su cuenta y riesgo los servicios contratados en la calidad, cantidad y lugar estipulado.
             <br>
@@ -152,7 +148,7 @@
             <br>
             14) Solo tiene derecho a los emolumentos expresamente convenidos sin que se genere relación laboral ni prestaciones sociales por motivo del presente contrato sin formalidades plenas.
             <br>
-            15) Autoriza a la Institución para que por conducto de su Pagaduría, efectúe las deducciones por concepto de los siguientes gravámenes ordenanzales para que sean transferidos al fondo u organismo correspondientes así: a.) Dos (2%) por ciento por cada mil o fracción, por concepto de estampilla Pro- UIS., b) Dos por ciento (2%) del valor total de la orden por concepto de Estampillas Pro- Hospitales Universitarios Públicos Departamento de Santander y el respectivo descuento a Sistemas y computadores (10% sobre estampillas del Departamento) d) Los descuentos Municipales y de retención en la fuente que haya lugar y los demás gravámenes de Ley a que haya lugar.
+            15) Autoriza a la Institución para que por conducto de su Pagaduría, efectúe las deducciones por concepto de los siguientes gravámenes ordenanzales para que sean transferidos al fondo u organismo correspondientes así: a) Los descuentos Municipales y de retención en la fuente que haya lugar y los demás gravámenes de Ley a que haya lugar.
             <br>
             16) Deberá cumplir con las obligaciones que se deriven para el desarrollo del objeto contratado.
         </div>
@@ -224,8 +220,6 @@
             Nombre: <span class="bold">{{ $contract->supervisor ? strtoupper(trim($contract->supervisor->name . ' ' . $contract->supervisor->surname)) : $school->rector_display_name }}</span>
             <br>
             cédula de ciudadanía No. {{ $contract->supervisor?->identification_number ?? $school->rector_display_document ?? '' }}
-            <br>
-            Quien tiene nombramiento en la Institución en el cargo de: <span class="bold">{{ mb_strtoupper($contract->supervisor?->job_title ?? 'RECTOR') }}</span>
             <br><br>
             La Supervisión del presente contrato deberá controlar la perfecta ejecución del objeto contractual y su correcto cumplimiento. PARÁGRAFO: son funciones del supervisor:
             <br><br>
@@ -239,13 +233,13 @@
             <br><br>
             <span class="bold">{{ $contract->payment_method_name ?? 'UN (1) PAGO' }}</span>
             <br><br>
-            PARÁGRAFO PRIMERO: DEDUCCIONES- El contratista autoriza a la Institución educativa, para que efectúe de los desembolsos a su favor, las deducciones por concepto de los gravámenes municipales y legales a que hubiere lugar, teniendo en cuenta para la respectiva deducción, los parámetros que para tal efecto haya establecido la disposición que dio origen al gravamen. PARÁGRAFO SEGUNDO: El contratista deberá presentar la factura o la cuenta de cobro, según sea el caso, constancia de pago de aportes a las seguridades sociales demás documentos señalados en la presente cláusula. La no presentación de estos documentos o su presentación extemporánea exonera a la Institución del pago de intereses moratorios.
+            PARÁGRAFO PRIMERO: DEDUCCIONES- El contratista autoriza a la Institución educativa, para que efectúe de los desembolsos a su favor, las deducciones por concepto de los gravámenes municipales y legales a que hubiere lugar, teniendo en cuenta para la respectiva deducción, los parámetros que para tal efecto haya establecido la disposición que dio origen al gravamen. PARÁGRAFO SEGUNDO: El contratista deberá presentar la factura o la cuenta de cobro, según sea el caso, constancia de pago de aportes a las seguridades sociales, pago de estampillas que le corresponda y demás documentos señalados en la presente cláusula. La no presentación de estos documentos o su presentación extemporánea exonera a la Institución del pago de intereses moratorios.
         </div>
 
         {{-- INHABILIDADES --}}
         <div class="section-title">Inhabilidades</div>
         <div class="section-body">
-            EL CONTRATISTA afirma, bajo la gravedad del juramento, el cual se entiende prestado con la firma del presente Contrato, que no se halla incurso en ninguna causal de inhabilidad, incompatibilidad e impedimento previstas en la ley y específicamente en los Artículos 8 y 9 de la Ley 80 de 1993, así como en el artículo 122 de la Constitución Política, modificado por el Acto Legislativo Numero 01 de julio 14 de 2009, y concordantes.
+            EL CONTRATISTA afirma, bajo la gravedad del juramento, el cual se entiende presentado con la firma del presente Contrato, que no se halla incurso en ninguna causal de inhabilidad, incompatibilidad e impedimento previstas en la ley y específicamente en los Artículos 8 y 9 de la Ley 80 de 1993, así como en el artículo 122 de la Constitución Política, modificado por el Acto Legislativo Numero 01 de julio 14 de 2009, y concordantes.
         </div>
 
         {{-- PLAZO DEL CONTRATO --}}

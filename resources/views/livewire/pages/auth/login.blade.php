@@ -126,12 +126,7 @@ new #[Layout('layouts.guest')] class extends Component
             @endif
         </form>
 
-        <!-- Demo Credentials -->
-        <div class="mt-8 p-4 bg-blue-50 rounded-xl border border-blue-100">
-            <p class="text-xs text-blue-800 font-semibold mb-2">Credenciales de Prueba:</p>
-            <p class="text-xs text-blue-700"><span class="font-semibold">Admin:</span> admin@admin.com / password</p>
-            <p class="text-xs text-blue-700"><span class="font-semibold">Usuario:</span> edgar@sanjuan.edu.co / password</p>
-        </div>
+
     </div>
 
     <!-- Loading Overlay -->

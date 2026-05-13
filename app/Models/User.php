@@ -26,6 +26,7 @@ class User extends Authenticatable
         'identification_number',
         'email',
         'password',
+        'is_system_admin',
     ];
 
     /**

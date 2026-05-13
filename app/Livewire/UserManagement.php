@@ -206,6 +206,11 @@ class UserManagement extends Component
             return;
         }
 
+        if ($user->is_system_admin) {
+            $this->dispatch('notify', message: 'El administrador del sistema no puede ser eliminado.', type: 'error');
+            return;
+        }
+
         // If in school context, detach. If user has no other schools, maybe delete?
         // For now, just detach from school if schoolId is set
         if ($this->schoolId) {

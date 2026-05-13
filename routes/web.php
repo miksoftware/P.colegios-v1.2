@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 
+// Installation wizard – only accessible before APP is installed
+Route::get('install', App\Livewire\InstallationWizard::class)
+    ->middleware(\App\Http\Middleware\CheckNotInstalled::class)
+    ->name('install');
+
 Route::redirect('/', '/login');
 
 Route::get('school/info', App\Livewire\SchoolInfo::class)

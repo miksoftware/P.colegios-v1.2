@@ -13,9 +13,9 @@ class RubrosFuentesSeeder extends Seeder
 {
     public function run(): void
     {
-        // Solo limpiar si se pasa --force (para instala fresh)
+        // Solo limpiar si se pasa --force (para instalación fresh)
         // En deploy normal, se usa firstOrCreate (idempotente)
-        if ($this->command->option('force') ?? false) {
+        if (optional($this->command)->option('force') ?? false) {
             $this->cleanDatabase();
         }
 
@@ -25,7 +25,7 @@ class RubrosFuentesSeeder extends Seeder
         // 3. Crear rubros con sus fuentes de financiación
         $this->createBudgetItemsWithSources($accounts);
 
-        $this->command->info('✅ Rubros y fuentes de financiación del FSE creados/verificados exitosamente.');
+        optional($this->command)->info('✅ Rubros y fuentes de financiación del FSE creados/verificados exitosamente.');
     }
 
     /**
@@ -33,7 +33,7 @@ class RubrosFuentesSeeder extends Seeder
      */
     private function cleanDatabase(): void
     {
-        $this->command->info('Limpiando datos existentes...');
+        optional($this->command)->info('Limpiando datos existentes...');
 
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
 
@@ -59,7 +59,7 @@ class RubrosFuentesSeeder extends Seeder
 
         DB::statement('SET FOREIGN_KEY_CHECKS=1');
 
-        $this->command->info('  ✓ Base de datos presupuestal limpia.');
+        optional($this->command)->info('  ✓ Base de datos presupuestal limpia.');
     }
 
     /**
@@ -68,7 +68,7 @@ class RubrosFuentesSeeder extends Seeder
      */
     private function createAccountingAccounts(): array
     {
-        $this->command->info('Creando cuentas contables...');
+        optional($this->command)->info('Creando cuentas contables...');
 
         $map = [];
 
@@ -78,7 +78,7 @@ class RubrosFuentesSeeder extends Seeder
         $group42 = AccountingAccount::where('code', '42')->first(); // NO OPERACIONALES
 
         if (!$class4 || !$group41 || !$group42) {
-            $this->command->error('No se encontraron las cuentas contables base (4, 41, 42). Ejecute AccountingAccountSeeder primero.');
+            optional($this->command)->error('No se encontraron las cuentas contables base (4, 41, 42). Ejecute AccountingAccountSeeder primero.');
             return $map;
         }
 
@@ -241,7 +241,7 @@ class RubrosFuentesSeeder extends Seeder
             ['name' => 'TRANSFERENCIAS DE CAPITAL RECIBIDAS', 'level' => 5, 'parent_id' => $c423025->id, 'nature' => 'C', 'allows_movement' => true, 'is_active' => true]
         )->id;
 
-        $this->command->info('  ✓ Cuentas contables creadas/verificadas.');
+        optional($this->command)->info('  ✓ Cuentas contables creadas/verificadas.');
 
         return $map;
     }
@@ -251,7 +251,7 @@ class RubrosFuentesSeeder extends Seeder
      */
     private function createBudgetItemsWithSources(array $accounts): void
     {
-        $this->command->info('Creando rubros y fuentes de financiación...');
+        optional($this->command)->info('Creando rubros y fuentes de financiación...');
 
         /*
          * Estructura de cada rubro:
@@ -547,7 +547,7 @@ class RubrosFuentesSeeder extends Seeder
             }
         }
 
-        $this->command->info("  ✓ {$rubroCount} rubros creados.");
-        $this->command->info("  ✓ {$fuenteCount} fuentes de financiación creadas.");
+        optional($this->command)->info("  ✓ {$rubroCount} rubros creados.");
+        optional($this->command)->info("  ✓ {$fuenteCount} fuentes de financiación creadas.");
     }
 }

@@ -7,7 +7,14 @@ Route::get('install', App\Livewire\InstallationWizard::class)
     ->middleware(\App\Http\Middleware\CheckNotInstalled::class)
     ->name('install');
 
-Route::redirect('/', '/login');
+Route::get('/', function () {
+    $isInstalled = file_exists(storage_path('app/installed.lock'))
+        || env('APP_INSTALLED') === 'true';
+
+    return $isInstalled
+        ? redirect()->route('login')
+        : redirect()->route('install');
+});
 
 Route::get('school/info', App\Livewire\SchoolInfo::class)
     ->middleware(['auth', 'verified', 'can:school_info.view'])

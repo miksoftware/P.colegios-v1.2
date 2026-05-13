@@ -1,5 +1,6 @@
 #!/bin/bash
-PROJECT_NAME="demo-colegio"
+# El deployer puede pasar el nombre via COMPOSE_PROJECT_NAME o PROJECT_NAME env vars
+PROJECT_NAME="${COMPOSE_PROJECT_NAME:-${PROJECT_NAME:-colegios}}"
 
 # ============================================
 # Script de Deploy Automático para Laravel
@@ -13,7 +14,8 @@ NC='\033[0m'
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_DIR="$SCRIPT_DIR"
-SRC_DIR="$PROJECT_DIR/src"
+# El repo está directamente en SCRIPT_DIR (no en un subdirectorio src/)
+SRC_DIR="$PROJECT_DIR"
 
 echo -e "${BLUE}=========================================="
 echo "  🚀 Deploy Laravel: $PROJECT_NAME"

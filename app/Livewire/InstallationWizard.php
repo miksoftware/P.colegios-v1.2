@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Spatie\Permission\Models\Role;
@@ -16,7 +15,7 @@ use Spatie\Permission\Models\Role;
 #[Layout('layouts.installation')]
 class InstallationWizard extends Component
 {
-    // Steps: 1=DB config, 2=Migrate, 3=Seeders, 4=Admin user, 5=Done
+    // ── Reactive state ──────────────────────────────────────────────────────────
     public int $currentStep = 1;
 
     // Step 1 – Database
@@ -52,20 +51,67 @@ class InstallationWizard extends Component
         5 => 'Completado',
     ];
 
+    // ── State file path ─────────────────────────────────────────────────────────
+    protected string $stateFile;
+
+    public function boot(): void
+    {
+        // boot() is called on EVERY request (mount + subsequent updates)
+        // so state is always restored here before any action runs
+        $this->stateFile = storage_path('app/install_state.json');
+        $this->restoreState();
+    }
+
     public function mount(): void
     {
-        // Pre-fill from current .env
-        $this->db_host     = env('DB_HOST', '127.0.0.1');
-        $this->db_port     = env('DB_PORT', '3306');
-        $this->db_database = env('DB_DATABASE', '');
-        $this->db_username = env('DB_USERNAME', '');
+        // Pre-fill DB fields from current .env only on first visit
+        if ($this->currentStep === 1) {
+            $this->db_host     = env('DB_HOST', '127.0.0.1');
+            $this->db_port     = env('DB_PORT', '3306');
+            $this->db_database = env('DB_DATABASE', '');
+            $this->db_username = env('DB_USERNAME', '');
+        }
+    }
+
+    // ── Persist / restore ───────────────────────────────────────────────────────
+
+    protected function saveState(): void
+    {
+        File::ensureDirectoryExists(storage_path('app'));
+        File::put($this->stateFile, json_encode([
+            'currentStep'      => $this->currentStep,
+            'migrationsRun'    => $this->migrationsRun,
+            'migrationsOutput' => $this->migrationsOutput,
+            'seedersRun'       => $this->seedersRun,
+            'seederResults'    => $this->seederResults,
+            'admin_email'      => $this->admin_email,
+        ], JSON_PRETTY_PRINT));
+    }
+
+    protected function restoreState(): void
+    {
+        if (!File::exists($this->stateFile)) {
+            return;
+        }
+
+        $data = json_decode(File::get($this->stateFile), true);
+        if (!is_array($data)) {
+            return;
+        }
+
+        $this->currentStep      = $data['currentStep']      ?? 1;
+        $this->migrationsRun    = $data['migrationsRun']    ?? false;
+        $this->migrationsOutput = $data['migrationsOutput'] ?? '';
+        $this->seedersRun       = $data['seedersRun']       ?? false;
+        $this->seederResults    = $data['seederResults']    ?? [];
+        $this->admin_email      = $data['admin_email']      ?? '';
     }
 
     // ─── Step 1 ────────────────────────────────────────────────────────────────
 
     public function testConnection(): void
     {
-        $this->connectionTested = null;
+        $this->connectionTested  = null;
         $this->connectionMessage = '';
 
         try {
@@ -85,13 +131,12 @@ class InstallationWizard extends Component
 
             DB::connection('install_test')->getPdo();
 
-            $this->connectionTested = true;
+            $this->connectionTested  = true;
             $this->connectionMessage = 'Conexión exitosa a la base de datos.';
         } catch (\Exception $e) {
-            $this->connectionTested = false;
+            $this->connectionTested  = false;
             $this->connectionMessage = 'Error: ' . $e->getMessage();
         } finally {
-            // Purge the test connection to avoid memory leaks
             DB::purge('install_test');
         }
     }
@@ -123,21 +168,30 @@ class InstallationWizard extends Component
             'DB_PASSWORD' => $this->db_password,
         ]);
 
+        // Apply the new DB config to the CURRENT process so migrations work
+        $this->applyDbConfig();
+
         $this->currentStep = 2;
+        $this->saveState();
     }
 
     // ─── Step 2 ────────────────────────────────────────────────────────────────
 
     public function runMigrations(): void
     {
+        // Ensure DB config is active in this process
+        $this->applyDbConfig();
+
         try {
             Artisan::call('migrate', ['--force' => true]);
             $this->migrationsOutput = Artisan::output();
-            $this->migrationsRun = true;
+            $this->migrationsRun    = true;
+            $this->saveState();
             $this->dispatch('notify', message: 'Migraciones ejecutadas correctamente.', type: 'success');
         } catch (\Exception $e) {
             $this->migrationsOutput = 'Error: ' . $e->getMessage();
-            $this->dispatch('notify', message: 'Error al ejecutar migraciones.', type: 'error');
+            $this->saveState();
+            $this->dispatch('notify', message: 'Error al ejecutar migraciones: ' . $e->getMessage(), type: 'error');
         }
     }
 
@@ -148,39 +202,40 @@ class InstallationWizard extends Component
             return;
         }
         $this->currentStep = 3;
+        $this->saveState();
     }
 
     // ─── Step 3 ────────────────────────────────────────────────────────────────
 
     protected array $globalSeeders = [
-        \Database\Seeders\DepartmentSeeder::class              => 'Departamentos',
-        \Database\Seeders\MunicipalitySeeder::class            => 'Municipios',
-        \Database\Seeders\ModulePermissionSeeder::class        => 'Módulos y permisos base',
-        \Database\Seeders\BudgetPermissionSeeder::class        => 'Permisos de presupuesto',
-        \Database\Seeders\BudgetItemPermissionSeeder::class    => 'Permisos de rubros',
-        \Database\Seeders\BudgetTransferPermissionSeeder::class => 'Permisos de traslados',
-        \Database\Seeders\BudgetModificationPermissionSeeder::class => 'Permisos de modificaciones',
-        \Database\Seeders\FundingSourcePermissionSeeder::class  => 'Permisos de fuentes de financiación',
-        \Database\Seeders\IncomePermissionSeeder::class         => 'Permisos de ingresos',
-        \Database\Seeders\ExpensePermissionSeeder::class        => 'Permisos de gastos',
-        \Database\Seeders\ExpenseCodePermissionSeeder::class    => 'Permisos de códigos de gasto',
-        \Database\Seeders\PrecontractualPermissionSeeder::class => 'Permisos precontractuales',
-        \Database\Seeders\ContractualPermissionSeeder::class    => 'Permisos contractuales',
-        \Database\Seeders\PostcontractualPermissionSeeder::class => 'Permisos postcontractuales',
-        \Database\Seeders\BankPermissionSeeder::class           => 'Permisos de bancos',
-        \Database\Seeders\ReportPermissionSeeder::class         => 'Permisos de reportes',
-        \Database\Seeders\NewsPermissionSeeder::class           => 'Permisos de noticias',
-        \Database\Seeders\RetentionConfigPermissionSeeder::class => 'Permisos de retenciones',
+        \Database\Seeders\DepartmentSeeder::class                          => 'Departamentos',
+        \Database\Seeders\MunicipalitySeeder::class                        => 'Municipios',
+        \Database\Seeders\ModulePermissionSeeder::class                    => 'Módulos y permisos base',
+        \Database\Seeders\BudgetPermissionSeeder::class                    => 'Permisos de presupuesto',
+        \Database\Seeders\BudgetItemPermissionSeeder::class                => 'Permisos de rubros',
+        \Database\Seeders\BudgetTransferPermissionSeeder::class            => 'Permisos de traslados',
+        \Database\Seeders\BudgetModificationPermissionSeeder::class        => 'Permisos de modificaciones',
+        \Database\Seeders\FundingSourcePermissionSeeder::class             => 'Permisos de fuentes de financiación',
+        \Database\Seeders\IncomePermissionSeeder::class                    => 'Permisos de ingresos',
+        \Database\Seeders\ExpensePermissionSeeder::class                   => 'Permisos de gastos',
+        \Database\Seeders\ExpenseCodePermissionSeeder::class               => 'Permisos de códigos de gasto',
+        \Database\Seeders\PrecontractualPermissionSeeder::class            => 'Permisos precontractuales',
+        \Database\Seeders\ContractualPermissionSeeder::class               => 'Permisos contractuales',
+        \Database\Seeders\PostcontractualPermissionSeeder::class           => 'Permisos postcontractuales',
+        \Database\Seeders\BankPermissionSeeder::class                      => 'Permisos de bancos',
+        \Database\Seeders\ReportPermissionSeeder::class                    => 'Permisos de reportes',
+        \Database\Seeders\NewsPermissionSeeder::class                      => 'Permisos de noticias',
+        \Database\Seeders\RetentionConfigPermissionSeeder::class           => 'Permisos de retenciones',
         \Database\Seeders\InventoryAccountingAccountPermissionSeeder::class => 'Permisos cuentas inventario',
-        \Database\Seeders\InventoryItemPermissionSeeder::class   => 'Permisos ítems inventario',
-        \Database\Seeders\InventoryEntryPermissionSeeder::class  => 'Permisos entradas inventario',
-        \Database\Seeders\InventoryDischargePermissionSeeder::class => 'Permisos bajas inventario',
-        \Database\Seeders\AccountingAccountSeeder::class         => 'Cuentas contables',
-        \Database\Seeders\ExpenseAccountingAccountSeeder::class  => 'Cuentas contables de gastos',
-        \Database\Seeders\RubrosFuentesSeeder::class             => 'Rubros y fuentes de financiación',
-        \Database\Seeders\RefreshExpenseCodesSeeder::class       => 'Códigos de gasto',
-        \Database\Seeders\InventoryAccountingAccountSeeder::class => 'Cuentas contables de inventario',
-        \Database\Seeders\RetentionConfigSeeder::class           => 'Configuración de retenciones',
+        \Database\Seeders\InventoryItemPermissionSeeder::class             => 'Permisos ítems inventario',
+        \Database\Seeders\InventoryEntryPermissionSeeder::class            => 'Permisos entradas inventario',
+        \Database\Seeders\InventoryDischargePermissionSeeder::class        => 'Permisos bajas inventario',
+        \Database\Seeders\AccountingAccountSeeder::class                   => 'Cuentas contables',
+        \Database\Seeders\ExpenseAccountingAccountSeeder::class            => 'Cuentas contables de gastos',
+        \Database\Seeders\RubrosFuentesSeeder::class                       => 'Rubros y fuentes de financiación',
+        \Database\Seeders\RefreshExpenseCodesSeeder::class                 => 'Códigos de gasto',
+        \Database\Seeders\InventoryAccountingAccountSeeder::class          => 'Cuentas contables de inventario',
+        \Database\Seeders\RetentionConfigSeeder::class                     => 'Configuración de retenciones',
     ];
 
     public function runSeeders(): void
@@ -189,7 +244,6 @@ class InstallationWizard extends Component
 
         foreach ($this->globalSeeders as $class => $label) {
             try {
-                // Use firstOrCreate-safe approach: just call seeder directly
                 app($class)->run();
                 $this->seederResults[] = ['label' => $label, 'status' => 'ok', 'error' => null];
             } catch (\Exception $e) {
@@ -197,7 +251,6 @@ class InstallationWizard extends Component
             }
         }
 
-        // Check if any failed
         $failed = array_filter($this->seederResults, fn($r) => $r['status'] === 'error');
 
         if (empty($failed)) {
@@ -206,6 +259,8 @@ class InstallationWizard extends Component
         } else {
             $this->dispatch('notify', message: count($failed) . ' seeder(s) fallaron. Revisa los detalles.', type: 'error');
         }
+
+        $this->saveState();
     }
 
     public function goToAdmin(): void
@@ -215,6 +270,7 @@ class InstallationWizard extends Component
             return;
         }
         $this->currentStep = 4;
+        $this->saveState();
     }
 
     // ─── Step 4 ────────────────────────────────────────────────────────────────
@@ -228,13 +284,13 @@ class InstallationWizard extends Component
             'admin_password'              => 'required|string|min:8|confirmed',
             'admin_password_confirmation' => 'required|string',
         ], [
-            'admin_name.required'     => 'El nombre es requerido.',
-            'admin_surname.required'  => 'El apellido es requerido.',
-            'admin_email.required'    => 'El correo es requerido.',
-            'admin_email.email'       => 'Ingresa un correo válido.',
-            'admin_email.unique'      => 'Este correo ya está registrado.',
-            'admin_password.required' => 'La contraseña es requerida.',
-            'admin_password.min'      => 'La contraseña debe tener al menos 8 caracteres.',
+            'admin_name.required'      => 'El nombre es requerido.',
+            'admin_surname.required'   => 'El apellido es requerido.',
+            'admin_email.required'     => 'El correo es requerido.',
+            'admin_email.email'        => 'Ingresa un correo válido.',
+            'admin_email.unique'       => 'Este correo ya está registrado.',
+            'admin_password.required'  => 'La contraseña es requerida.',
+            'admin_password.min'       => 'La contraseña debe tener al menos 8 caracteres.',
             'admin_password.confirmed' => 'Las contraseñas no coinciden.',
         ]);
 
@@ -250,14 +306,41 @@ class InstallationWizard extends Component
 
         $admin->assignRole($adminRole);
 
-        // Mark as installed
         $this->markAsInstalled();
 
+        // Clean up the temporary state file
+        if (File::exists($this->stateFile)) {
+            File::delete($this->stateFile);
+        }
+
         $this->adminCreated = true;
-        $this->currentStep = 5;
+        $this->currentStep  = 5;
     }
 
     // ─── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Apply DB config to the current running process so Artisan::call works
+     * without needing a new request.
+     */
+    protected function applyDbConfig(): void
+    {
+        $host     = env('DB_HOST', $this->db_host);
+        $port     = env('DB_PORT', $this->db_port);
+        $database = env('DB_DATABASE', $this->db_database);
+        $username = env('DB_USERNAME', $this->db_username);
+        $password = env('DB_PASSWORD', $this->db_password);
+
+        Config::set('database.connections.mysql.host',     $host);
+        Config::set('database.connections.mysql.port',     $port);
+        Config::set('database.connections.mysql.database', $database);
+        Config::set('database.connections.mysql.username', $username);
+        Config::set('database.connections.mysql.password', $password);
+
+        // Force reconnection with new credentials
+        DB::purge('mysql');
+        DB::reconnect('mysql');
+    }
 
     protected function writeEnvValues(array $values): void
     {
@@ -265,8 +348,10 @@ class InstallationWizard extends Component
         $content = File::get($envPath);
 
         foreach ($values as $key => $value) {
-            // If value contains spaces or special chars, wrap in quotes
-            $escapedValue = preg_match('/\s/', $value) ? '"' . $value . '"' : $value;
+            // Wrap in quotes if value has spaces or special chars
+            $escapedValue = (preg_match('/[\s#"\'\\\\]/', $value) || $value === '')
+                ? '"' . addslashes($value) . '"'
+                : $value;
 
             if (preg_match("/^{$key}=.*/m", $content)) {
                 $content = preg_replace("/^{$key}=.*/m", "{$key}={$escapedValue}", $content);
@@ -276,16 +361,12 @@ class InstallationWizard extends Component
         }
 
         File::put($envPath, $content);
-
-        // Clear config cache so new values take effect immediately
-        Artisan::call('config:clear');
     }
 
     protected function markAsInstalled(): void
     {
-        $lockFile = storage_path('app/installed.lock');
-        File::put($lockFile, now()->toIso8601String());
-
+        File::ensureDirectoryExists(storage_path('app'));
+        File::put(storage_path('app/installed.lock'), now()->toIso8601String());
         $this->writeEnvValues(['APP_INSTALLED' => 'true']);
     }
 
@@ -294,3 +375,4 @@ class InstallationWizard extends Component
         return view('livewire.installation.wizard');
     }
 }
+

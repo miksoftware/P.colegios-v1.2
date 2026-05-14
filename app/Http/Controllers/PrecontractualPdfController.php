@@ -491,12 +491,17 @@ class PrecontractualPdfController extends Controller
         }
 
         // Construir fila para este CDP individual
+        // El valor del CDP debe mostrar el saldo disponible al momento de creación,
+        // no el monto reservado (amount).
         $sources = [];
+        $grandTotal = 0;
         foreach ($cdp->fundingSources as $cdpFs) {
+            $availableAtCreation = (float) $cdpFs->available_balance_at_creation;
             $sources[] = [
                 'name' => $cdpFs->fundingSource?->name ?? '',
-                'amount' => (float) $cdpFs->amount,
+                'amount' => $availableAtCreation,
             ];
+            $grandTotal += $availableAtCreation;
         }
 
         $cdpRows = [[
@@ -504,7 +509,7 @@ class PrecontractualPdfController extends Controller
             'budget_item_code' => $expenseCode ?: ($cdp->budgetItem?->code ?? ''),
             'budget_item_name' => $expenseName ?: ($cdp->budgetItem?->name ?? ''),
             'sources' => $sources,
-            'total_amount' => (float) $cdp->total_amount,
+            'total_amount' => $grandTotal,
         ]];
 
         $pdf = Pdf::loadView('pdf.certificado-disponibilidad', [
@@ -512,7 +517,7 @@ class PrecontractualPdfController extends Controller
             'school' => $school,
             'cdpRows' => $cdpRows,
             'cdpNumber' => $cdp->formatted_number,
-            'grandTotal' => (float) $cdp->total_amount,
+            'grandTotal' => $grandTotal,
             'isAddition' => $isAddition,
             'additionJustification' => $additionJustification,
             'otrosiDate' => $otrosiDate,

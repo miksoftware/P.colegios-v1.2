@@ -231,15 +231,15 @@
 
                     <!-- Cuenta Contable -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Cuenta Contable Auxiliar *</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cuenta Contable *</label>
                         <x-searchable-select
                             wire:model="accounting_account_id"
                             :options="$auxiliaryAccounts"
-                            placeholder="Seleccione una cuenta auxiliar..."
+                            placeholder="Seleccione una cuenta contable..."
                             searchPlaceholder="Buscar por código o nombre..."
                         />
                         @error('accounting_account_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
-                        <p class="text-xs text-gray-500 mt-1">Solo se muestran cuentas auxiliares (nivel 5) activas</p>
+                        <p class="text-xs text-gray-500 mt-1">Se muestran todas las cuentas activas con permiso de movimientos</p>
                     </div>
 
                     <!-- Descripción -->

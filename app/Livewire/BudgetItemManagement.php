@@ -96,9 +96,8 @@ class BudgetItemManagement extends Component
 
     public function loadAuxiliaryAccounts()
     {
-        // Solo cuentas auxiliares (nivel 5) que permiten movimiento
-        $this->auxiliaryAccounts = AccountingAccount::where('level', 5)
-            ->where('allows_movement', true)
+        // Todas las cuentas que permiten movimiento
+        $this->auxiliaryAccounts = AccountingAccount::where('allows_movement', true)
             ->where('is_active', true)
             ->orderBy('code')
             ->get()
@@ -168,10 +167,10 @@ class BudgetItemManagement extends Component
 
         $this->validate();
 
-        // Verificar que la cuenta sea auxiliar
+        // Verificar que la cuenta exista y permita movimientos
         $account = AccountingAccount::find($this->accounting_account_id);
-        if (!$account || $account->level !== 5) {
-            $this->addError('accounting_account_id', 'Solo puede vincular rubros a cuentas auxiliares (nivel 5).');
+        if (!$account || !$account->allows_movement) {
+            $this->addError('accounting_account_id', 'La cuenta seleccionada no permite movimientos.');
             return;
         }
 

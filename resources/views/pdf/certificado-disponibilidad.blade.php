@@ -107,7 +107,7 @@
                             <td>
                                 {{ collect($row['sources'])->pluck('name')->implode(' Y ') }}
                             </td>
-                            <td class="text-right bold">${{ number_format($row['total_amount'], 0, ',', '.') }}</td>
+                            <td class="text-right bold">${{ number_format($row['total_amount'], 2, ',', '.') }}</td>
                         </tr>
                     @endforeach
                 </tbody>

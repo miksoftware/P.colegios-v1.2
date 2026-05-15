@@ -143,9 +143,16 @@ class PostcontractualPdfController extends Controller
         if ($po->payment_type === 'contract' && $po->contract) {
             $allSources = [];
 
-            // Banco/cuenta: tomar de la primera fuente del primer RP activo
-            foreach ($po->contract->rps->where('status', 'active') as $rp) {
-                foreach ($rp->fundingSources as $rpFs) {
+            // Usar el RP específico vinculado a esta orden de pago (contract_rp_id).
+            // Antes se usaba siempre el primer RP activo del contrato, lo que causaba
+            // que se mostrara la cuenta bancaria y el número de RP incorrectos cuando
+            // el pago correspondía a un RP posterior (ej. RP #0003 mostraba datos del #0002).
+            $targetRp = $po->contractRp
+                ?? $po->contract->rps->where('status', 'active')->first();
+
+            // Banco/cuenta: tomar del RP específico de esta orden de pago
+            if ($targetRp) {
+                foreach ($targetRp->fundingSources as $rpFs) {
                     $fsName = $rpFs->fundingSource?->name ?? '';
                     if ($fsName) { $allSources[] = $fsName; }
                     if (!$bankName && $rpFs->bank) {
@@ -159,12 +166,10 @@ class PostcontractualPdfController extends Controller
             // Una fila por cada línea de gasto del pago (valor BRUTO por rubro, tal cual se registró).
             // Si no hay expenseLines, caer al RP como antes.
             if ($po->expenseLines->isNotEmpty()) {
-                // Encontrar el RP principal del contrato para referenciar el número
-                $mainRp = $po->contract->rps->where('status', 'active')->first();
                 foreach ($po->expenseLines as $line) {
                     $ec = $line->expenseCode;
                     $rpData[] = [
-                        'rp_number'    => $mainRp?->formatted_number ?? '',
+                        'rp_number'    => $targetRp?->formatted_number ?? '',
                         'expense_code' => $ec?->code ?? '',
                         'expense_name' => $ec?->name ?? '',
                         'total_amount' => (float) $line->total,

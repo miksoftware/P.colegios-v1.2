@@ -1214,10 +1214,13 @@ class PostcontractualManagement extends Component
             'retencion_ica'             => 'retencion_ica',
         ];
 
-        foreach ($localConcepts as $field => $conceptKey) {
-            $cfg = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $conceptKey);
-            if ($cfg && $subtotal >= (float) $cfg->min_base && (float) $cfg->rate > 0) {
-                $line[$field] = $this->roundRetention($subtotal * ((float) $cfg->rate / 100));
+        // Para pagos directos las estampillas no aplican.
+        if ($this->paymentType !== 'direct') {
+            foreach ($localConcepts as $field => $conceptKey) {
+                $cfg = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $conceptKey);
+                if ($cfg && $subtotal >= (float) $cfg->min_base && (float) $cfg->rate > 0) {
+                    $line[$field] = $this->roundRetention($subtotal * ((float) $cfg->rate / 100));
+                }
             }
         }
 
@@ -1397,7 +1400,8 @@ class PostcontractualManagement extends Component
             if ($this->applyEstampillaProcultura && $estProculturaCfg && $subtotal >= (float) $estProculturaCfg->min_base && (float) $estProculturaCfg->rate > 0) {
                 $this->estampillaProcultura = $this->roundRetention($subtotal * ((float) $estProculturaCfg->rate / 100));
             }
-        } else {
+        } elseif ($this->paymentType === 'contract') {
+            // Para pagos directos las estampillas no aplican; se quedan en 0.
             if ($estProdultoCfg && $subtotal >= (float) $estProdultoCfg->min_base && (float) $estProdultoCfg->rate > 0) {
                 $this->estampillaProdultoMayor = $this->roundRetention($subtotal * ((float) $estProdultoCfg->rate / 100));
             }

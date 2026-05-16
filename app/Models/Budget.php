@@ -15,6 +15,7 @@ class Budget extends Model
         'school_id',
         'budget_item_id',
         'funding_source_id',
+        'accounting_account_id',
         'type',
         'initial_amount',
         'current_amount',
@@ -62,6 +63,24 @@ class Budget extends Model
     public function fundingSource(): BelongsTo
     {
         return $this->belongsTo(FundingSource::class);
+    }
+
+    /**
+     * Cuenta contable específica para este presupuesto (sobreescribe la del rubro).
+     * Útil cuando distintos colegios usan cuentas diferentes para el mismo rubro.
+     */
+    public function accountingAccount(): BelongsTo
+    {
+        return $this->belongsTo(AccountingAccount::class);
+    }
+
+    /**
+     * Devuelve la cuenta contable efectiva: la del presupuesto si existe,
+     * o la del rubro como fallback.
+     */
+    public function getEffectiveAccountingAccountAttribute(): ?AccountingAccount
+    {
+        return $this->accountingAccount ?? $this->budgetItem?->accountingAccount;
     }
 
     public function modifications(): HasMany

@@ -117,11 +117,17 @@
                         </div>
                         <div class="text-left">
                             <h3 class="font-bold text-gray-900">{{ $group['budget_item']->code }} - {{ $group['budget_item']->name }}</h3>
-                            <div class="flex items-center gap-2 mt-1">
+                            <div class="flex items-center gap-2 mt-1 flex-wrap">
                                 <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
                                     {{ $group['funding_source']->code }} - {{ $group['funding_source']->name }}
                                 </span>
                                 <span class="text-xs text-gray-500">• Vigencia {{ $group['fiscal_year'] }}</span>
+                                @if($group['income']?->accounting_account_id)
+                                <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700" title="Cuenta contable específica de este colegio">
+                                    <svg class="w-3 h-3 inline -mt-0.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                    {{ $group['income']->accountingAccount?->code }}
+                                </span>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -473,6 +479,21 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
                         <textarea wire:model="description" rows="2" class="w-full rounded-xl border-gray-300" placeholder="Descripción opcional..."></textarea>
+                    </div>
+
+                    {{-- Cuenta contable override --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Cuenta contable
+                            <span class="text-gray-400 font-normal">(opcional — sobreescribe la cuenta del rubro)</span>
+                        </label>
+                        <select wire:model="accounting_account_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">— Usar la cuenta del rubro —</option>
+                            @foreach($accountingAccounts as $account)
+                                <option value="{{ $account['id'] }}">{{ $account['name'] }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">Úsalo cuando el colegio debe registrar este rubro con una cuenta diferente a la predeterminada (ej.: gratuidad 442805 vs 470508).</p>
                     </div>
 
                     {{-- Nota informativa --}}

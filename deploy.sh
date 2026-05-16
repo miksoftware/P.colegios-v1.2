@@ -1,6 +1,5 @@
 #!/bin/bash
-# El deployer puede pasar el nombre via COMPOSE_PROJECT_NAME o PROJECT_NAME env vars
-PROJECT_NAME="${COMPOSE_PROJECT_NAME:-${PROJECT_NAME:-colegios}}"
+PROJECT_NAME="colegios"
 
 # ============================================
 # Script de Deploy Automático para Laravel
@@ -14,8 +13,7 @@ NC='\033[0m'
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_DIR="$SCRIPT_DIR"
-# El repo está directamente en SCRIPT_DIR (no en un subdirectorio src/)
-SRC_DIR="$PROJECT_DIR"
+SRC_DIR="$PROJECT_DIR/src"
 
 echo -e "${BLUE}=========================================="
 echo "  🚀 Deploy Laravel: $PROJECT_NAME"
@@ -24,7 +22,7 @@ echo ""
 
 cd "$SRC_DIR"
 
-echo -e "${YELLOW}[1/8] ⬇️  Descargando cambios desde Git...${NC}"
+echo -e "${YELLOW}[1/7] ⬇️  Descargando cambios desde Git...${NC}"
 git stash --quiet 2>/dev/null || true
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -39,85 +37,40 @@ LAST_COMMIT=$(git log -1 --pretty=format:'%h - %s (%ar) por %an')
 echo -e "${BLUE}    📝 Último commit: $LAST_COMMIT${NC}"
 
 echo ""
-echo -e "${YELLOW}[2/8] 📦 Composer install...${NC}"
+echo -e "${YELLOW}[2/7] 📦 Composer install...${NC}"
 docker exec -w /var/www/html ${PROJECT_NAME}_php composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | tail -5
 echo -e "${GREEN}✓ Dependencias actualizadas${NC}"
 
 echo ""
-echo -e "${YELLOW}[3/8] 🗄️  Migraciones...${NC}"
+echo -e "${YELLOW}[3/7] 🗄️  Migraciones...${NC}"
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan migrate --force 2>&1
 echo -e "${GREEN}✓ Migraciones ejecutadas${NC}"
 
 echo ""
-echo -e "${YELLOW}[4/8] 🌱 Seeders de producción...${NC}"
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed-once --force 2>&1
-echo -e "${GREEN}✓ Datos base sincronizados${NC}"
-
-echo ""
-echo -e "${YELLOW}[4.5/8] 🔐 Sincronizando permisos...${NC}"
-# Resetear todos los seeders de permisos para que se re-ejecuten (son idempotentes con updateOrCreate)
-PERMISSION_SEEDERS=(
-    "ModulePermissionSeeder"
-    "BudgetPermissionSeeder"
-    "BudgetItemPermissionSeeder"
-    "BudgetTransferPermissionSeeder"
-    "BudgetModificationPermissionSeeder"
-    "FundingSourcePermissionSeeder"
-    "IncomePermissionSeeder"
-    "ExpensePermissionSeeder"
-    "ExpenseCodePermissionSeeder"
-    "PrecontractualPermissionSeeder"
-    "ContractualPermissionSeeder"
-    "PostcontractualPermissionSeeder"
-    "BankPermissionSeeder"
-    "ReportPermissionSeeder"
-    "NewsPermissionSeeder"
-    "RetentionConfigPermissionSeeder"
-    "InventoryAccountingAccountPermissionSeeder"
-    "InventoryItemPermissionSeeder"
-    "InventoryEntryPermissionSeeder"
-    "InventoryDischargePermissionSeeder"
-    "InventoryAccountingAccountSeeder"
-)
-for SEEDER in "${PERMISSION_SEEDERS[@]}"; do
-    docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed-once --reset="$SEEDER" 2>&1 | grep -v "^$"
-done
-echo -e "${BLUE}    Ejecutando seeders de permisos...${NC}"
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan db:seed-once --force 2>&1
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan permission:cache-reset 2>&1
-echo -e "${GREEN}✓ Permisos sincronizados${NC}"
-
-echo ""
-echo -e "${YELLOW}[5/8] 📦 Verificando assets...${NC}"
-if docker exec -w /var/www/html ${PROJECT_NAME}_php test -f public/build/manifest.json; then
-    echo -e "${GREEN}✓ Assets encontrados en el repositorio${NC}"
+echo -e "${YELLOW}[4/7] 📦 Compilando assets...${NC}"
+if [ -f "$SRC_DIR/package.json" ]; then
+    docker exec -w /var/www/html ${PROJECT_NAME}_php npm install 2>&1 | tail -3
+    docker exec -w /var/www/html ${PROJECT_NAME}_php npm run build 2>&1 | tail -5
+    echo -e "${GREEN}✓ Assets compilados${NC}"
 else
-    echo -e "${RED}✗ ADVERTENCIA: No se encontró public/build/manifest.json${NC}"
-    echo -e "${RED}  Ejecuta 'npm run build' localmente y haz push antes de deploy${NC}"
+    echo -e "${BLUE}⏭️  Sin package.json, saltando${NC}"
 fi
 
 echo ""
-echo -e "${YELLOW}[6/8] 🔐 Ajustando permisos...${NC}"
-docker exec ${PROJECT_NAME}_php mkdir -p /var/www/html/storage/app/livewire-tmp
+echo -e "${YELLOW}[5/7] 🔐 Ajustando permisos...${NC}"
 docker exec ${PROJECT_NAME}_php chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 docker exec ${PROJECT_NAME}_php chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 docker exec ${PROJECT_NAME}_php chmod 666 /var/www/html/.env 2>/dev/null || true
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan storage:link --force 2>/dev/null || true
 echo -e "${GREEN}✓ Permisos ajustados${NC}"
 
 echo ""
-echo -e "${YELLOW}[6.5/8] 📦 Publicando assets (Livewire, etc.)...${NC}"
+echo -e "${YELLOW}[5.5/7] 📦 Publicando assets (Livewire, etc.)...${NC}"
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan vendor:publish --force --tag=livewire:assets 2>/dev/null || true
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan livewire:publish --assets 2>/dev/null || true
 echo -e "${GREEN}✓ Assets publicados${NC}"
 
 echo ""
-echo -e "${YELLOW}[7/8] ⚡ Limpiando y recacheando...${NC}"
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan cache:clear 2>/dev/null || true
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan view:clear 2>/dev/null || true
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan route:clear 2>/dev/null || true
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan config:clear 2>/dev/null || true
-docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan event:clear 2>/dev/null || true
+echo -e "${YELLOW}[6/7] ⚡ Limpiando y recacheando...${NC}"
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan config:cache
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan route:cache
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan view:cache
@@ -125,7 +78,7 @@ docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan event:cache 2>/dev/
 echo -e "${GREEN}✓ Cache reconstruida${NC}"
 
 echo ""
-echo -e "${YELLOW}[8/8] 🔄 Reiniciando servicios...${NC}"
+echo -e "${YELLOW}[7/7] 🔄 Reiniciando servicios...${NC}"
 cd "$PROJECT_DIR"
 docker compose restart php nginx
 sleep 3

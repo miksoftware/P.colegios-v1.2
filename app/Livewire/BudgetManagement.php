@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\AccountingAccount;
 use App\Models\Budget;
 use App\Models\BudgetItem;
 use App\Models\BudgetModification;
@@ -34,6 +35,9 @@ class BudgetManagement extends Component
     public $useMultipleSources = false;
     public $selectedFundingSourceId = '';
     public $fundingSourceAmounts = [];
+    public $accounting_account_id = '';
+
+    public $accountingAccounts = [];
 
     public $showModificationModal = false;
     public $modificationBudget = null;
@@ -114,6 +118,7 @@ class BudgetManagement extends Component
         $this->filterYear = $currentValidity;
         $this->loadBudgetItems();
         $this->loadAllFundingSources();
+        $this->loadAccountingAccounts();
     }
 
     public function loadBudgetItems()
@@ -131,6 +136,15 @@ class BudgetManagement extends Component
             ->orderBy('code')
             ->get()
             ->map(fn($s) => ['id' => $s->id, 'name' => "{$s->code} - {$s->name}"])
+            ->toArray();
+    }
+
+    public function loadAccountingAccounts()
+    {
+        $this->accountingAccounts = AccountingAccount::where('allows_movement', true)
+            ->orderBy('code')
+            ->get()
+            ->map(fn($a) => ['id' => $a->id, 'name' => "{$a->code} - {$a->name}"])
             ->toArray();
     }
 
@@ -198,7 +212,7 @@ class BudgetManagement extends Component
         }
 
         $query = Budget::where('school_id', $this->schoolId)
-            ->with(['budgetItem', 'fundingSource', 'modifications']);
+            ->with(['budgetItem', 'fundingSource', 'accountingAccount', 'modifications']);
         
         if ($this->search) {
             $query->search($this->search);
@@ -307,6 +321,7 @@ class BudgetManagement extends Component
         $this->fiscal_year = $budget->fiscal_year;
         $this->description = $budget->description;
         $this->is_active = $budget->is_active;
+        $this->accounting_account_id = $budget->accounting_account_id ?? '';
         $this->useMultipleSources = false;
         $this->isEditing = true;
         $this->showModal = true;
@@ -398,6 +413,7 @@ class BudgetManagement extends Component
                     'school_id' => $this->schoolId,
                     'budget_item_id' => $this->budget_item_id,
                     'funding_source_id' => $sourceData['funding_source_id'],
+                    'accounting_account_id' => $this->accounting_account_id ?: null,
                     'type' => 'income',
                     'initial_amount' => $sourceData['amount'],
                     'current_amount' => $sourceData['amount'],
@@ -410,6 +426,7 @@ class BudgetManagement extends Component
                     'school_id' => $this->schoolId,
                     'budget_item_id' => $this->budget_item_id,
                     'funding_source_id' => $sourceData['funding_source_id'],
+                    'accounting_account_id' => $this->accounting_account_id ?: null,
                     'type' => 'expense',
                     'initial_amount' => $sourceData['amount'],
                     'current_amount' => $sourceData['amount'],
@@ -436,6 +453,7 @@ class BudgetManagement extends Component
         $data = [
             'budget_item_id' => $this->budget_item_id,
             'funding_source_id' => $this->selectedFundingSourceId,
+            'accounting_account_id' => $this->accounting_account_id ?: null,
             'initial_amount' => $this->initial_amount,
             'fiscal_year' => $this->fiscal_year,
             'description' => $this->description,
@@ -618,6 +636,7 @@ class BudgetManagement extends Component
         $this->selectedFundingSourceId = '';
         $this->fundingSourceAmounts = [];
         $this->fundingSources = [];
+        $this->accounting_account_id = '';
         $this->isEditing = false;
         $this->resetValidation();
     }

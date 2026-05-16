@@ -193,6 +193,7 @@ class PrecontractualManagement extends Component
             'cdps.convocatoriaDistribution.expenseDistribution.expenseCode',
             'proposals.supplier',
             'creator',
+            'contract',
         ])->forSchool($this->schoolId)->findOrFail($id);
 
         $this->convocatoriaId = $id;

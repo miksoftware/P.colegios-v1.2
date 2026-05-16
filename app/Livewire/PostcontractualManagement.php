@@ -1925,13 +1925,21 @@ class PostcontractualManagement extends Component
                         ->first();
 
                     if ($dist) {
+                        $lineTotal = (float) ($alloc['amount'] ?? 0);
                         PaymentOrderExpenseLine::create([
                             'payment_order_id'        => $paymentOrder->id,
                             'expense_distribution_id' => $dist->id,
                             'expense_code_id'         => $alloc['expense_code_id'],
-                            'subtotal'                => (float) ($alloc['amount'] ?? 0),
+                            'subtotal'                => $lineTotal,
                             'iva'                     => 0,
-                            'total'                   => (float) ($alloc['amount'] ?? 0),
+                            'total'                   => $lineTotal,
+                            'retefuente'              => 0,
+                            'reteiva'                 => 0,
+                            'estampilla_produlto_mayor' => 0,
+                            'estampilla_procultura'   => 0,
+                            'retencion_ica'           => 0,
+                            'total_retentions'        => 0,
+                            'net_payment'             => $lineTotal,
                         ]);
                     }
                 }

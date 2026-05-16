@@ -493,7 +493,18 @@
                                 <option value="{{ $account['id'] }}">{{ $account['name'] }}</option>
                             @endforeach
                         </select>
-                        <p class="text-xs text-gray-400 mt-1">Úsalo cuando el colegio debe registrar este rubro con una cuenta diferente a la predeterminada (ej.: gratuidad 442805 vs 470508).</p>
+                        @if(count($accountingAccounts) === 0)
+                        <p class="text-xs text-red-500 mt-1">
+                            No hay cuentas contables con permiso de movimientos. Ve a
+                            <a href="{{ route('accounting.accounts') }}" class="underline">Cuentas Contables</a>
+                            y activa el permiso de movimientos en la cuenta deseada.
+                        </p>
+                        @else
+                        <p class="text-xs text-amber-600 mt-1 font-medium">
+                            <svg class="w-3 h-3 inline -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Aquí seleccionas la cuenta específica de <strong>este colegio</strong> para este rubro (ej.: gratuidad 442805 vs 470508).
+                        </p>
+                        @endif
                     </div>
 
                     {{-- Nota informativa --}}

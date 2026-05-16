@@ -239,7 +239,13 @@
                             searchPlaceholder="Buscar por código o nombre..."
                         />
                         @error('accounting_account_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
-                        <p class="text-xs text-gray-500 mt-1">Se muestran todas las cuentas activas con permiso de movimientos</p>
+                        <p class="text-xs text-gray-500 mt-1">Esta es la cuenta predeterminada del rubro (aplica a todos los colegios).</p>
+                        <p class="text-xs text-blue-600 mt-1">
+                            <svg class="w-3 h-3 inline -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Para usar una cuenta diferente en un colegio específico, ve a
+                            <a href="{{ route('budgets.index') }}" class="underline font-medium">Presupuesto Inicial</a>,
+                            edita la línea presupuestal del colegio y cambia la cuenta ahí.
+                        </p>
                     </div>
 
                     <!-- Descripción -->

@@ -491,17 +491,16 @@ class PrecontractualPdfController extends Controller
         }
 
         // Construir fila para este CDP individual
-        // El valor del CDP debe mostrar el saldo disponible al momento de creación,
-        // no el monto reservado (amount).
+        // El valor del CDP muestra el monto certificado para este gasto específico
         $sources = [];
         $grandTotal = 0;
         foreach ($cdp->fundingSources as $cdpFs) {
-            $availableAtCreation = (float) $cdpFs->available_balance_at_creation;
+            $cdpAmount = (float) $cdpFs->amount;
             $sources[] = [
                 'name' => $cdpFs->fundingSource?->name ?? '',
-                'amount' => $availableAtCreation,
+                'amount' => $cdpAmount,
             ];
-            $grandTotal += $availableAtCreation;
+            $grandTotal += $cdpAmount;
         }
 
         $cdpRows = [[

@@ -476,16 +476,16 @@ class PostcontractualPdfController extends Controller
             $expenseName = $po->description ?? $cdp->budgetItem?->name ?? '';
         }
 
-        // CDP muestra el valor disponible al momento de creación (available_balance_at_creation)
+        // CDP muestra el monto certificado para este gasto específico
         $sources = [];
         $grandTotal = 0;
         foreach ($cdp->fundingSources as $cdpFs) {
-            $availableAtCreation = (float) $cdpFs->available_balance_at_creation;
+            $cdpAmount = (float) $cdpFs->amount;
             $sources[] = [
                 'name' => $cdpFs->fundingSource?->name ?? '',
-                'amount' => $availableAtCreation > 0 ? $availableAtCreation : (float) $cdpFs->amount,
+                'amount' => $cdpAmount,
             ];
-            $grandTotal += $availableAtCreation > 0 ? $availableAtCreation : (float) $cdpFs->amount;
+            $grandTotal += $cdpAmount;
         }
 
         $cdpRows = [[

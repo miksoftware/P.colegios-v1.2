@@ -31,7 +31,7 @@ new #[Layout('layouts.guest')] class extends Component
 
         <!-- Title -->
         <h2 class="text-2xl font-bold text-center text-gray-900 mb-1">Bienvenido</h2>
-        <p class="text-center text-gray-600 mb-6 text-sm">Ingresa a tu cuenta</p>
+        <p class="text-center text-gray-500 mb-6 text-sm">Ingresa tus credenciales para continuar</p>
 
         <!-- Session Status -->
         <x-auth-session-status class="mb-4" :status="session('status')" />

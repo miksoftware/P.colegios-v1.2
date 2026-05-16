@@ -68,6 +68,7 @@ class ContractingReport extends Component
                 'convocatoria.selectedProposal',
                 'convocatoria.proposals',
                 'rps.cdp.convocatoria',
+                'rps.cdp.fundingSources',
                 'rps.fundingSources.fundingSource',
                 'rps.fundingSources.bank',
                 'rps.fundingSources.bankAccount.bank',
@@ -285,6 +286,9 @@ class ContractingReport extends Component
                     // Los compromisos ya incluyen los pagos hechos (son la misma plata).
                     $distCommitted = $distId ? (float) ($commitmentsByDist[$distId] ?? 0) : 0;
                     $rpProxDisp    = max(0, $distAmt - $distCommitted);
+                    // Saldo disponible del presupuesto al momento de crear el CDP
+                    $cdpFsRecord  = $rp->cdp?->fundingSources?->firstWhere('funding_source_id', $rpFs->funding_source_id);
+                    $cdpAvailable = (float) ($cdpFsRecord?->available_balance_at_creation ?? $distAmt);
 
                     $fsCode = $fs?->code ?? '';
                     $fsName = $fs?->name ?? '';
@@ -308,8 +312,8 @@ class ContractingReport extends Component
                                               ?? '',
                             'cdp_number'   => $rpCdpNumber,
                             'cdp_date'     => $rpCdpDate,
-                            // Disponibilidad = monto del rubro (expense_distribution.amount)
-                            'cdp_amount'   => $distAmt,
+                            // Disponibilidad = saldo del presupuesto al momento de creación del CDP
+                            'cdp_amount'   => $cdpAvailable,
                             // Prox. Disp. = disponibilidad - pagos al rubro
                             'prox_disp'    => $rpProxDisp,
                             'rubro_code'   => $rubroCode,
@@ -363,6 +367,8 @@ class ContractingReport extends Component
 
                         $distCommitted = $distId ? (float) ($commitmentsByDist[$distId] ?? 0) : 0;
                         $cdpProxDisp   = $distAmt > 0 ? max(0, $distAmt - $distCommitted) : 0;
+                        // Saldo disponible del presupuesto al momento de crear el CDP
+                        $cdpFsAvail    = (float) ($cdpFs->available_balance_at_creation ?? ($distAmt > 0 ? $distAmt : (float) $cdp->total_amount));
 
                         if (!isset($rubroFuenteRows[$key])) {
                             $rubroFuenteRows[$key] = [
@@ -371,8 +377,8 @@ class ContractingReport extends Component
                                 'rp_date'      => '',
                                 'cdp_number'   => $cdp->cdp_number,
                                 'cdp_date'     => $cdpDateFiscal,
-                                // Disponibilidad = monto del rubro si tenemos distribución exacta
-                                'cdp_amount'   => $distAmt > 0 ? $distAmt : (float) $cdp->total_amount,
+                                // Disponibilidad = saldo disponible al crear el CDP
+                                'cdp_amount'   => $cdpFsAvail,
                                 'prox_disp'    => $distAmt > 0 ? $cdpProxDisp : (float) $cdp->total_amount,
                                 'rubro_code'   => $rubroCode,
                                 'rubro_name'   => $rubroName,
@@ -582,6 +588,7 @@ class ContractingReport extends Component
                 'cdp.fundingSources.fundingSource',
                 'cdp.convocatoria',
                 'contractRp.cdp.convocatoria',
+                'contractRp.cdp.fundingSources',
                 'contractRp.fundingSources.fundingSource',
                 'contractRp.fundingSources.bank',
                 'contractRp.fundingSources.bankAccount.bank',
@@ -724,11 +731,13 @@ class ContractingReport extends Component
                     $rpBankName = $rpBank?->name ?? $rpBankNameDefault;
                     $rpBankAcct = $matchedRpFs?->bankAccount?->account_number ?? $rpBankAcctDefault;
 
-                    // Disponibilidad del rubro = expense_distribution.amount
+                    // Disponibilidad del rubro = saldo del CDP al momento de creación
                     // Prox. Disp. = amount del rubro - compromisos reales contra ese rubro
                     $distAmt       = (float) ($dist?->amount ?? 0);
                     $distCommitted = $dist?->id ? (float) ($commitmentsByDist[$dist->id] ?? 0) : 0;
                     $distProxDisp  = max(0, $distAmt - $distCommitted);
+                    $cdpFsRecord   = $cdp?->fundingSources?->firstWhere('funding_source_id', $fs?->id);
+                    $cdpAvailLine  = (float) ($cdpFsRecord?->available_balance_at_creation ?? $distAmt);
 
                     $directRows[] = [
                         'rubro_code'   => $ec?->code ?? $bi?->code ?? '',
@@ -741,7 +750,7 @@ class ContractingReport extends Component
                         'fs_name'      => $fs?->name ?? '',
                         'bank_name'    => $rpBankName,
                         'bank_account' => $rpBankAcct,
-                        'disponibilidad' => $distAmt,
+                        'disponibilidad' => $cdpAvailLine,
                         'prox_disp'    => $distProxDisp,
                         'amount'       => (float) $line->total,
                         'subtotal'     => (float) $line->subtotal,
@@ -762,10 +771,12 @@ class ContractingReport extends Component
                     $rpBankName = $rpBank?->name ?? '';
                     $rpBankAcct = $rpFs->bankAccount?->account_number ?? '';
 
-                    // Disponibilidad del rubro = amount de la distribución (si existe)
+                    // Disponibilidad del rubro = saldo del CDP al momento de creación
                     $distAmt       = (float) ($dist?->amount ?? 0);
                     $distCommitted = $dist?->id ? (float) ($commitmentsByDist[$dist->id] ?? 0) : 0;
                     $distProxDisp  = $distAmt > 0 ? max(0, $distAmt - $distCommitted) : 0;
+                    $cdpFsRecord   = $cdp?->fundingSources?->firstWhere('funding_source_id', $rpFs->funding_source_id);
+                    $cdpAvailFs    = (float) ($cdpFsRecord?->available_balance_at_creation ?? $distAmt);
 
                     $directRows[] = [
                         'rubro_code'   => $ec?->code ?? $bi?->code ?? '',
@@ -778,7 +789,7 @@ class ContractingReport extends Component
                         'fs_name'      => $fs?->name ?? '',
                         'bank_name'    => $rpBankName,
                         'bank_account' => $rpBankAcct,
-                        'disponibilidad' => $distAmt,
+                        'disponibilidad' => $cdpAvailFs,
                         'prox_disp'    => $distProxDisp,
                         'amount'       => (float) $rpFs->amount,
                         'subtotal'     => 0,

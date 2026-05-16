@@ -43,7 +43,7 @@
                     {{-- Logo --}}
                     <div class="flex justify-center mb-7">
                         <div class="w-40 h-40 rounded-full bg-white/15 backdrop-blur-sm p-3 shadow-2xl border-2 border-white/30 ring-4 ring-white/10">
-                            <img src="{{ asset('images/spc-logo.png') }}" alt="Sistemas y Proyectos Contables S.A.S" class="w-full h-full object-contain drop-shadow-lg">
+                            <img src="{{ asset('images/spc-logo.jpeg') }}" alt="Sistemas y Proyectos Contables S.A.S" class="w-full h-full object-contain drop-shadow-lg">
                         </div>
                     </div>
 
@@ -105,7 +105,7 @@
                 {{-- Branding móvil (solo en pantallas pequeñas) --}}
                 <div class="lg:hidden flex flex-col items-center mb-8">
                     <div class="w-20 h-20 rounded-full bg-blue-600/10 border-2 border-blue-100 p-2 mb-3 shadow-md">
-                        <img src="{{ asset('images/spc-logo.png') }}" alt="SPC Logo" class="w-full h-full object-contain">
+                        <img src="{{ asset('images/spc-logo.jpeg') }}" alt="SPC Logo" class="w-full h-full object-contain">
                     </div>
                     <h2 class="text-lg font-bold text-gray-800 text-center leading-snug">Sistemas y Proyectos Contables S.A.S</h2>
                     <p class="text-xs text-gray-500 mt-1 text-center">317 441 8493 &bull; hildacontadora@sypsas.com</p>

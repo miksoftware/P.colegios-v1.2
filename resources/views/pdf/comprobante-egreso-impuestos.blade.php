@@ -101,22 +101,21 @@
             <td class="debit-col"></td>
             <td class="credit-col"></td>
         </tr>
-        @if($po->bankLines->count() <= 1)
+        @foreach($po->bankLines as $bl)
+        <tr>
+            <td class="code-col">111005</td>
+            <td class="name-col child">CUENTA CORRIENTE – {{ $bl->bankAccount?->bank?->name ?? 'BANCARIA' }}{{ $bl->bankAccount?->account_number ? ' – ' . $bl->bankAccount->account_number : '' }}</td>
+            <td class="debit-col"></td>
+            <td class="credit-col">${{ number_format((float)$bl->amount, 2, ',', '.') }}</td>
+        </tr>
+        @endforeach
+        @if($po->bankLines->isEmpty())
         <tr>
             <td class="code-col">111005</td>
             <td class="name-col child">CUENTA CORRIENTE BANCARIA</td>
             <td class="debit-col"></td>
             <td class="credit-col">${{ number_format($amount, 2, ',', '.') }}</td>
         </tr>
-        @else
-            @foreach($po->bankLines as $bl)
-            <tr>
-                <td class="code-col">111005</td>
-                <td class="name-col child">CUENTA CORRIENTE – {{ $bl->bankAccount?->bank?->name ?? '' }}</td>
-                <td class="debit-col"></td>
-                <td class="credit-col">${{ number_format((float)$bl->amount, 2, ',', '.') }}</td>
-            </tr>
-            @endforeach
         @endif
 
         <tr><td colspan="4" style="padding:2px;">&nbsp;</td></tr>
@@ -183,8 +182,7 @@
     </tfoot>
 </table>
 
-{{-- SECCIÓN SIN TÍTULO (una sola vez, valor total, banco del proveedor) --}}
-@php $bl = $po->bankLines->first(); @endphp
+{{-- SECCIÓN INFERIOR: valor total, bancos --}}
 <table class="pres-table">
     <tr>
         <td class="pres-label">Registro No.:</td>
@@ -198,22 +196,41 @@
         <td class="pres-label">Concepto:</td>
         <td>{{ strtoupper($po->description ?? 'PAGO RETENCIONES ESTAMPILLAS - IMPTOS') }}</td>
     </tr>
+    @foreach($po->bankLines as $bankLine)
     <tr>
+        @if($loop->first)
         <td class="pres-label">Auxiliar Administrativo</td>
         <td></td>
+        @else
+        <td colspan="2"></td>
+        @endif
         <td class="pres-label">Banco:</td>
-        <td>{{ $bl?->bankAccount?->bank?->name ?? 'N/D' }}</td>
+        <td>{{ $bankLine->bankAccount?->bank?->name ?? 'N/D' }}</td>
     </tr>
     <tr>
         <td></td><td></td>
         <td class="pres-label">Cuenta No.:</td>
-        <td>{{ $bl?->bankAccount?->account_number ?? 'N/D' }}</td>
+        <td>{{ $bankLine->bankAccount?->account_number ?? 'N/D' }}</td>
+    </tr>
+    <tr>
+        <td></td><td></td>
+        <td class="pres-label">Monto:</td>
+        <td>${{ number_format((float)$bankLine->amount, 2, ',', '.') }}</td>
     </tr>
     <tr>
         <td></td><td></td>
         <td class="pres-label">Cheque No.:</td>
         <td>TRANSFERENCIA</td>
     </tr>
+    @endforeach
+    @if($po->bankLines->isEmpty())
+    <tr>
+        <td class="pres-label">Auxiliar Administrativo</td>
+        <td></td>
+        <td class="pres-label">Banco:</td>
+        <td>N/D</td>
+    </tr>
+    @endif
 </table>
 
 {{-- FIRMAS --}}

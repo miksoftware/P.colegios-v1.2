@@ -490,18 +490,38 @@ class PrecontractualPdfController extends Controller
             }
         }
 
-        // Construir fila para este CDP individual
-        // El valor del CDP muestra el monto certificado para este gasto específico
+        // El VALOR del CDP = disponibilidad del rubro antes de crear este CDP
+        // = expense_distribution.amount - suma de CDPs previos para el mismo rubro
+        $convDist = $cdp->convocatoriaDistribution;
+        $distAvailable = 0;
+        if ($convDist && $convDist->expenseDistribution) {
+            $expDist      = $convDist->expenseDistribution;
+            $expDistAmount = (float) $expDist->amount;
+
+            // Todos los convocatoria_distribution_ids que apuntan al mismo expense_distribution
+            $sameDistIds = \App\Models\ConvocatoriaDistribution::where('expense_distribution_id', $expDist->id)
+                ->pluck('id');
+
+            // Suma de CDPs creados ANTES de este para el mismo rubro (no cancelados)
+            $priorReserved = \App\Models\Cdp::whereIn('convocatoria_distribution_id', $sameDistIds)
+                ->where('id', '<', $cdp->id)
+                ->where('status', '!=', 'cancelled')
+                ->sum('total_amount');
+
+            $distAvailable = max(0, $expDistAmount - (float) $priorReserved);
+        } else {
+            // Fallback: sin distribución vinculada, usar el total del CDP
+            $distAvailable = (float) $cdp->total_amount;
+        }
+
         $sources = [];
-        $grandTotal = 0;
         foreach ($cdp->fundingSources as $cdpFs) {
-            $cdpAmount = (float) $cdpFs->amount;
             $sources[] = [
                 'name' => $cdpFs->fundingSource?->name ?? '',
-                'amount' => $cdpAmount,
+                'amount' => (float) $cdpFs->amount,
             ];
-            $grandTotal += $cdpAmount;
         }
+        $grandTotal = $distAvailable;
 
         $cdpRows = [[
             'cdp_number' => $cdp->formatted_number,

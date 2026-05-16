@@ -871,15 +871,14 @@ class PrecontractualManagement extends Component
             ]);
 
             foreach ($this->cdpFundingSources as $fs) {
-                $source = FundingSource::find($fs['id']);
-                $balance = $source ? $source->getAvailableBalanceForYear($this->filterYear, $this->schoolId) : 0;
-
+                // available_balance_at_creation = disponibilidad de la distribución
+                // de gasto antes de crear este CDP (no el saldo total de la fuente)
                 CdpFundingSource::create([
                     'cdp_id'                       => $cdp->id,
                     'funding_source_id'            => $fs['id'],
                     'budget_id'                    => $fs['budget_id'],
                     'amount'                       => $fs['amount'],
-                    'available_balance_at_creation' => $balance,
+                    'available_balance_at_creation' => $fs['available'],
                 ]);
             }
         });

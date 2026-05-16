@@ -121,7 +121,7 @@ class RetentionLiquidationReport extends Component
             $supplier = $po->resolved_supplier;
             $personType = $supplier?->person_type ?? 'natural';
 
-            $fundingSourceName = $this->getFundingSourceName($contract);
+            $fundingSourceName = $this->getFundingSourceName($po, $contract);
 
             if (!isset($grouped[$fundingSourceName])) {
                 $grouped[$fundingSourceName] = [
@@ -262,23 +262,39 @@ class RetentionLiquidationReport extends Component
         ];
     }
 
-    private function getFundingSourceName($contract): string
+    private function getFundingSourceName($po, $contract): string
     {
-        if (!$contract) return 'Sin fuente';
-
-        $rp = $contract->rps->first();
+        // 1. RP específico del PO (cubre contratos multi-fuente y POs sin contract_id)
+        $rp = $po->contractRp;
         if ($rp && $rp->fundingSources->isNotEmpty()) {
             $fs = $rp->fundingSources->first()->fundingSource;
             if ($fs) return $fs->name;
         }
 
-        $convocatoria = $contract->convocatoria;
-        if ($convocatoria) {
-            $cdp = $convocatoria->cdps->first();
-            if ($cdp && $cdp->fundingSources->isNotEmpty()) {
-                $fs = $cdp->fundingSources->first()->fundingSource;
+        // 2. Primer RP del contrato (fallback para POs sin contract_rp_id)
+        if ($contract) {
+            $rp = $contract->rps->first();
+            if ($rp && $rp->fundingSources->isNotEmpty()) {
+                $fs = $rp->fundingSources->first()->fundingSource;
                 if ($fs) return $fs->name;
             }
+
+            // 3. CDP de la convocatoria
+            $convocatoria = $contract->convocatoria;
+            if ($convocatoria) {
+                $cdp = $convocatoria->cdps->first();
+                if ($cdp && $cdp->fundingSources->isNotEmpty()) {
+                    $fs = $cdp->fundingSources->first()->fundingSource;
+                    if ($fs) return $fs->name;
+                }
+            }
+        }
+
+        // 4. CDP directo del PO (pago directo)
+        $cdp = $po->cdp;
+        if ($cdp && $cdp->fundingSources->isNotEmpty()) {
+            $fs = $cdp->fundingSources->first()->fundingSource;
+            if ($fs) return $fs->name;
         }
 
         return 'Sin fuente';

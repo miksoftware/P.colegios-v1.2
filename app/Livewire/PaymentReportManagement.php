@@ -278,6 +278,14 @@ class PaymentReportManagement extends Component
                         $lineRp  = $distMap[$dist->id]['rp_number'];
                     }
 
+                    $lineTotal      = (float) $line->total;
+                    $lineRetentions = (float) $line->total_retentions;
+                    $lineNet        = (float) $line->net_payment;
+                    // Fallback: si net_payment quedó en 0 pero hay total, calcularlo
+                    if ($lineNet == 0 && $lineTotal > 0) {
+                        $lineNet = $lineTotal - $lineRetentions;
+                    }
+
                     $rows[] = array_merge($baseData, [
                         'cdp_number'             => $lineCdp,
                         'rp_number'              => $lineRp,
@@ -286,13 +294,13 @@ class PaymentReportManagement extends Component
                         'rubro_name'             => $ec?->name ?? $bi?->name ?? '',
                         'subtotal'               => (float) $line->subtotal,
                         'iva'                    => (float) $line->iva,
-                        'total'                  => (float) $line->total,
+                        'total'                  => $lineTotal,
                         'retention_concept_name' => PaymentOrder::RETENTION_CONCEPTS[$line->retention_concept] ?? ($line->retention_concept ?? ''),
                         'retefuente'             => (float) $line->retefuente,
                         'reteiva'                => (float) $line->reteiva,
                         'estampillas'            => (float) $line->estampilla_produlto_mayor + (float) $line->estampilla_procultura,
                         'otros_impuestos'        => (float) $line->retencion_ica,
-                        'net_payment'            => (float) $line->net_payment,
+                        'net_payment'            => $lineNet,
                     ]);
                 }
                 continue;
@@ -302,6 +310,10 @@ class PaymentReportManagement extends Component
             if ($rpSources->isNotEmpty()) {
                 $poTotal = (float) $po->total;
                 $poNet   = (float) $po->net_payment;
+                // Fallback: si net_payment quedó en 0 pero hay total, calcularlo
+                if ($poNet == 0 && $poTotal > 0) {
+                    $poNet = $poTotal - (float) $po->total_retentions;
+                }
                 foreach ($rpSources as $rpFs) {
                     $fs    = $rpFs->fundingSource;
                     $bi    = $rpFs->budget?->budgetItem;
@@ -325,18 +337,23 @@ class PaymentReportManagement extends Component
 
             // Caso D: sin contrato/RP y sin expense_lines → una sola fila con datos de la orden
             $bi = $po->budgetItem;
+            $dTotal = (float) $po->total;
+            $dNet   = (float) $po->net_payment;
+            if ($dNet == 0 && $dTotal > 0) {
+                $dNet = $dTotal - (float) $po->total_retentions;
+            }
             $rows[] = array_merge($baseData, [
                 'funding_source' => '',
                 'rubro_code'     => $bi?->code ?? '',
                 'rubro_name'     => $bi?->name ?? '',
                 'subtotal'       => (float) $po->subtotal,
                 'iva'            => (float) $po->iva,
-                'total'          => (float) $po->total,
+                'total'          => $dTotal,
                 'retefuente'     => (float) $po->retefuente,
                 'reteiva'        => (float) $po->reteiva,
                 'estampillas'    => (float) ($po->estampilla_produlto_mayor + $po->estampilla_procultura),
                 'otros_impuestos'=> (float) $po->retencion_ica,
-                'net_payment'    => (float) $po->net_payment,
+                'net_payment'    => $dNet,
             ]);
         }
 

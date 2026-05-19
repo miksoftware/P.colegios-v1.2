@@ -103,8 +103,9 @@ class ExpenseExecutionReport extends Component
         $yearStart = "{$year}-01-01";
 
         if (!empty($budgetIds)) {
-            // Solo necesitamos modificaciones que tengan al menos una línea
+            // Solo necesitamos modificaciones que tengan al menos una línea y no estén anuladas
             $mods = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds)
+                ->whereNull('cancelled_at')
                 ->whereHas('lines')
                 ->with('lines')
                 ->get();

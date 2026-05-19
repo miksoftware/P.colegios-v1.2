@@ -816,13 +816,25 @@ class BudgetAdditionReductionManagement extends Component
             ->where('type', 'expense')
             ->first();
 
-        $expenseMod = $expenseBudget
-            ? BudgetModification::where('budget_id', $expenseBudget->id)
-                ->where('modification_number', $incomeMod->modification_number)
+        // Correlacionar por tipo+monto+razón+documento (NO por modification_number:
+        // las secuencias de ingreso y gasto pueden divergir cuando ExpenseManagement
+        // crea modificaciones solo en el presupuesto de gasto).
+        if ($expenseBudget) {
+            $expenseModQuery = BudgetModification::where('budget_id', $expenseBudget->id)
+                ->where('type', $incomeMod->type)
+                ->whereRaw('ABS(amount - ?) < 0.01', [(float) $incomeMod->amount])
+                ->where('reason', $incomeMod->reason)
                 ->whereNull('cancelled_at')
-                ->with('lines')
-                ->first()
-            : null;
+                ->with('lines');
+            if ($incomeMod->document_number !== null) {
+                $expenseModQuery->where('document_number', $incomeMod->document_number);
+            } else {
+                $expenseModQuery->whereNull('document_number');
+            }
+            $expenseMod = $expenseModQuery->first();
+        } else {
+            $expenseMod = null;
+        }
 
         DB::beginTransaction();
         try {
@@ -915,10 +927,19 @@ class BudgetAdditionReductionManagement extends Component
             ->findOrFail($this->editingModId);
         $incomeMod->update(['document_date' => $this->editingModDate]);
 
-        // También actualizar la modificación de gasto con el mismo modification_number
-        BudgetModification::where('budget_id', $this->historyExpenseBudget->id)
-            ->where('modification_number', $incomeMod->modification_number)
-            ->update(['document_date' => $this->editingModDate]);
+        // Actualizar la modificación de gasto correlacionada por tipo+monto+razón+documento.
+        // NO se usa modification_number porque las secuencias de ingreso y gasto pueden
+        // divergir cuando ExpenseManagement crea modificaciones solo en el presupuesto de gasto.
+        $expenseModQuery = BudgetModification::where('budget_id', $this->historyExpenseBudget->id)
+            ->where('type', $incomeMod->type)
+            ->whereRaw('ABS(amount - ?) < 0.01', [(float) $incomeMod->amount])
+            ->where('reason', $incomeMod->reason);
+        if ($incomeMod->document_number !== null) {
+            $expenseModQuery->where('document_number', $incomeMod->document_number);
+        } else {
+            $expenseModQuery->whereNull('document_number');
+        }
+        $expenseModQuery->whereNull('cancelled_at')->update(['document_date' => $this->editingModDate]);
 
         $incomeId   = $this->historyIncomeBudget->id;
         $expenseId  = $this->historyExpenseBudget->id;
@@ -995,18 +1016,43 @@ class BudgetAdditionReductionManagement extends Component
             return;
         }
 
-        // Reemplazar líneas existentes
-        \App\Models\BudgetModificationLine::where('budget_modification_id', $expenseMod->id)->delete();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($expenseMod, $linesToSave) {
+            $isReduction = $expenseMod->type === 'reduction';
 
-        // Guardar como anotación (amount_before=0, amount_after=delta)
-        foreach ($linesToSave as $distId => $amt) {
-            \App\Models\BudgetModificationLine::create([
-                'budget_modification_id'  => $expenseMod->id,
-                'expense_distribution_id' => $distId,
-                'amount_before'           => 0,
-                'amount_after'            => $amt,
-            ]);
-        }
+            // Revertir el efecto en ExpenseDistribution.amount de líneas anteriores que SÍ
+            // aplicaron un cambio real (amount_before > 0). Las anotaciones puras
+            // (amount_before = 0, código anterior) nunca modificaron amounts, no se revierten.
+            $oldLines = \App\Models\BudgetModificationLine::where('budget_modification_id', $expenseMod->id)->get();
+            foreach ($oldLines as $oldLine) {
+                if ((float) $oldLine->amount_before > 0) {
+                    ExpenseDistribution::where('id', $oldLine->expense_distribution_id)
+                        ->update(['amount' => $oldLine->amount_before]);
+                }
+            }
+
+            // Eliminar líneas existentes
+            \App\Models\BudgetModificationLine::where('budget_modification_id', $expenseMod->id)->delete();
+
+            // Crear líneas reales con before/after y actualizar ExpenseDistribution.amount
+            foreach ($linesToSave as $distId => $delta) {
+                $dist = ExpenseDistribution::find($distId);
+                if (!$dist) continue;
+
+                $amountBefore = (float) $dist->amount;
+                $amountAfter  = $isReduction
+                    ? $amountBefore - $delta
+                    : $amountBefore + $delta;
+
+                $dist->update(['amount' => $amountAfter]);
+
+                \App\Models\BudgetModificationLine::create([
+                    'budget_modification_id'  => $expenseMod->id,
+                    'expense_distribution_id' => $distId,
+                    'amount_before'           => $amountBefore,
+                    'amount_after'            => $amountAfter,
+                ]);
+            }
+        });
 
         // Recargar historial
         $expenseId = $this->historyExpenseBudget->id;

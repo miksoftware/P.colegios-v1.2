@@ -381,11 +381,48 @@ class ExpenseManagement extends Component
             return;
         }
 
-        if ($this->itemToDelete) {
-            $this->itemToDelete->delete();
-            $this->dispatch('toast', message: 'Distribución eliminada.', type: 'success');
+        if (!$this->itemToDelete) {
+            $this->closeDeleteModal();
+            return;
         }
 
+        $distribution       = $this->itemToDelete;
+        $distributionAmount = (float) $distribution->amount;
+        $budget             = Budget::find($distribution->budget_id);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($distribution, $distributionAmount, $budget) {
+            if ($budget) {
+                // Cancelar las anotaciones de ExpenseManagement vinculadas a esta distribución.
+                // Son BudgetModifications donde new_amount = previous_amount (nunca cambiaron
+                // current_amount, solo eran trazabilidad). Al eliminar la distribución, ya no
+                // tienen sentido.
+                $annotationModIds = \App\Models\BudgetModificationLine::where('expense_distribution_id', $distribution->id)
+                    ->whereHas('budgetModification', fn($q) =>
+                        $q->where('budget_id', $budget->id)
+                          ->whereNull('cancelled_at')
+                          ->whereColumn('new_amount', '=', 'previous_amount'))
+                    ->pluck('budget_modification_id');
+
+                if ($annotationModIds->isNotEmpty()) {
+                    \App\Models\BudgetModification::whereIn('id', $annotationModIds)
+                        ->update([
+                            'cancelled_at'     => now(),
+                            'cancelled_by'     => auth()->id(),
+                            'cancelled_reason' => 'Distribución eliminada desde módulo de gastos',
+                        ]);
+                }
+
+                // Descontar el monto del presupuesto. Al eliminar la distribución,
+                // ese dinero ya no hace parte del presupuesto ejecutable.
+                if ($distributionAmount > 0) {
+                    $budget->decrement('current_amount', $distributionAmount);
+                }
+            }
+
+            $distribution->delete();
+        });
+
+        $this->dispatch('toast', message: 'Distribución eliminada.', type: 'success');
         $this->closeDeleteModal();
     }
 

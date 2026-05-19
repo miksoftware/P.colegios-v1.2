@@ -186,11 +186,6 @@
                                 </div>
                                 @endif
                                 <div class="flex gap-1 pt-2">
-                                    @can('budgets.modify')
-                                    <button wire:click="openModificationModal({{ $group['income']->id }})" class="flex-1 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
-                                        Modificar
-                                    </button>
-                                    @endcan
                                     @can('budgets.edit')
                                     <button wire:click="editBudget({{ $group['income']->id }})" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Editar">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -240,11 +235,6 @@
                                 </div>
                                 @endif
                                 <div class="flex gap-1 pt-2">
-                                    @can('budgets.modify')
-                                    <button wire:click="openModificationModal({{ $group['expense']->id }})" class="flex-1 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
-                                        Modificar
-                                    </button>
-                                    @endcan
                                     @can('budgets.edit')
                                     <button wire:click="editBudget({{ $group['expense']->id }})" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Editar">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -527,62 +517,6 @@
     </div>
     @endif
 
-
-    {{-- Modal Modificación --}}
-    @if($showModificationModal && $modificationBudget)
-    <div class="fixed inset-0 z-50 overflow-y-auto">
-        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
-            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeModificationModal"></div>
-            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-lg">
-                <div class="bg-gradient-to-r from-purple-600 to-purple-500 px-6 py-4">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-xl font-bold text-white">Modificar Presupuesto</h3>
-                            <p class="text-purple-100 text-sm mt-1">Adición o reducción</p>
-                        </div>
-                        <button type="button" wire:click="closeModificationModal" class="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <form wire:submit="saveModification" class="px-6 py-5 space-y-5">
-                    <div class="bg-purple-50 rounded-xl p-4 border border-purple-100">
-                        <p class="text-sm text-gray-600">{{ $modificationBudget->budgetItem->code }} - {{ $modificationBudget->budgetItem->name }}</p>
-                        <p class="text-xs text-gray-500 mt-1">Fuente: {{ $modificationBudget->fundingSource->name ?? 'N/A' }}</p>
-                        <p class="text-xl font-bold text-gray-900 mt-2">Saldo actual: ${{ number_format($modificationBudget->current_amount, 2, ',', '.') }}</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Modificación *</label>
-                        <div class="flex gap-4">
-                            <label class="inline-flex items-center"><input type="radio" wire:model="modification_type" value="addition" class="text-green-600"><span class="ml-2 text-sm">Adición</span></label>
-                            <label class="inline-flex items-center"><input type="radio" wire:model="modification_type" value="reduction" class="text-orange-600"><span class="ml-2 text-sm">Reducción</span></label>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Monto *</label>
-                            <input type="number" wire:model="modification_amount" step="0.01" min="0.01" class="w-full rounded-xl border-gray-300" placeholder="0.00">
-                            @error('modification_amount') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nº Documento</label>
-                            <input type="text" wire:model="modification_document_number" class="w-full rounded-xl border-gray-300" placeholder="Ej: MOD-001">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Razón / Justificación *</label>
-                        <textarea wire:model="modification_reason" rows="3" class="w-full rounded-xl border-gray-300" placeholder="Describa la razón de esta modificación..."></textarea>
-                        @error('modification_reason') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-                    <div class="flex justify-end gap-3 pt-4 border-t">
-                        <button type="button" wire:click="closeModificationModal" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium">Registrar Modificación</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    @endif
 
     {{-- Modal Historial --}}
     @if($showHistoryModal && $historyBudget)

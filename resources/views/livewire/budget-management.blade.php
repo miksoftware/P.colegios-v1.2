@@ -109,13 +109,12 @@
                  x-data="{ expanded: false }" 
                  wire:key="budget-group-{{ $group['key'] }}">
                 {{-- Header del Rubro (Clickeable para expandir) --}}
-                <button @click="expanded = !expanded" 
-                        class="w-full bg-gradient-to-r from-gray-50 to-white px-6 py-4 border-b flex items-center justify-between hover:bg-gray-50 transition-colors">
-                    <div class="flex items-center gap-4">
-                        <div class="p-2 bg-blue-100 rounded-xl">
+                <div class="w-full bg-gradient-to-r from-gray-50 to-white px-6 py-4 border-b flex items-center justify-between hover:bg-gray-50 transition-colors">
+                    <div @click="expanded = !expanded" class="flex items-center gap-4 flex-1 min-w-0 cursor-pointer">
+                        <div class="p-2 bg-blue-100 rounded-xl flex-shrink-0">
                             <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                         </div>
-                        <div class="text-left">
+                        <div class="text-left min-w-0">
                             <h3 class="font-bold text-gray-900">{{ $group['budget_item']->code }} - {{ $group['budget_item']->name }}</h3>
                             <div class="flex items-center gap-2 mt-1 flex-wrap">
                                 <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
@@ -131,18 +130,29 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center gap-4">
-                        <div class="text-right">
+                    <div class="flex items-center gap-3 ml-4 flex-shrink-0">
+                        <div @click="expanded = !expanded" class="text-right cursor-pointer">
                             <p class="text-xs text-gray-500">Monto Presupuestado</p>
                             <p class="text-xl font-bold text-gray-900">${{ number_format($group['income']?->initial_amount ?? 0, 2, ',', '.') }}</p>
                         </div>
-                        <svg class="w-5 h-5 text-gray-400 transition-transform duration-200" 
-                             :class="{ 'rotate-180': expanded }" 
+                        @can('budgets.delete')
+                        <button @click.stop
+                                wire:click="confirmDeleteGroup({{ $group['budget_item']->id }}, {{ $group['funding_source']->id }}, {{ $group['fiscal_year'] }})"
+                                class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Eliminar Rubro">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
+                        @endcan
+                        <svg @click="expanded = !expanded"
+                             class="w-5 h-5 text-gray-400 cursor-pointer transition-transform duration-200"
+                             :class="{ 'rotate-180': expanded }"
                              fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                         </svg>
                     </div>
-                </button>
+                </div>
                 
                 {{-- Contenido Expandible --}}
                 <div x-show="expanded" 
@@ -191,11 +201,7 @@
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                     </button>
                                     @endcan
-                                    @can('budgets.delete')
-                                    <button wire:click="confirmDelete({{ $group['income']->id }})" class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Eliminar presupuesto de ingreso">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                    </button>
-                                    @endcan
+
                                 </div>
                             </div>
                             @endif
@@ -243,11 +249,7 @@
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                     </button>
                                     @endcan
-                                    @can('budgets.delete')
-                                    <button wire:click="confirmDelete({{ $group['expense']->id }})" class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Eliminar presupuesto de gasto">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                    </button>
-                                    @endcan
+
                                 </div>
                             </div>
                             @else
@@ -596,34 +598,35 @@
     </div>
     @endif
 
-    {{-- Modal Eliminar --}}
-    @if($showDeleteModal && $itemToDelete)
+    {{-- Modal Eliminar Rubro --}}
+    @if($showDeleteGroupModal && $groupToDelete)
     <div class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
-            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeDeleteModal"></div>
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeDeleteGroupModal"></div>
             <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-md">
                 <div class="bg-gradient-to-r from-red-600 to-red-500 px-6 py-4">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-xl font-bold text-white">Eliminar Presupuesto</h3>
-                        <button type="button" wire:click="closeDeleteModal" class="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
+                        <h3 class="text-xl font-bold text-white">Eliminar Rubro</h3>
+                        <button type="button" wire:click="closeDeleteGroupModal" class="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
                 </div>
-                <div class="px-6 py-5">
-                    <p class="text-gray-600">¿Eliminar el presupuesto de <strong class="text-gray-900">{{ $itemToDelete->budgetItem->name }}</strong>
-                        ({{ $itemToDelete->type === 'income' ? 'Ingreso' : 'Gasto' }})?
+                <div class="px-6 py-5 space-y-3">
+                    <p class="text-gray-600">
+                        ¿Eliminar el rubro <strong class="text-gray-900">{{ $groupToDelete['item_code'] }} - {{ $groupToDelete['item_name'] }}</strong>
+                        ({{ $groupToDelete['source_name'] }}, Vigencia {{ $groupToDelete['fiscal_year'] }})?
                     </p>
-                    <p class="text-sm text-gray-500 mt-2">Se eliminarán todas las modificaciones asociadas. La acción quedará registrada en el historial de actividad.</p>
-                    @if($itemToDelete->type === 'income')
-                    <p class="text-xs text-orange-600 mt-2 font-medium">⚠️ No se puede eliminar si tiene ingresos reales registrados.</p>
-                    @else
-                    <p class="text-xs text-orange-600 mt-2 font-medium">⚠️ No se puede eliminar si tiene gastos distribuidos.</p>
+                    <p class="text-sm text-gray-500">Se eliminarán los presupuestos de ingreso y gasto con todas sus modificaciones.</p>
+                    @if($groupToDelete['has_distributions'])
+                    <p class="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 font-medium">
+                        ⚠️ El presupuesto de gasto tiene distribuciones registradas que también serán eliminadas.
+                    </p>
                     @endif
                 </div>
                 <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
-                    <button type="button" wire:click="closeDeleteModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cancelar</button>
-                    <button type="button" wire:click="deleteBudget" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium">Eliminar</button>
+                    <button type="button" wire:click="closeDeleteGroupModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cancelar</button>
+                    <button type="button" wire:click="deleteGroup" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium">Sí, eliminar</button>
                 </div>
             </div>
         </div>

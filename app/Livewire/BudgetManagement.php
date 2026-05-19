@@ -53,6 +53,8 @@ class BudgetManagement extends Component
 
     public $showDeleteModal = false;
     public $itemToDelete = null;
+    public $showDeleteGroupModal = false;
+    public $groupToDelete = null;
 
     public $budgetItems = [];
     public $fundingSources = [];
@@ -681,6 +683,123 @@ class BudgetManagement extends Component
     {
         $this->showDeleteModal = false;
         $this->itemToDelete = null;
+    }
+
+    public function confirmDeleteGroup(int $budgetItemId, int $fundingSourceId, int $fiscalYear): void
+    {
+        if (!auth()->user()->can('budgets.delete')) {
+            $this->dispatch('toast', message: 'No tienes permisos para eliminar rubros.', type: 'error');
+            return;
+        }
+
+        $income = Budget::forSchool($this->schoolId)
+            ->where('budget_item_id', $budgetItemId)
+            ->where('funding_source_id', $fundingSourceId)
+            ->where('fiscal_year', $fiscalYear)
+            ->where('type', 'income')
+            ->first();
+
+        $expense = Budget::forSchool($this->schoolId)
+            ->where('budget_item_id', $budgetItemId)
+            ->where('funding_source_id', $fundingSourceId)
+            ->where('fiscal_year', $fiscalYear)
+            ->where('type', 'expense')
+            ->first();
+
+        // Bloquear si hay ingresos reales registrados
+        if ($income) {
+            $hasRealIncome = Income::where('school_id', $this->schoolId)
+                ->where('funding_source_id', $fundingSourceId)
+                ->whereYear('date', $fiscalYear)
+                ->exists();
+            if ($hasRealIncome) {
+                $this->dispatch('toast', message: 'No se puede eliminar: el rubro tiene ingresos reales registrados.', type: 'error');
+                return;
+            }
+        }
+
+        // Bloquear si hay contratos, ejecutados o pagos en gastos
+        if ($expense) {
+            $hasMovements = $expense->distributions()
+                ->where(function ($q) {
+                    $q->whereHas('executions')
+                      ->orWhereHas('convocatorias')
+                      ->orWhereHas('paymentOrderLines');
+                })
+                ->exists();
+            if ($hasMovements) {
+                $this->dispatch('toast', message: 'No se puede eliminar: el rubro tiene contratos o pagos registrados.', type: 'error');
+                return;
+            }
+        }
+
+        $budgetItem    = BudgetItem::find($budgetItemId);
+        $fundingSource = FundingSource::find($fundingSourceId);
+
+        $this->groupToDelete = [
+            'income_id'         => $income?->id,
+            'expense_id'        => $expense?->id,
+            'item_name'         => $budgetItem?->name ?? '',
+            'item_code'         => $budgetItem?->code ?? '',
+            'source_name'       => $fundingSource?->name ?? '',
+            'fiscal_year'       => $fiscalYear,
+            'has_distributions' => $expense ? $expense->distributions()->exists() : false,
+        ];
+        $this->showDeleteGroupModal = true;
+    }
+
+    public function deleteGroup(): void
+    {
+        if (!auth()->user()->can('budgets.delete')) {
+            $this->dispatch('toast', message: 'No tienes permisos para eliminar rubros.', type: 'error');
+            return;
+        }
+
+        if (!$this->groupToDelete) return;
+
+        DB::beginTransaction();
+        try {
+            if ($this->groupToDelete['expense_id']) {
+                $expense = Budget::forSchool($this->schoolId)
+                    ->with('modifications')
+                    ->find($this->groupToDelete['expense_id']);
+                if ($expense) {
+                    // Eliminar distribuciones (sin movimientos, ya validado)
+                    $expense->distributions()->each(fn($d) => $d->delete());
+                    foreach ($expense->modifications as $mod) {
+                        $mod->lines()->delete();
+                    }
+                    $expense->modifications()->delete();
+                    $expense->delete();
+                }
+            }
+
+            if ($this->groupToDelete['income_id']) {
+                $income = Budget::forSchool($this->schoolId)
+                    ->with('modifications')
+                    ->find($this->groupToDelete['income_id']);
+                if ($income) {
+                    foreach ($income->modifications as $mod) {
+                        $mod->lines()->delete();
+                    }
+                    $income->modifications()->delete();
+                    $income->delete();
+                }
+            }
+
+            DB::commit();
+            $this->dispatch('toast', message: 'Rubro eliminado correctamente.', type: 'success');
+            $this->closeDeleteGroupModal();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error al eliminar: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function closeDeleteGroupModal(): void
+    {
+        $this->showDeleteGroupModal = false;
+        $this->groupToDelete = null;
     }
 
     public function resetForm()

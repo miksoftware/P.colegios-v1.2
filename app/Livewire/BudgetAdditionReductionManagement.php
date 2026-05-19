@@ -835,10 +835,14 @@ class BudgetAdditionReductionManagement extends Component
             $incomeMod->update($cancelData);
 
             if ($expenseMod) {
-                // Revertir montos de distribuciones de gasto
+                // Revertir montos de distribuciones de gasto.
+                // Solo si amount_before > 0 (líneas reales). Las anotaciones
+                // retroactivas tienen amount_before=0 y no modificaron la distribución.
                 foreach ($expenseMod->lines as $line) {
-                    ExpenseDistribution::where('id', $line->expense_distribution_id)
-                        ->update(['amount' => $line->amount_before]);
+                    if ((float) $line->amount_before > 0) {
+                        ExpenseDistribution::where('id', $line->expense_distribution_id)
+                            ->update(['amount' => $line->amount_before]);
+                    }
                 }
                 $expenseMod->update($cancelData);
                 $expenseBudget->recalculateCurrentAmount();

@@ -134,12 +134,12 @@ class Budget extends Model
 
     public function getTotalAdditionsAttribute(): float
     {
-        return $this->modifications()->where('type', 'addition')->sum('amount');
+        return $this->modifications()->where('type', 'addition')->whereNull('cancelled_at')->sum('amount');
     }
 
     public function getTotalReductionsAttribute(): float
     {
-        return $this->modifications()->where('type', 'reduction')->sum('amount');
+        return $this->modifications()->where('type', 'reduction')->whereNull('cancelled_at')->sum('amount');
     }
 
     /**

@@ -566,15 +566,30 @@
                             $expenseMod = $historyExpenseBudget?->modifications
                                 ->firstWhere('modification_number', $mod->modification_number);
                         @endphp
-                        <div class="p-3 {{ $mod->type === 'addition' ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-100' }} rounded-xl border">
+                        <div class="p-3 {{ $mod->is_cancelled ? 'bg-gray-50 border-gray-200 opacity-75' : ($mod->type === 'addition' ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-100') }} rounded-xl border">
                             <div class="flex items-center justify-between mb-1">
                                 <div class="flex items-center gap-2">
                                     <span class="px-2 py-0.5 text-xs font-semibold rounded-full {{ $mod->type_color }}">{{ $mod->type_name }}</span>
                                     <span class="text-xs text-gray-500">#{{ $mod->formatted_number }}</span>
+                                    @if($mod->is_cancelled)
+                                    <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-red-100 text-red-600">ANULADA</span>
+                                    @endif
                                 </div>
-                                <span class="text-lg font-bold {{ $mod->type === 'addition' ? 'text-green-600' : 'text-orange-600' }}">
-                                    {{ $mod->type === 'addition' ? '+' : '-' }}${{ number_format($mod->amount, 2, ',', '.') }}
-                                </span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-lg font-bold {{ $mod->is_cancelled ? 'text-gray-400 line-through' : ($mod->type === 'addition' ? 'text-green-600' : 'text-orange-600') }}">
+                                        {{ $mod->type === 'addition' ? '+' : '-' }}${{ number_format($mod->amount, 2, ',', '.') }}
+                                    </span>
+                                    @if(!$mod->is_cancelled)
+                                    @can('budget_modifications.create')
+                                    <button wire:click="openDeleteModModal({{ $mod->id }})" title="Anular modificación"
+                                        class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                                        </svg>
+                                    </button>
+                                    @endcan
+                                    @endif
+                                </div>
                             </div>
                             <div class="flex gap-2 text-xs text-gray-500 mb-1">
                                 <span>${{ number_format($mod->previous_amount, 2, ',', '.') }}</span>
@@ -601,12 +616,14 @@
                                 @else
                                 <div class="flex items-center justify-between">
                                     <span class="text-xs text-gray-500">Fecha: {{ $mod->document_date ? $mod->document_date->format('d/m/Y') : 'Sin fecha' }}</span>
+                                    @if(!$mod->is_cancelled)
                                     @can('budget_modifications.create')
-                                    <button wire:click="startEditModDate({{ $mod->id }}, '{{ $mod->document_date?->format('Y-m-d') }}')" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1">
+                                    <button wire:click="startEditModDate({{ $mod->id }}, '{{ $mod->document_date?->format('Y-m-d') }}'" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1">
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                         Editar fecha
                                     </button>
                                     @endcan
+                                    @endif
                                 </div>
                                 @endif
                             </div>
@@ -650,6 +667,7 @@
                             <div class="mt-3 pt-2 border-t border-dashed {{ $mod->type === 'addition' ? 'border-green-200' : 'border-orange-200' }}">
                                 <div class="flex items-center justify-between mb-1">
                                     <p class="text-xs font-semibold text-gray-500">Distribuciones afectadas:</p>
+                                    @if(!$mod->is_cancelled)
                                     @can('budget_modifications.create')
                                     <button wire:click="startEditModLines({{ $expenseMod->id }}, '{{ $expenseMod->type }}')"
                                         class="text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
@@ -657,6 +675,7 @@
                                         Editar
                                     </button>
                                     @endcan
+                                    @endif
                                 </div>
                                 <div class="space-y-1">
                                     @foreach($expenseMod->lines as $line)
@@ -686,6 +705,7 @@
                             </div>
                             @else
                             {{-- Sin líneas: mostrar botón para agregar --}}
+                            @if(!$mod->is_cancelled)
                             @can('budget_modifications.create')
                             <div class="mt-2 flex justify-end">
                                 <button wire:click="startEditModLines({{ $expenseMod->id }}, '{{ $expenseMod->type }}')"
@@ -697,6 +717,23 @@
                             @endcan
                             @endif
                             @endif
+                            @endif
+                            @endif
+                            {{-- Info de anulación --}}
+                            @if($mod->is_cancelled)
+                            <div class="mt-3 p-2 bg-red-50 rounded-lg border border-red-100 text-xs">
+                                <div class="flex items-center gap-1 text-red-600 font-semibold mb-1">
+                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                                    </svg>
+                                    Modificación Anulada
+                                </div>
+                                <p class="text-red-700 mb-1">{{ $mod->cancelled_reason }}</p>
+                                <div class="flex justify-between text-red-400">
+                                    <span>Por: {{ $mod->cancelledByUser?->name ?? 'N/A' }}</span>
+                                    <span>{{ $mod->cancelled_at->format('d/m/Y H:i') }}</span>
+                                </div>
+                            </div>
                             @endif
                         </div>
                         @endforeach
@@ -847,6 +884,78 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    <!-- Modal Anular Modificación -->
+    @if($showDeleteModModal)
+    <div class="fixed inset-0 z-[60] overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm" wire:click="closeDeleteModModal"></div>
+            <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md z-10">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-red-600 to-red-500 px-6 py-4 rounded-t-2xl">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-white">Anular Modificación</h3>
+                                <p class="text-white/75 text-xs mt-0.5">Esta acción revertirá el efecto en el presupuesto</p>
+                            </div>
+                        </div>
+                        <button wire:click="closeDeleteModModal" class="text-white/70 hover:text-white p-1.5 hover:bg-white/10 rounded-lg">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="px-6 py-5 space-y-4">
+                    <!-- Advertencia -->
+                    <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                        <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <p class="text-sm text-amber-700">
+                            Al anular esta modificación, el monto afectado se <strong>revertirá del presupuesto</strong>.
+                            La modificación permanecerá visible en el historial como anulada.
+                        </p>
+                    </div>
+
+                    <!-- Justificación -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                            Justificación <span class="text-red-500">*</span>
+                        </label>
+                        <textarea wire:model="deleteJustification" rows="4"
+                            class="w-full rounded-xl border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 text-sm resize-none"
+                            placeholder="Ingrese la razón por la cual se anula esta modificación..."></textarea>
+                        @error('deleteJustification')
+                        <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span>
+                        @enderror
+                    </div>
+
+                    <!-- Botones -->
+                    <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                        <button type="button" wire:click="closeDeleteModModal"
+                            class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium text-sm transition-colors">
+                            Cancelar
+                        </button>
+                        <button type="button" wire:click="confirmDeleteMod" wire:loading.attr="disabled"
+                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium text-sm flex items-center gap-2 transition-colors disabled:opacity-50">
+                            <svg wire:loading wire:target="confirmDeleteMod" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            Confirmar Anulación
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

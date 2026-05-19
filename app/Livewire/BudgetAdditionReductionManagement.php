@@ -46,6 +46,11 @@ class BudgetAdditionReductionManagement extends Component
     public $editingLinesModType = '';
     public $editingLines = [];
 
+    // Anular (eliminar) modificación
+    public $showDeleteModModal = false;
+    public $deletingModId = null;
+    public $deleteJustification = '';
+
     // Info de distribuciones afectadas
     public $affectedDistributions = [];
     // Montos a reducir/adicionar por distribución
@@ -529,13 +534,14 @@ class BudgetAdditionReductionManagement extends Component
     public function openHistoryModal($incomeBudgetId, $expenseBudgetId)
     {
         $this->historyIncomeBudget = Budget::forSchool($this->schoolId)
-            ->with(['budgetItem', 'fundingSource', 'modifications.creator'])
+            ->with(['budgetItem', 'fundingSource', 'modifications.creator', 'modifications.cancelledByUser'])
             ->findOrFail($incomeBudgetId);
 
         $this->historyExpenseBudget = Budget::forSchool($this->schoolId)
             ->with([
                 'distributions.expenseCode',
                 'modifications.creator',
+                'modifications.cancelledByUser',
                 'modifications.lines.expenseDistribution.expenseCode',
             ])
             ->findOrFail($expenseBudgetId);
@@ -750,6 +756,121 @@ class BudgetAdditionReductionManagement extends Component
         $this->showHistoryModal = false;
         $this->historyIncomeBudget = null;
         $this->historyExpenseBudget = null;
+    }
+
+    // ======================================================
+    // ANULAR (ELIMINAR LÓGICO) MODIFICACIÓN
+    // ======================================================
+
+    public function openDeleteModModal(int $modId)
+    {
+        if (!auth()->user()->can('budget_modifications.create')) {
+            $this->dispatch('toast', message: 'No tienes permisos para esta acción.', type: 'error');
+            return;
+        }
+        $this->deletingModId      = $modId;
+        $this->deleteJustification = '';
+        $this->showDeleteModModal = true;
+    }
+
+    public function closeDeleteModModal()
+    {
+        $this->showDeleteModModal  = false;
+        $this->deletingModId       = null;
+        $this->deleteJustification = '';
+    }
+
+    public function confirmDeleteMod()
+    {
+        if (!auth()->user()->can('budget_modifications.create')) {
+            $this->dispatch('toast', message: 'No tienes permisos para esta acción.', type: 'error');
+            return;
+        }
+
+        $this->validate(
+            ['deleteJustification' => 'required|string|min:10'],
+            [
+                'deleteJustification.required' => 'La justificación es obligatoria.',
+                'deleteJustification.min'       => 'La justificación debe tener al menos 10 caracteres.',
+            ]
+        );
+
+        $incomeMod = BudgetModification::whereHas(
+            'budget',
+            fn($q) => $q->where('school_id', $this->schoolId)
+        )->findOrFail($this->deletingModId);
+
+        if ($incomeMod->cancelled_at !== null) {
+            $this->dispatch('toast', message: 'Esta modificación ya fue anulada.', type: 'warning');
+            $this->closeDeleteModModal();
+            return;
+        }
+
+        $incomeBudget = $incomeMod->budget;
+
+        // Buscar el presupuesto de gasto correspondiente
+        $expenseBudget = Budget::forSchool($this->schoolId)
+            ->where('budget_item_id', $incomeBudget->budget_item_id)
+            ->where('funding_source_id', $incomeBudget->funding_source_id)
+            ->where('fiscal_year', $incomeBudget->fiscal_year)
+            ->where('type', 'expense')
+            ->first();
+
+        $expenseMod = $expenseBudget
+            ? BudgetModification::where('budget_id', $expenseBudget->id)
+                ->where('modification_number', $incomeMod->modification_number)
+                ->whereNull('cancelled_at')
+                ->with('lines')
+                ->first()
+            : null;
+
+        DB::beginTransaction();
+        try {
+            $cancelData = [
+                'cancelled_at'     => now(),
+                'cancelled_by'     => auth()->id(),
+                'cancelled_reason' => $this->deleteJustification,
+            ];
+
+            $incomeMod->update($cancelData);
+
+            if ($expenseMod) {
+                // Revertir montos de distribuciones de gasto
+                foreach ($expenseMod->lines as $line) {
+                    ExpenseDistribution::where('id', $line->expense_distribution_id)
+                        ->update(['amount' => $line->amount_before]);
+                }
+                $expenseMod->update($cancelData);
+                $expenseBudget->recalculateCurrentAmount();
+            }
+
+            $incomeBudget->recalculateCurrentAmount();
+
+            DB::commit();
+
+            $this->dispatch('toast', message: 'Modificación anulada exitosamente.', type: 'success');
+            $this->closeDeleteModModal();
+
+            // Refrescar el modal de historial si está abierto
+            if ($this->showHistoryModal) {
+                $this->historyIncomeBudget = Budget::forSchool($this->schoolId)
+                    ->with(['budgetItem', 'fundingSource', 'modifications.creator', 'modifications.cancelledByUser'])
+                    ->find($incomeBudget->id);
+                if ($expenseBudget) {
+                    $this->historyExpenseBudget = Budget::forSchool($this->schoolId)
+                        ->with([
+                            'distributions.expenseCode',
+                            'modifications.creator',
+                            'modifications.cancelledByUser',
+                            'modifications.lines.expenseDistribution.expenseCode',
+                        ])
+                        ->find($expenseBudget->id);
+                }
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error al anular la modificación.', type: 'error');
+        }
     }
 
     public function clearFilters()

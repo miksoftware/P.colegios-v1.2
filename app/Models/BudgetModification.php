@@ -22,6 +22,9 @@ class BudgetModification extends Model
         'document_number',
         'document_date',
         'created_by',
+        'cancelled_at',
+        'cancelled_by',
+        'cancelled_reason',
     ];
 
     protected $casts = [
@@ -30,6 +33,7 @@ class BudgetModification extends Model
         'previous_amount' => 'decimal:2',
         'new_amount' => 'decimal:2',
         'document_date' => 'date',
+        'cancelled_at' => 'datetime',
     ];
 
     public const TYPES = [
@@ -63,6 +67,16 @@ class BudgetModification extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function cancelledByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function getIsCancelledAttribute(): bool
+    {
+        return $this->cancelled_at !== null;
+    }
+
     public function getTypeNameAttribute(): string
     {
         return self::TYPES[$this->type] ?? $this->type;
@@ -70,8 +84,11 @@ class BudgetModification extends Model
 
     public function getTypeColorAttribute(): string
     {
-        return $this->type === 'addition' 
-            ? 'bg-green-100 text-green-700' 
+        if ($this->is_cancelled) {
+            return 'bg-red-100 text-red-400';
+        }
+        return $this->type === 'addition'
+            ? 'bg-green-100 text-green-700'
             : 'bg-orange-100 text-orange-700';
     }
 

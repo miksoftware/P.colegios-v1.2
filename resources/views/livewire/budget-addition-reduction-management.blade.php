@@ -562,9 +562,16 @@
                     <div class="space-y-3 max-h-[36rem] overflow-y-auto">
                         @foreach($historyIncomeBudget->modifications as $mod)
                         @php
-                            // Correlacionar con la modificación de gasto (mismo número de modificación)
+                            // Correlacionar con la modificación de gasto por tipo, monto, razón y doc.
+                            // Más fiable que modification_number ya que cada presupuesto tiene su propia secuencia.
                             $expenseMod = $historyExpenseBudget?->modifications
-                                ->firstWhere('modification_number', $mod->modification_number);
+                                ->filter(fn($m) =>
+                                    $m->type === $mod->type &&
+                                    abs((float)$m->amount - (float)$mod->amount) < 0.01 &&
+                                    $m->reason === $mod->reason &&
+                                    $m->document_number === $mod->document_number
+                                )
+                                ->first();
                         @endphp
                         <div class="p-3 {{ $mod->is_cancelled ? 'bg-gray-50 border-gray-200 opacity-75' : ($mod->type === 'addition' ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-100') }} rounded-xl border">
                             <div class="flex items-center justify-between mb-1">
@@ -690,14 +697,19 @@
                                             <span class="text-gray-700 truncate">{{ $line->expenseDistribution->expenseCode->name ?? 'N/A' }}</span>
                                         </div>
                                         <div class="flex items-center gap-1 flex-shrink-0 ml-2">
-                                            @if(!$isAnnotation)
+                                            @if($isAnnotation)
+                                            {{-- Anotación retroactiva: muestra el saldo de referencia, sin signo engañoso --}}
+                                            <span class="text-gray-400">saldo ref:</span>
+                                            <span class="font-medium text-gray-500">${{ number_format($delta, 0, ',', '.') }}</span>
+                                            @else
+                                            {{-- Cambio real registrado: muestra antes → después con delta --}}
                                             <span class="text-gray-400">${{ number_format($line->amount_before, 0, ',', '.') }}</span>
                                             <span class="text-gray-300">→</span>
                                             <span class="font-semibold {{ $isPositive ? 'text-green-700' : 'text-orange-700' }}">${{ number_format($line->amount_after, 0, ',', '.') }}</span>
-                                            @endif
                                             <span class="font-medium {{ $isPositive ? 'text-green-600' : 'text-orange-600' }}">
                                                 ({{ $isPositive ? '+' : '-' }}${{ number_format($delta, 0, ',', '.') }})
                                             </span>
+                                            @endif
                                         </div>
                                     </div>
                                     @endforeach

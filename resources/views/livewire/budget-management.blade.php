@@ -197,6 +197,7 @@
                                     </button>
                                     @endcan
                                 </div>
+                            </div>
                             @endif
                         </div>
                         

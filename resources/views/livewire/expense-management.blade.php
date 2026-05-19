@@ -139,8 +139,12 @@
                                                     <span class="font-medium">${{ number_format($budget->initial_amount, 2, ',', '.') }}</span>
                                                 </div>
                                                 @php
-                                                    $additions = $budget->modifications->where('type', 'addition');
-                                                    $reductions = $budget->modifications->where('type', 'reduction');
+                                                    // Excluir anotaciones de ExpenseManagement (new_amount=previous_amount):
+                                                    // son trazabilidad de distribuciones, no adiciones/reducciones presupuestales reales.
+                                                    $realMods = $budget->modifications->whereNull('cancelled_at')
+                                                        ->filter(fn($m) => abs((float)$m->new_amount - (float)$m->previous_amount) > 0.01);
+                                                    $additions = $realMods->where('type', 'addition');
+                                                    $reductions = $realMods->where('type', 'reduction');
                                                     $totalAdditions = $additions->sum('amount');
                                                     $totalReductions = $reductions->sum('amount');
                                                     $totalCreditos = $budget->incomingTransfers->sum('amount');
@@ -521,8 +525,10 @@
                     {{-- Resumen --}}
                     @php
                         $totalDist = $detailBudget->distributions->sum('amount');
-                        $dAdditions = $detailBudget->modifications->where('type', 'addition');
-                        $dReductions = $detailBudget->modifications->where('type', 'reduction');
+                        $dRealMods = $detailBudget->modifications->whereNull('cancelled_at')
+                            ->filter(fn($m) => abs((float)$m->new_amount - (float)$m->previous_amount) > 0.01);
+                        $dAdditions = $dRealMods->where('type', 'addition');
+                        $dReductions = $dRealMods->where('type', 'reduction');
                         $dTotalAdditions = $dAdditions->sum('amount');
                         $dTotalReductions = $dReductions->sum('amount');
                         $dTotalCreditos = $detailBudget->incomingTransfers->sum('amount');

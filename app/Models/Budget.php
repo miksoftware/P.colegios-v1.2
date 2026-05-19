@@ -134,12 +134,23 @@ class Budget extends Model
 
     public function getTotalAdditionsAttribute(): float
     {
-        return $this->modifications()->where('type', 'addition')->whereNull('cancelled_at')->sum('amount');
+        // Excluir modificaciones de ExpenseManagement (recordModificationLine) que tienen
+        // new_amount = previous_amount porque nunca cambiaron current_amount del presupuesto.
+        // Solo contar modificaciones reales (adiciones/reducciones de BudgetAdditionReductionManagement).
+        return $this->modifications()
+            ->where('type', 'addition')
+            ->whereNull('cancelled_at')
+            ->whereColumn('new_amount', '!=', 'previous_amount')
+            ->sum('amount');
     }
 
     public function getTotalReductionsAttribute(): float
     {
-        return $this->modifications()->where('type', 'reduction')->whereNull('cancelled_at')->sum('amount');
+        return $this->modifications()
+            ->where('type', 'reduction')
+            ->whereNull('cancelled_at')
+            ->whereColumn('new_amount', '!=', 'previous_amount')
+            ->sum('amount');
     }
 
     /**

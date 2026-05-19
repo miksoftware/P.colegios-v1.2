@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Comprobante de Ingreso No. {{ $income->id }}</title>
+    <title>Comprobante de Ingreso No. {{ $receiptNumber }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 10px; color: #222; }
@@ -79,7 +79,7 @@
             </div>
             <div class="header-right">
                 <div class="receipt-title">Comprobante de Ingreso No.</div>
-                <div class="receipt-number">{{ $income->id }}</div>
+                <div class="receipt-number">{{ $receiptNumber }}</div>
             </div>
         </div>
 

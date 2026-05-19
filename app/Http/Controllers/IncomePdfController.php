@@ -43,6 +43,13 @@ class IncomePdfController extends Controller
             $income->fundingSource->budgetItem->accountingAccount ?? null
         );
 
+        // Número secuencial del comprobante por colegio y año fiscal
+        $incomeYear = $income->date->year;
+        $receiptNumber = Income::where('school_id', $schoolId)
+            ->whereYear('date', $incomeYear)
+            ->where('id', '<=', $income->id)
+            ->count();
+
         $pdf = Pdf::loadView('pdf.income-receipt', [
             'income' => $income,
             'school' => $school,
@@ -50,6 +57,7 @@ class IncomePdfController extends Controller
             'amountInWords' => $amountInWords,
             'debitAccounts' => $debitAccounts,
             'creditHierarchy' => $creditHierarchy,
+            'receiptNumber' => $receiptNumber,
         ]);
 
         $pdf->setPaper('letter');

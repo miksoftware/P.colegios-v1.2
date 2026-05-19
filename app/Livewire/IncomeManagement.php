@@ -243,7 +243,7 @@ class IncomeManagement extends Component
                     ->first();
                 
                 $budgeted = $budget ? $budget->current_amount : 0;
-                $collected = $source->incomes()->where('school_id', $this->schoolId)->sum('amount');
+                $collected = $source->incomes()->where('school_id', $this->schoolId)->whereYear('date', $this->filterYear)->sum('amount');
                 $pending = $budgeted - $collected;
                 
                 return [
@@ -276,6 +276,7 @@ class IncomeManagement extends Component
         if ($budget) {
             $collected = Income::forSchool($this->schoolId)
                 ->where('funding_source_id', $value)
+                ->whereYear('date', $this->filterYear)
                 ->sum('amount');
             
             if ($this->isEditing && $this->incomeId) {
@@ -348,6 +349,7 @@ class IncomeManagement extends Component
             ->map(function($budget) {
                 $collected = Income::forSchool($this->schoolId)
                     ->where('funding_source_id', $budget->funding_source_id)
+                    ->whereYear('date', $this->filterYear)
                     ->sum('amount');
                 
                 $budgeted = (float) $budget->current_amount;
@@ -415,6 +417,7 @@ class IncomeManagement extends Component
         return Income::forSchool($this->schoolId)
             ->with(['fundingSource.budgetItem', 'creator', 'bankAccounts.bank', 'bankAccounts.bankAccount'])
             ->whereIn('funding_source_id', $fundingSourceIds)
+            ->whereYear('date', $this->filterYear)
             ->when($this->filterBudgetItem, fn($q) => $q->whereHas('fundingSource', fn($sub) => $sub->where('budget_item_id', $this->filterBudgetItem)))
             ->when($this->filterSource, fn($q) => $q->where('funding_source_id', $this->filterSource))
             ->when($this->search, fn($q) => $q->search($this->search))
@@ -437,6 +440,7 @@ class IncomeManagement extends Component
 
         $totalExecuted = Income::forSchool($this->schoolId)
             ->whereIn('funding_source_id', $fundingSourceIds)
+            ->whereYear('date', $this->filterYear)
             ->sum('amount');
 
         $percentage = $totalBudgeted > 0 ? ($totalExecuted / $totalBudgeted) * 100 : 0;
@@ -632,6 +636,7 @@ class IncomeManagement extends Component
 
         $collected = Income::forSchool($this->schoolId)
             ->where('funding_source_id', $budget->funding_source_id)
+            ->whereYear('date', $budget->fiscal_year)
             ->sum('amount');
 
         $pendingAddition = $collected - $budget->current_amount;

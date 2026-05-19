@@ -57,9 +57,23 @@ class ActivityLog extends Model
     {
         $modules = [
             'accounting_accounts' => 'Cuentas Contables',
-            'schools' => 'Colegios',
-            'users' => 'Usuarios',
-            'roles' => 'Roles',
+            'schools'             => 'Colegios',
+            'users'               => 'Usuarios',
+            'roles'               => 'Roles',
+            'budgets'             => 'Presupuesto Inicial',
+            'budget_items'        => 'Rubros Presupuestales',
+            'budget_modifications'=> 'Adiciones y Reducciones',
+            'budget_transfers'    => 'Traslados Presupuestales',
+            'precontractual'      => 'Precontractual',
+            'contractual'         => 'Contractual',
+            'postcontractual'     => 'Postcontractual',
+            'expense_codes'       => 'Códigos de Gasto',
+            'expenses'            => 'Gastos',
+            'funding_sources'     => 'Fuentes de Financiación',
+            'incomes'             => 'Ingresos Reales',
+            'inventories'         => 'Inventarios',
+            'retention_configs'   => 'Retenciones',
+            'suppliers'           => 'Proveedores',
         ];
 
         return $modules[$this->module] ?? $this->module ?? 'Sistema';

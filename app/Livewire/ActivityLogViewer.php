@@ -123,35 +123,72 @@ class ActivityLogViewer extends Component
     {
         $labels = [
             // Campos comunes
-            'name' => 'Nombre',
-            'email' => 'Correo electrónico',
-            'phone' => 'Teléfono',
-            'address' => 'Dirección',
-            'description' => 'Descripción',
-            'is_active' => 'Estado',
-            'status' => 'Estado',
-            
+            'name'                    => 'Nombre',
+            'email'                   => 'Correo electrónico',
+            'phone'                   => 'Teléfono',
+            'address'                 => 'Dirección',
+            'description'             => 'Descripción',
+            'is_active'               => 'Estado',
+            'status'                  => 'Estado',
+            'notes'                   => 'Notas',
+            'observations'            => 'Observaciones',
+            'date'                    => 'Fecha',
+            'type'                    => 'Tipo',
+
             // Cuentas contables
-            'code' => 'Código',
-            'level' => 'Nivel',
-            'parent_id' => 'Cuenta padre',
-            'nature' => 'Naturaleza',
-            'allows_movement' => 'Permite movimientos',
-            
+            'code'                    => 'Código',
+            'level'                   => 'Nivel',
+            'parent_id'               => 'Cuenta padre',
+            'nature'                  => 'Naturaleza',
+            'allows_movement'         => 'Permite movimientos',
+
             // Colegios
-            'nit' => 'NIT',
-            'dane_code' => 'Código DANE',
-            'rector_name' => 'Nombre del Rector',
-            'resolution' => 'Resolución',
-            
+            'nit'                     => 'NIT',
+            'dane_code'               => 'Código DANE',
+            'rector_name'             => 'Nombre del Rector',
+            'resolution'              => 'Resolución',
+
             // Usuarios
-            'document_type' => 'Tipo de documento',
-            'document_number' => 'Número de documento',
-            'position' => 'Cargo',
-            'email_verified_at' => 'Verificación de correo',
-            
+            'document_type'           => 'Tipo de documento',
+            'document_number'         => 'Número de documento',
+            'position'                => 'Cargo',
+            'email_verified_at'       => 'Verificación de correo',
+
             // Roles
-            'guard_name' => 'Guard',
+            'guard_name'              => 'Guard',
+
+            // Presupuesto
+            'school_id'               => 'Colegio',
+            'fiscal_year'             => 'Año Fiscal',
+            'budget_item_id'          => 'Rubro Presupuestal',
+            'current_amount'          => 'Monto Actual',
+            'initial_amount'          => 'Monto Inicial',
+            'funding_source_id'       => 'Fuente de Financiación',
+            'accounting_account_id'   => 'Cuenta Contable',
+            'budget_id'               => 'Presupuesto',
+            'modification_number'     => 'Número de Modificación',
+            'amount'                  => 'Monto',
+            'previous_amount'         => 'Monto Anterior',
+            'new_amount'              => 'Monto Nuevo',
+            'reason'                  => 'Razón / Justificación',
+            'document_date'           => 'Fecha de Documento',
+            'cancelled_at'            => 'Anulado el',
+            'cancelled_by'            => 'Anulado por',
+            'cancelled_reason'        => 'Razón de Anulación',
+            'created_by'              => 'Creado por',
+            'total_amount'            => 'Monto Total',
+
+            // Gastos
+            'expense_code_id'         => 'Código de Gasto',
+            'expense_distribution_id' => 'Distribución de Gasto',
+
+            // Fuentes de financiación
+            'source_type'             => 'Tipo de Fuente',
+
+            // Contratos / Proveedores
+            'supplier_id'             => 'Proveedor',
+            'contract_number'         => 'Número de Contrato',
+            'user_id'                 => 'Usuario',
         ];
 
         return $labels[$field] ?? ucfirst(str_replace('_', ' ', $field));
@@ -167,8 +204,30 @@ class ActivityLogViewer extends Component
         }
 
         // Campos booleanos
-        if (in_array($field, ['is_active', 'allows_movement', 'status'])) {
+        if (in_array($field, ['is_active', 'allows_movement'])) {
             return $value ? 'Sí' : 'No';
+        }
+
+        // Campo status / type
+        if ($field === 'type') {
+            $types = [
+                'income'    => 'Ingreso',
+                'expense'   => 'Gasto',
+                'addition'  => 'Adición',
+                'reduction' => 'Reducción',
+            ];
+            return $types[$value] ?? $value;
+        }
+
+        if ($field === 'status') {
+            $statuses = [
+                'active'   => 'Activo',
+                'inactive' => 'Inactivo',
+                'pending'  => 'Pendiente',
+                '1'        => 'Activo',
+                '0'        => 'Inactivo',
+            ];
+            return $statuses[(string)$value] ?? $value;
         }
 
         // Naturaleza contable
@@ -191,21 +250,77 @@ class ActivityLogViewer extends Component
         // Tipo de documento
         if ($field === 'document_type') {
             $types = [
-                'CC' => 'Cédula de Ciudadanía',
-                'CE' => 'Cédula de Extranjería',
-                'TI' => 'Tarjeta de Identidad',
-                'PA' => 'Pasaporte',
+                'CC'  => 'Cédula de Ciudadanía',
+                'CE'  => 'Cédula de Extranjería',
+                'TI'  => 'Tarjeta de Identidad',
+                'PA'  => 'Pasaporte',
                 'NIT' => 'NIT',
             ];
             return $types[$value] ?? $value;
         }
 
-        // IDs de relaciones
+        // Montos
+        if (in_array($field, ['amount', 'initial_amount', 'current_amount', 'previous_amount', 'new_amount', 'total_amount'])) {
+            return '$ ' . number_format((float) $value, 2, ',', '.');
+        }
+
+        // Resolución de IDs de relaciones
+        if ($field === 'budget_item_id') {
+            $item = \App\Models\BudgetItem::find($value);
+            return $item ? "{$item->code} - {$item->name}" : "ID: {$value}";
+        }
+
+        if ($field === 'funding_source_id') {
+            $source = \App\Models\FundingSource::find($value);
+            return $source ? "{$source->code} - {$source->name}" : "ID: {$value}";
+        }
+
+        if ($field === 'accounting_account_id') {
+            $account = \App\Models\AccountingAccount::find($value);
+            return $account ? "{$account->code} - {$account->name}" : "ID: {$value}";
+        }
+
+        if ($field === 'school_id') {
+            $school = \App\Models\School::find($value);
+            return $school ? $school->name : "ID: {$value}";
+        }
+
+        if (in_array($field, ['user_id', 'created_by', 'updated_by', 'cancelled_by'])) {
+            $user = \App\Models\User::find($value);
+            return $user ? $user->name : "ID: {$value}";
+        }
+
+        if ($field === 'budget_id') {
+            $budget = \App\Models\Budget::with(['budgetItem', 'fundingSource'])->find($value);
+            if ($budget) {
+                $item   = $budget->budgetItem?->code ?? '?';
+                $source = $budget->fundingSource?->code ?? '?';
+                return "{$item} [{$source}] {$budget->fiscal_year}";
+            }
+            return "ID: {$value}";
+        }
+
+        if ($field === 'expense_code_id') {
+            $code = \App\Models\ExpenseCode::find($value);
+            return $code ? "{$code->code} - {$code->name}" : "ID: {$value}";
+        }
+
+        if ($field === 'supplier_id') {
+            $supplier = \App\Models\Supplier::find($value);
+            return $supplier ? $supplier->name : "ID: {$value}";
+        }
+
+        if ($field === 'parent_id') {
+            $account = \App\Models\AccountingAccount::find($value);
+            return $account ? "{$account->code} - {$account->name}" : "ID: {$value}";
+        }
+
+        // Cualquier otro _id genérico
         if (str_ends_with($field, '_id')) {
             return "ID: {$value}";
         }
 
-        // Fechas
+        // Fechas con timestamp
         if (str_contains($field, '_at') && is_string($value)) {
             try {
                 return \Carbon\Carbon::parse($value)->format('d/m/Y H:i');

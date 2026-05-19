@@ -6,7 +6,9 @@ use App\Models\AccountingAccount;
 use App\Models\Budget;
 use App\Models\BudgetItem;
 use App\Models\BudgetModification;
+use App\Models\ExpenseDistribution;
 use App\Models\FundingSource;
+use App\Models\Income;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
@@ -571,14 +573,71 @@ class BudgetManagement extends Component
             return;
         }
 
+        // Validar según tipo de presupuesto
+        if ($this->itemToDelete->type === 'income') {
+            $hasIncome = Income::where('school_id', $this->itemToDelete->school_id)
+                ->where('funding_source_id', $this->itemToDelete->funding_source_id)
+                ->whereYear('date', $this->itemToDelete->fiscal_year)
+                ->exists();
+            if ($hasIncome) {
+                $this->dispatch('toast', message: 'No se puede eliminar: este presupuesto tiene ingresos reales registrados.', type: 'error');
+                $this->closeDeleteModal();
+                return;
+            }
+        } elseif ($this->itemToDelete->type === 'expense') {
+            if ($this->itemToDelete->distributions()->exists()) {
+                $this->dispatch('toast', message: 'No se puede eliminar: este presupuesto tiene gastos distribuidos.', type: 'error');
+                $this->closeDeleteModal();
+                return;
+            }
+        }
+
         DB::beginTransaction();
         try {
+            // Eliminar líneas de modificaciones primero
+            foreach ($this->itemToDelete->modifications as $mod) {
+                $mod->lines()->delete();
+            }
             $this->itemToDelete->modifications()->delete();
-            $this->itemToDelete->delete();
-            
+            $this->itemToDelete->delete(); // LogsActivity auto-registra la eliminación
+
             DB::commit();
             $this->dispatch('toast', message: 'Presupuesto eliminado.', type: 'success');
             $this->closeDeleteModal();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function deleteModification($modId)
+    {
+        if (!auth()->user()->can('budgets.modify')) {
+            $this->dispatch('toast', message: 'No tienes permisos para eliminar modificaciones.', type: 'error');
+            return;
+        }
+
+        $mod = BudgetModification::whereHas('budget', fn($q) => $q->where('school_id', $this->schoolId))
+            ->with('budget')
+            ->findOrFail($modId);
+
+        DB::beginTransaction();
+        try {
+            $budget = $mod->budget;
+            $mod->lines()->delete();
+            $mod->delete(); // LogsActivity auto-registra la eliminación
+
+            $budget->recalculateCurrentAmount();
+
+            // Refrescar historyBudget si el modal está abierto
+            if ($this->historyBudget && $this->historyBudget->id === $budget->id) {
+                $this->historyBudget = Budget::forSchool($this->schoolId)
+                    ->with(['budgetItem', 'fundingSource', 'modifications.creator'])
+                    ->find($budget->id);
+            }
+
+            DB::commit();
+            $this->dispatch('toast', message: 'Modificación eliminada y presupuesto recalculado.', type: 'success');
         } catch (\Exception $e) {
             DB::rollBack();
             $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');

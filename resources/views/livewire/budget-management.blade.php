@@ -191,10 +191,12 @@
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                     </button>
                                     @endcan
+                                    @can('budgets.delete')
+                                    <button wire:click="confirmDelete({{ $group['income']->id }})" class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Eliminar presupuesto de ingreso">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                    @endcan
                                 </div>
-                            </div>
-                            @else
-                            <p class="text-sm text-gray-400 text-center py-4">Sin presupuesto de ingreso</p>
                             @endif
                         </div>
                         
@@ -238,6 +240,11 @@
                                     @can('budgets.edit')
                                     <button wire:click="editBudget({{ $group['expense']->id }})" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Editar">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
+                                    @endcan
+                                    @can('budgets.delete')
+                                    <button wire:click="confirmDelete({{ $group['expense']->id }})" class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Eliminar presupuesto de gasto">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                     </button>
                                     @endcan
                                 </div>
@@ -523,8 +530,8 @@
     <div class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
             <div class="fixed inset-0 bg-gray-500/75" wire:click="closeHistoryModal"></div>
-            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-3xl">
-                <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
+            <div class="relative bg-white rounded-2xl shadow-xl sm:my-8 w-full max-w-3xl flex flex-col" style="max-height:90vh">
+                <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4 flex-shrink-0 rounded-t-2xl">
                     <div class="flex items-center justify-between">
                         <div>
                             <h3 class="text-xl font-bold text-white">Historial de Modificaciones</h3>
@@ -535,7 +542,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="px-6 py-5">
+                <div class="px-6 py-5 overflow-y-auto flex-1">
                     <div class="bg-gray-50 rounded-xl p-4 mb-4">
                         <div class="grid grid-cols-3 gap-4 text-sm">
                             <div><span class="text-gray-500">Inicial:</span> <span class="font-semibold">${{ number_format($historyBudget->initial_amount, 2, ',', '.') }}</span></div>
@@ -553,6 +560,7 @@
                                 <th class="px-4 py-3 text-right font-medium text-gray-500">Nuevo Saldo</th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-500">Razón</th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-500">Fecha</th>
+                                <th class="px-4 py-3"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
@@ -564,6 +572,13 @@
                                 <td class="px-4 py-3 text-right font-medium">${{ number_format($mod->new_amount, 2, ',', '.') }}</td>
                                 <td class="px-4 py-3 max-w-xs truncate" title="{{ $mod->reason }}">{{ Str::limit($mod->reason, 35) }}</td>
                                 <td class="px-4 py-3 text-gray-500">{{ $mod->created_at->format('d/m/Y H:i') }}</td>
+                                <td class="px-4 py-3 text-right">
+                                    @can('budgets.modify')
+                                    <button wire:click="deleteModification({{ $mod->id }})" wire:confirm="¿Eliminar esta modificación? El monto del presupuesto será recalculado." class="p-1 text-red-500 hover:bg-red-50 rounded-lg" title="Eliminar modificación">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                    @endcan
+                                </td>
                             </tr>
                             @endforeach
                         </tbody>
@@ -572,7 +587,7 @@
                     <p class="text-center text-gray-500 py-8">No hay modificaciones registradas</p>
                     @endif
                 </div>
-                <div class="bg-gray-50 px-6 py-4 flex justify-end">
+                <div class="bg-gray-50 px-6 py-4 flex-shrink-0 rounded-b-2xl flex justify-end">
                     <button type="button" wire:click="closeHistoryModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cerrar</button>
                 </div>
             </div>
@@ -595,8 +610,15 @@
                     </div>
                 </div>
                 <div class="px-6 py-5">
-                    <p class="text-gray-600">¿Está seguro de eliminar el presupuesto del rubro <strong class="text-gray-900">{{ $itemToDelete->budgetItem->name }}</strong>?</p>
-                    <p class="text-sm text-gray-500 mt-2">Esta acción eliminará todas las modificaciones asociadas.</p>
+                    <p class="text-gray-600">¿Eliminar el presupuesto de <strong class="text-gray-900">{{ $itemToDelete->budgetItem->name }}</strong>
+                        ({{ $itemToDelete->type === 'income' ? 'Ingreso' : 'Gasto' }})?
+                    </p>
+                    <p class="text-sm text-gray-500 mt-2">Se eliminarán todas las modificaciones asociadas. La acción quedará registrada en el historial de actividad.</p>
+                    @if($itemToDelete->type === 'income')
+                    <p class="text-xs text-orange-600 mt-2 font-medium">⚠️ No se puede eliminar si tiene ingresos reales registrados.</p>
+                    @else
+                    <p class="text-xs text-orange-600 mt-2 font-medium">⚠️ No se puede eliminar si tiene gastos distribuidos.</p>
+                    @endif
                 </div>
                 <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
                     <button type="button" wire:click="closeDeleteModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cancelar</button>

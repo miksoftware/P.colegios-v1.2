@@ -494,8 +494,12 @@ class PostcontractualPdfController extends Controller
 
             $distAvailable = max(0, $expDistAmount - (float) $priorReserved);
         } else {
-            // Fallback para pagos directos sin distribución de convocatoria
-            $distAvailable = (float) $cdp->total_amount;
+            // Para pagos directos sin distribución de convocatoria:
+            // usar el saldo disponible guardado en available_balance_at_creation
+            // (snapshot del saldo del código de gasto al momento de crear el CDP),
+            // igual que el precontractual usa $expDistAmount - $priorReserved.
+            $savedBalance = $cdp->fundingSources->sum(fn($fs) => (float) $fs->available_balance_at_creation);
+            $distAvailable = $savedBalance > 0 ? $savedBalance : (float) $cdp->total_amount;
         }
 
         $sources = [];

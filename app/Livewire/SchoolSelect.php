@@ -237,18 +237,25 @@ class SchoolSelect extends Component
         }
 
         $school = School::find($id);
-        
-        // Check if school has users
-        if ($school->users()->count() > 0) {
-            $this->dispatch('notify', message: 'No puedes eliminar un colegio que tiene usuarios asignados.', type: 'error');
-            return;
-        }
+
+        // Collect IDs of users who ONLY belong to this school (not system admins)
+        $exclusiveUserIds = $school->users()
+            ->where('is_system_admin', '!=', true)
+            ->whereDoesntHave('schools', fn($q) => $q->where('schools.id', '!=', $id))
+            ->pluck('users.id');
 
         if ($school->logo_path) {
             Storage::disk('public')->delete($school->logo_path);
         }
 
+        // Delete school first — DB cascade removes contracts, payment_orders,
+        // school_user pivot, and all other school-related data automatically.
         $school->delete();
+
+        // Now safe to delete exclusive users: their FK-referenced records are gone.
+        if ($exclusiveUserIds->isNotEmpty()) {
+            \App\Models\User::whereIn('id', $exclusiveUserIds)->delete();
+        }
         $this->dispatch('notify', message: 'Colegio eliminado exitosamente.', type: 'success');
     }
 

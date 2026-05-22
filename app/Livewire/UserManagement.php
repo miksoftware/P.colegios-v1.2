@@ -211,10 +211,16 @@ class UserManagement extends Component
             return;
         }
 
-        // If in school context, detach. If user has no other schools, maybe delete?
-        // For now, just detach from school if schoolId is set
+        // If in school context, detach then delete user if they belong to no other school
         if ($this->schoolId) {
             $user->schools()->detach($this->schoolId);
+            if ($user->schools()->count() === 0) {
+                try {
+                    $user->delete();
+                } catch (\Exception $e) {
+                    // User has FK-referenced records; leave in DB but fully detached
+                }
+            }
             $this->dispatch('notify', message: 'Usuario eliminado del colegio.', type: 'success');
         } else {
             // Admin deleting globally? Or just detach?

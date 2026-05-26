@@ -258,14 +258,14 @@
                                     </td>
                                     <td class="px-6 py-3 text-right text-sm" x-data="{ showDetail: false }">
                                         <div class="relative">
-                                            @if($distPaid > 0 || $distCommitted > 0)
+                                            @if($distPaid > 0 || $distLocked > 0)
                                                 <button type="button" @click="showDetail = !showDetail" class="text-right hover:opacity-80 cursor-pointer">
                                                     @if($distPaid > 0)
                                                         <span class="text-emerald-600 font-medium">${{ number_format($distPaid, 2, ',', '.') }}</span>
                                                         <div class="text-[10px] text-gray-400">Pagado</div>
                                                     @endif
-                                                    @if($distCommitted > 0 && $distCommitted > $distPaid)
-                                                        <span class="text-amber-600 {{ $distPaid > 0 ? 'text-xs' : '' }}">${{ number_format($distCommitted - $distPaid, 2, ',', '.') }}</span>
+                                                    @if($distLocked > 0 && $distLocked > $distPaid)
+                                                        <span class="text-amber-600 {{ $distPaid > 0 ? 'text-xs' : '' }}">${{ number_format($distLocked - $distPaid, 2, ',', '.') }}</span>
                                                         <div class="text-[10px] text-gray-400">Comprometido</div>
                                                     @endif
                                                 </button>

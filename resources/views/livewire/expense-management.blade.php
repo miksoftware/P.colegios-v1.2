@@ -286,6 +286,21 @@
                                                                 $paidForConv = $paymentLines
                                                                     ->filter(fn($line) => $line->paymentOrder && in_array($line->paymentOrder->status, ['draft', 'approved', 'paid']) && $line->paymentOrder->contract && $line->paymentOrder->contract->convocatoria_id == $conv->id)
                                                                     ->sum('total');
+                                                                // Usar el monto del RP si existe; si no, el monto estimado de la convocatoria (CDP)
+                                                                $committedForConv = (float) $cd->amount;
+                                                                if ($contract && $contract->status !== 'annulled') {
+                                                                    $nonAdditionRps = collect($contract->rps ?? [])
+                                                                        ->where('status', 'active')
+                                                                        ->where('is_addition', false);
+                                                                    if ($nonAdditionRps->isNotEmpty()) {
+                                                                        $rpsForDist = $nonAdditionRps->filter(
+                                                                            fn($rp) => $rp->cdp && (int) $rp->cdp->convocatoria_distribution_id === (int) $cd->id
+                                                                        );
+                                                                        if ($rpsForDist->isNotEmpty()) {
+                                                                            $committedForConv = (float) $rpsForDist->sum('total_amount');
+                                                                        }
+                                                                    }
+                                                                }
                                                             @endphp
                                                             <div class="border rounded-lg p-2 {{ $contract && $contract->status === 'annulled' ? 'opacity-50' : '' }}">
                                                                 <div class="flex justify-between items-start">
@@ -293,7 +308,7 @@
                                                                         <span class="font-semibold text-indigo-600">Conv. #{{ $conv->formatted_number }}</span>
                                                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium {{ $conv->status_color }} ml-1">{{ $conv->status_name }}</span>
                                                                     </div>
-                                                                    <span class="font-medium text-amber-700">${{ number_format($cd->amount, 2, ',', '.') }}</span>
+                                                                    <span class="font-medium text-amber-700">${{ number_format($committedForConv, 2, ',', '.') }}</span>
                                                                 </div>
                                                                 <div class="text-[10px] text-gray-500 mt-0.5 truncate">{{ Str::limit($conv->object, 60) }}</div>
                                                                 @if($contract)
@@ -318,7 +333,7 @@
                                                         <div class="border-t pt-2 mt-2 space-y-1">
                                                             <div class="flex justify-between font-medium">
                                                                 <span class="text-gray-600">Total comprometido</span>
-                                                                <span class="text-amber-700">${{ number_format($distCommitted, 2, ',', '.') }}</span>
+                                                                <span class="text-amber-700">${{ number_format($distLocked, 2, ',', '.') }}</span>
                                                             </div>
                                                             @if($distPaid > 0)
                                                                 <div class="flex justify-between font-medium">
@@ -679,6 +694,21 @@
                                                 $paidForConv = $detailPayLines
                                                     ->filter(fn($line) => $line->paymentOrder && in_array($line->paymentOrder->status, ['draft', 'approved', 'paid']) && $line->paymentOrder->contract && $line->paymentOrder->contract->convocatoria_id == $conv->id)
                                                     ->sum('total');
+                                                // Usar el monto del RP si existe; si no, el monto estimado de la convocatoria (CDP)
+                                                $committedForConv = (float) $cd->amount;
+                                                if ($contract && $contract->status !== 'annulled') {
+                                                    $nonAdditionRps = collect($contract->rps ?? [])
+                                                        ->where('status', 'active')
+                                                        ->where('is_addition', false);
+                                                    if ($nonAdditionRps->isNotEmpty()) {
+                                                        $rpsForDist = $nonAdditionRps->filter(
+                                                            fn($rp) => $rp->cdp && (int) $rp->cdp->convocatoria_distribution_id === (int) $cd->id
+                                                        );
+                                                        if ($rpsForDist->isNotEmpty()) {
+                                                            $committedForConv = (float) $rpsForDist->sum('total_amount');
+                                                        }
+                                                    }
+                                                }
                                             @endphp
                                             <div class="flex items-start justify-between text-xs bg-white rounded-lg p-2 border {{ $contract && $contract->status === 'annulled' ? 'opacity-50' : '' }}">
                                                 <div class="flex-1 min-w-0">
@@ -697,7 +727,7 @@
                                                         @endif
                                                     @endif
                                                 </div>
-                                                <span class="font-semibold text-amber-700 ml-2 whitespace-nowrap">${{ number_format($cd->amount, 2, ',', '.') }}</span>
+                                                <span class="font-semibold text-amber-700 ml-2 whitespace-nowrap">${{ number_format($committedForConv, 2, ',', '.') }}</span>
                                             </div>
                                         @endforeach
                                     </div>

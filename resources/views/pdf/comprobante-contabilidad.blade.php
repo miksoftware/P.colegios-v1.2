@@ -12,6 +12,7 @@
         /* Header */
         .header-table { width: 100%; border-collapse: collapse; border-bottom: 2px solid #1e3a5f; }
         .header-table td { vertical-align: middle; padding: 8px 12px; }
+        .header-logo { width: 70px; text-align: center; border-right: 1px solid #1e3a5f; }
         .header-left { font-size: 10px; }
         .header-right { text-align: right; }
         .school-name { font-size: 11px; font-weight: bold; text-transform: uppercase; color: #1e3a5f; }
@@ -62,6 +63,13 @@
         {{-- HEADER --}}
         <table class="header-table">
             <tr>
+                <td class="header-logo">
+                    @if($school->logo_absolute_path && file_exists($school->logo_absolute_path))
+                        <img src="{{ $school->logo_absolute_path }}" style="width: 55px; height: 55px; object-fit: contain;" alt="Logo">
+                    @else
+                        <div style="width: 55px; height: 55px; background: #e8edf3; border-radius: 4px; margin: 0 auto;"></div>
+                    @endif
+                </td>
                 <td class="header-left">
                     <div class="school-name">{{ $school->name }}</div>
                     <div class="school-sub">{{ $school->municipality ?? '' }}</div>

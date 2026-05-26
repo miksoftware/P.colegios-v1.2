@@ -9,7 +9,10 @@
         .container { padding: 20px 30px; }
         .doc-border { border: 2px solid #1e3a5f; }
 
-        .header { text-align: center; padding: 10px 15px; border-bottom: 2px solid #1e3a5f; }
+        .header-table { width: 100%; border-collapse: collapse; border-bottom: 2px solid #1e3a5f; }
+        .header-table td { vertical-align: middle; padding: 10px 15px; }
+        .header-logo { width: 70px; text-align: center; border-right: 1px solid #1e3a5f; }
+        .header-center { text-align: center; }
         .school-name { font-size: 13px; font-weight: bold; text-transform: uppercase; color: #1e3a5f; }
         .school-dane { font-size: 8px; color: #555; }
         .school-muni { font-size: 9px; color: #444; }
@@ -37,14 +40,23 @@
     <div class="doc-border">
 
         {{-- HEADER --}}
-        <div class="header">
-            <div class="school-name">{{ $school->name }}</div>
-            @if($school->nit)
-                <div class="school-dane">{{ $school->nit }}</div>
-            @endif
-            <div class="school-muni">{{ $school->municipality ?? '' }}</div>
-            <div class="doc-title">Acta de Inicio del Contrato No. {{ $contract->formatted_number }}</div>
-        </div>
+        <table class="header-table">
+            <tr>
+                <td class="header-logo">
+                    @if($school->logo_absolute_path && file_exists($school->logo_absolute_path))
+                        <img src="{{ $school->logo_absolute_path }}" style="width: 55px; height: 55px; object-fit: contain;" alt="Logo">
+                    @else
+                        <div style="width: 55px; height: 55px; background: #e8edf3; border-radius: 4px; margin: 0 auto;"></div>
+                    @endif
+                </td>
+                <td class="header-center">
+                    <div class="school-name">{{ $school->name }}</div>
+                    @if($school->nit)<div class="school-dane">{{ $school->nit }}</div>@endif
+                    <div class="school-muni">{{ $school->municipality ?? '' }}</div>
+                    <div class="doc-title">Acta de Inicio del Contrato No. {{ $contract->formatted_number }}</div>
+                </td>
+            </tr>
+        </table>
 
         {{-- DATOS DEL CONTRATO --}}
         <table class="info-table">

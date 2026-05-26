@@ -12,7 +12,10 @@
         .doc-main-title { text-align: center; font-size: 14px; font-weight: bold; color: #1e3a5f; padding: 12px 15px; line-height: 1.3; }
         .doc-legal { text-align: center; font-size: 8px; color: #666; padding: 0 15px 8px; }
 
-        .school-header { text-align: center; padding: 8px 15px; color: #1e3a5f; }
+        .header-table { width: 100%; border-collapse: collapse; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+        .header-table td { vertical-align: middle; padding: 8px 15px; color: #1e3a5f; }
+        .header-logo { width: 70px; text-align: center; border-right: 1px solid #ddd; }
+        .header-center { text-align: center; }
         .school-name { font-size: 12px; font-weight: bold; text-transform: uppercase; }
         .school-detail { font-size: 9px; }
 
@@ -51,12 +54,23 @@
         </div>
 
         {{-- DATOS DEL COLEGIO --}}
-        <div class="school-header">
-            <div class="school-name">{{ $school->name }}</div>
-            <div class="school-detail">{{ $school->municipality ?? '' }}</div>
-            <div class="school-detail">NIT. {{ $school->nit ?? '' }}</div>
-            <div class="school-detail">{{ $school->address ?? '' }}</div>
-        </div>
+        <table class="header-table">
+            <tr>
+                <td class="header-logo">
+                    @if($school->logo_absolute_path && file_exists($school->logo_absolute_path))
+                        <img src="{{ $school->logo_absolute_path }}" style="width: 55px; height: 55px; object-fit: contain;" alt="Logo">
+                    @else
+                        <div style="width: 55px; height: 55px; background: #e8edf3; border-radius: 4px; margin: 0 auto;"></div>
+                    @endif
+                </td>
+                <td class="header-center">
+                    <div class="school-name">{{ $school->name }}</div>
+                    <div class="school-detail">{{ $school->municipality ?? '' }}</div>
+                    <div class="school-detail">NIT. {{ $school->nit ?? '' }}</div>
+                    <div class="school-detail">{{ $school->address ?? '' }}</div>
+                </td>
+            </tr>
+        </table>
 
         {{-- FECHA Y NÚMERO --}}
         <div class="date-row">

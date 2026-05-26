@@ -8,7 +8,10 @@
         body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 11px; color: #222; line-height: 1.6; }
         .container { padding: 25px 35px; }
         .doc-border { border: 2px solid #1e3a5f; }
-        .header { text-align: center; padding: 12px 15px; border-bottom: 2px solid #1e3a5f; }
+        .header-table { width: 100%; border-collapse: collapse; border-bottom: 2px solid #1e3a5f; }
+        .header-table td { vertical-align: middle; padding: 12px 15px; }
+        .header-logo { width: 70px; text-align: center; border-right: 1px solid #1e3a5f; }
+        .header-center { text-align: center; }
         .school-name { font-size: 13px; font-weight: bold; text-transform: uppercase; color: #1e3a5f; }
         .school-muni { font-size: 9px; color: #444; }
         .doc-title { font-size: 12px; font-weight: bold; color: #1e3a5f; margin-top: 10px; }
@@ -37,12 +40,23 @@
 <div class="doc-border">
 
     {{-- HEADER --}}
-    <div class="header">
-        <div class="school-name">{{ $school->name }}</div>
-        <div class="school-muni">{{ $school->municipality ?? '' }}</div>
-        <div class="doc-title">RESOLUCIÓN DE PAGO No. {{ $po->formatted_number }}</div>
-        <div class="doc-subtitle">Por la cual se reconoce una Obligación,</div>
-    </div>
+    <table class="header-table">
+        <tr>
+            <td class="header-logo">
+                @if($school->logo_absolute_path && file_exists($school->logo_absolute_path))
+                    <img src="{{ $school->logo_absolute_path }}" style="width: 55px; height: 55px; object-fit: contain;" alt="Logo">
+                @else
+                    <div style="width: 55px; height: 55px; background: #e8edf3; border-radius: 4px; margin: 0 auto;"></div>
+                @endif
+            </td>
+            <td class="header-center">
+                <div class="school-name">{{ $school->name }}</div>
+                <div class="school-muni">{{ $school->municipality ?? '' }}</div>
+                <div class="doc-title">RESOLUCIÓN DE PAGO No. {{ $po->formatted_number }}</div>
+                <div class="doc-subtitle">Por la cual se reconoce una Obligación,</div>
+            </td>
+        </tr>
+    </table>
 
     {{-- TEXTO LEGAL --}}
     <div class="text-block">

@@ -386,11 +386,10 @@ class ExpenseManagement extends Component
             return;
         }
 
-        $distribution       = $this->itemToDelete;
-        $distributionAmount = (float) $distribution->amount;
-        $budget             = Budget::find($distribution->budget_id);
+        $distribution = $this->itemToDelete;
+        $budget       = Budget::find($distribution->budget_id);
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($distribution, $distributionAmount, $budget) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($distribution, $budget) {
             if ($budget) {
                 // Cancelar las anotaciones de ExpenseManagement vinculadas a esta distribución.
                 // Son BudgetModifications donde new_amount = previous_amount (nunca cambiaron
@@ -412,11 +411,10 @@ class ExpenseManagement extends Component
                         ]);
                 }
 
-                // Descontar el monto del presupuesto. Al eliminar la distribución,
-                // ese dinero ya no hace parte del presupuesto ejecutable.
-                if ($distributionAmount > 0) {
-                    $budget->decrement('current_amount', $distributionAmount);
-                }
+                // NO se modifica current_amount: el presupuesto (current_amount) lo fija
+                // el módulo de adiciones/reducciones de ingreso↔gasto. Al eliminar una
+                // distribución, el monto simplemente vuelve a estar disponible para
+                // redistribuir (available = current_amount - sum(distributions)).
             }
 
             $distribution->delete();

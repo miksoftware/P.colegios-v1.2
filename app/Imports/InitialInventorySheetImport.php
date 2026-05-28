@@ -45,19 +45,28 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
         $totalAddedValue = 0;
 
         foreach ($rows as $row) {
-            // Validar que la fila tenga datos básicos (al menos la descripción y el código)
-            if (!isset($row[1]) || !isset($row[2])) {
+            // Validar que la fila tenga datos básicos
+            if (!isset($row[0]) || !isset($row[1])) {
+                continue;
+            }
+
+            $accountCode = trim($row[0]);
+            $stateCheck  = mb_strtoupper(trim($row[3] ?? ''));
+
+            // Saltar filas de encabezado, metadatos y totales de categoría:
+            // - El código contable debe ser numérico/puntual (ej: 1.6.55.05)
+            // - El estado debe ser B, R o M (artículos reales)
+            if (!preg_match('/^\d[\d\.]+\d$/', $accountCode) || !in_array($stateCheck, ['B', 'R', 'M'])) {
                 continue;
             }
 
             // 1. Obtener o crear Cuenta Contable
-            $accountCode = trim($row[1]);
             if (!isset($this->accountsCache[$accountCode])) {
                 $account = InventoryAccountingAccount::firstOrCreate(
                     ['code' => $accountCode],
                     [
                         'name' => 'Cuenta Autogenerada ' . $accountCode,
-                        'depreciation_years' => 10,
+                        'depreciation_years' => $this->resolveDepreciationYears($accountCode),
                         'is_active' => true,
                     ]
                 );
@@ -66,7 +75,7 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
             $accountId = $this->accountsCache[$accountCode];
 
             // 2. Obtener o crear Proveedor
-            $supplierNameRaw = isset($row[11]) && trim($row[11]) !== '' ? trim($row[11]) : 'PROVEEDOR DESCONOCIDO';
+            $supplierNameRaw = isset($row[10]) && trim($row[10]) !== '' ? trim($row[10]) : 'PROVEEDOR DESCONOCIDO';
             $supplierName = mb_substr($supplierNameRaw, 0, 50);
             $supplierKey = mb_strtoupper($supplierName);
 
@@ -97,42 +106,47 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
             $supplierId = $this->suppliersCache[$supplierKey];
 
             // 3. Mapeo de campos
-            $stateRaw = mb_strtoupper(trim($row[4] ?? 'B'));
+            // Columnas (0-indexed, col A=0): A=Cód.Contable, B=Descripción, C=Calco Actual,
+            // D=Estado, E=Valor Inicial, F=Depreciación, G=Acta Baja, H=Val.Baja, I=Saldo,
+            // J=Fecha Adquisición, K=Proveedor, L=Procedencia Recursos, M=Sede Ubicación, N=Tipo Inventario
+            $stateRaw = mb_strtoupper(trim($row[3] ?? 'B'));
             $state = match($stateRaw) {
                 'R' => 'regular',
                 'M' => 'malo',
                 default => 'bueno',
             };
 
-            $typeRaw = mb_strtoupper(trim($row[14] ?? 'DEVOLUTIVO'));
+            $typeRaw = mb_strtoupper(trim($row[13] ?? 'DEVOLUTIVO'));
             $inventoryType = str_contains($typeRaw, 'CONSUMO') ? 'consumo' : 'devolutivo';
 
-            $initialValue = isset($row[6]) ? (float) $row[6] : (isset($row[5]) ? (float) $row[5] : 0);
+            // Valor inicial de compra (columna E = índice 4)
+            $initialValue = isset($row[4]) && is_numeric($row[4]) ? (float) $row[4] : 0;
             
             $acquisitionDate = now();
-            if (isset($row[10]) && is_numeric($row[10])) {
+            if (isset($row[9]) && is_numeric($row[9])) {
                 try {
-                    $acquisitionDate = Date::excelToDateTimeObject($row[10]);
+                    $acquisitionDate = Date::excelToDateTimeObject($row[9]);
                 } catch (\Exception $e) {
                     // Ignorar fecha inválida
                 }
             }
 
-            $currentTag = isset($row[3]) && trim($row[3]) !== '' && trim($row[3]) !== 'ND' ? trim($row[3]) : null;
+            // CALCO ACTUAL (placa) está en columna C = índice 2
+            $currentTag = isset($row[2]) && trim($row[2]) !== '' && trim($row[2]) !== 'ND' ? trim($row[2]) : null;
 
             // 4. Crear Artículo
             InventoryItem::create([
                 'school_id' => $this->schoolId,
                 'inventory_accounting_account_id' => $accountId,
                 'inventory_entry_id' => $this->entryId,
-                'name' => mb_substr(trim($row[2]), 0, 255),
+                'name' => mb_substr(trim($row[1]), 0, 255),
                 'initial_value' => $initialValue,
                 'acquisition_date' => $acquisitionDate,
                 'supplier_id' => $supplierId,
                 'state' => $state,
                 'current_tag' => $currentTag,
-                'location' => isset($row[12]) ? mb_substr(trim($row[12]), 0, 100) : null,
-                'funding_source' => isset($row[13]) ? mb_substr(trim($row[13]), 0, 100) : null,
+                'location' => isset($row[12]) && trim($row[12]) !== '' ? mb_substr(trim($row[12]), 0, 100) : null,
+                'funding_source' => isset($row[11]) && trim($row[11]) !== '' ? mb_substr(trim($row[11]), 0, 100) : null,
                 'inventory_type' => $inventoryType,
                 'is_active' => true,
             ]);
@@ -146,9 +160,63 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
         $entry->save();
     }
 
+    /**
+     * Determina los años de depreciación correctos según el código contable.
+     * Aplica las tablas de Contaduría General de la Nación colombiana.
+     */
+    private function resolveDepreciationYears(string $code): int
+    {
+        // Normalizar: quitar puntos para comparar con los códigos de referencia
+        $n = str_replace('.', '', $code);
+
+        // Códigos específicos que difieren del valor por defecto de su grupo
+        $exact = [
+            // Equipos de comunicación y computación (padre = 10 años)
+            '167002' => 5,   // Equipo de computación
+            '167090' => 5,   // Otros equipos de comunicación y computación
+            // Intangibles
+            '1970'   => 5,
+            '197007' => 5,   // Licencias
+            '197008' => 5,   // Software
+            '197090' => 5,   // Otros intangibles
+            // Sin depreciación
+            '830617' => 0,
+            '830618' => 0,
+            '830690' => 0,
+        ];
+
+        if (isset($exact[$n])) {
+            return $exact[$n];
+        }
+
+        // Prefijos (de más específico a más general)
+        $prefixes = [
+            '1610' => 5,    // Semovientes
+            '1640' => 50,   // Edificaciones
+            '1970' => 5,    // Intangibles
+            '8306' => 0,    // Bienes en custodia
+            // Grupos con 10 años (por defecto)
+            '1655' => 10,   // Maquinaria y equipo
+            '1665' => 10,   // Muebles y enseres
+            '1670' => 10,   // Comunicación y computación
+            '1675' => 10,   // Transporte
+            '1680' => 10,   // Comedor y cocina
+        ];
+
+        foreach ($prefixes as $prefix => $years) {
+            if (str_starts_with($n, $prefix)) {
+                return $years;
+            }
+        }
+
+        return 10; // Por defecto
+    }
+
     public function startRow(): int
     {
-        return 5; // Comenzar en la fila 5 (asumiendo que las cabeceras son las primeras 4)
+        // Los encabezados de columna están en la fila 13 del formato AP-AI-RG-170.
+        // Los datos reales comienzan en la fila 14.
+        return 14;
     }
 
     public function chunkSize(): int

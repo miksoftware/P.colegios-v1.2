@@ -11,48 +11,55 @@ use Carbon\Carbon;
 
 class CleanupInitialImport extends Command
 {
-    protected $signature = 'app:cleanup-import';
+    protected $signature = 'app:cleanup-import {--school= : School ID to scope cleanup (optional)}';
     protected $description = 'Clean up garbage from the initial import';
 
     public function handle()
     {
         $this->info("Starting cleanup...");
-        
-        // Find the generic entry
-        $entry = InventoryEntry::where('observations', 'like', '%Carga Inicial de Inventario por Excel%')->first();
-        
-        if ($entry) {
-            $this->info("Found entry: " . $entry->id);
-            $count = InventoryItem::where('inventory_entry_id', $entry->id)->count();
-            $this->info("Deleting $count items associated with this entry.");
-            
-            // Disable foreign key checks temporarily if needed, but standard Eloquent delete is fine if cascading is not set
-            // Let's delete items first
-            InventoryItem::where('inventory_entry_id', $entry->id)->delete();
-            
-            // Delete the entry
-            $entry->delete();
-            $this->info("Deleted the InventoryEntry.");
+
+        // ── 1. Eliminar cuentas contables con código inválido (no numérico/puntual) ──
+        // Estas fueron creadas cuando el import usaba la descripción del artículo como código.
+        // Un código válido luce como: 1655, 165504, 1.6.55.04, etc.
+        $invalidAccounts = InventoryAccountingAccount::where('name', 'like', 'Cuenta Autogenerada %')
+            ->get()
+            ->filter(fn($a) => !preg_match('/^\d[\d\.]+\d$/', $a->code));
+
+        $invalidIds = $invalidAccounts->pluck('id');
+
+        if ($invalidIds->isNotEmpty()) {
+            // Eliminar los artículos vinculados a esas cuentas inválidas
+            $itemsDeleted = InventoryItem::whereIn('inventory_accounting_account_id', $invalidIds)->delete();
+            $this->info("Deleted {$itemsDeleted} inventory items with invalid account codes.");
+
+            // Eliminar las cuentas inválidas
+            $accountsDeleted = InventoryAccountingAccount::whereIn('id', $invalidIds)->delete();
+            $this->info("Deleted {$accountsDeleted} invalid accounting accounts (descriptions used as codes).");
         } else {
-            $this->info("No generic entry found.");
+            $this->info("No invalid accounting accounts found.");
         }
 
-        // Delete suppliers created today with person_type = juridica and document_type = NIT that are clearly auto-generated
-        // For safety, we delete any supplier with document_number starting with 999 and created today
-        $suppliersCount = Supplier::where('document_number', 'like', '999%')
-            ->whereDate('created_at', Carbon::today())
-            ->delete();
-        $this->info("Deleted $suppliersCount auto-generated suppliers.");
+        // ── 2. Eliminar proveedores autogenerados sin artículos asociados ──
+        $autoSupplierIds = Supplier::where('document_number', 'like', '999%')->pluck('id');
+        if ($autoSupplierIds->isNotEmpty()) {
+            $usedSupplierIds = InventoryItem::whereIn('supplier_id', $autoSupplierIds)->pluck('supplier_id')->unique();
+            $orphanIds = $autoSupplierIds->diff($usedSupplierIds);
+            $orphanSuppliers = Supplier::whereIn('id', $orphanIds)->delete();
+            $this->info("Deleted {$orphanSuppliers} orphan auto-generated suppliers.");
+        } else {
+            $this->info("No auto-generated suppliers found.");
+        }
 
-        // Delete auto-generated accounts created today
-        $accountsCount = InventoryAccountingAccount::where('name', 'like', 'Cuenta Autogenerada %')
-            ->whereDate('created_at', Carbon::today())
-            ->delete();
-        $this->info("Deleted $accountsCount auto-generated accounts.");
-
-        // Delete any items that have very weird names (like from the instructions sheet) just in case they slipped through
-        $weirdCount = InventoryItem::where('name', 'like', '%INSTRUCTIVO FORMATO%')->delete();
-        $this->info("Deleted $weirdCount weird items.");
+        // ── 3. Limpiar cuentas autogeneradas cuyo código SÍ es válido pero no tienen artículos ──
+        $validAutoIds = InventoryAccountingAccount::where('name', 'like', 'Cuenta Autogenerada %')->pluck('id');
+        if ($validAutoIds->isNotEmpty()) {
+            $usedAccountIds = InventoryItem::whereIn('inventory_accounting_account_id', $validAutoIds)->pluck('inventory_accounting_account_id')->unique();
+            $unusedIds = $validAutoIds->diff($usedAccountIds);
+            $emptyAutoAccounts = InventoryAccountingAccount::whereIn('id', $unusedIds)->delete();
+            $this->info("Deleted {$emptyAutoAccounts} empty valid auto-generated accounts.");
+        } else {
+            $this->info("No empty auto-generated accounts found.");
+        }
 
         $this->info("Cleanup finished.");
     }

@@ -447,12 +447,12 @@
                         @if($distributeMode === 'create')
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Código de Gasto <span class="text-red-500">*</span></label>
-                                <select wire:model="distributeExpenseCodeId" class="w-full rounded-xl border-gray-300">
-                                    <option value="">Seleccionar código...</option>
-                                    @foreach($this->expenseCodes as $code)
-                                        <option value="{{ $code->id }}">{{ $code->code }} - {{ Str::limit($code->name, 60) }}</option>
-                                    @endforeach
-                                </select>
+                                <x-searchable-select
+                                    wire:model="distributeExpenseCodeId"
+                                    :options="$this->expenseCodesSelect"
+                                    placeholder="Seleccionar código..."
+                                    searchPlaceholder="Buscar por código o nombre..."
+                                />
                                 @error('distributeExpenseCodeId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>
                         @else

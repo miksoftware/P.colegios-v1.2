@@ -486,7 +486,9 @@
                         @endcan
 
                         <!-- Inventarios - Expandable -->
-                        <div x-data="{ inventariosOpen: {{ request()->routeIs('inventory.*') ? 'true' : 'false' }} }">
+                        @php $navSchool = \App\Models\School::find(session('selected_school_id')); @endphp
+                        @if($navSchool && $navSchool->inventory_module_enabled)
+                        <div x-data="{ inventariosOpen: {{ request()->routeIs('inventory.*') ? 'true' : 'false' }}, invReportesOpen: {{ request()->routeIs('inventory.depreciation-report') || request()->routeIs('inventory.reconciliation-report') || request()->routeIs('inventory.consumable-reconciliation-report') || request()->routeIs('inventory.balance-report') ? 'true' : 'false' }} }">
                             <button 
                                 @click="inventariosOpen = !inventariosOpen"
                                 class="w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium {{ request()->routeIs('inventory.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-100' }} rounded-xl transition-all"
@@ -561,6 +563,58 @@
                                         </svg>
                                         Reporte General (Excel)
                                     </a>
+                                    {{-- Sub-menú Reportes --}}
+                                    <div>
+                                        <button
+                                            @click="invReportesOpen = !invReportesOpen"
+                                            class="w-full flex items-center justify-between px-4 py-2 text-sm rounded-lg transition-colors {{ request()->routeIs('inventory.depreciation-report') || request()->routeIs('inventory.reconciliation-report') || request()->routeIs('inventory.consumable-reconciliation-report') ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700 hover:bg-gray-100' }}"
+                                        >
+                                            <span class="flex items-center gap-2">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                                </svg>
+                                                Reportes
+                                            </span>
+                                            <svg class="w-3.5 h-3.5 transition-transform duration-200" :class="{'rotate-180': invReportesOpen}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                            </svg>
+                                        </button>
+                                        <div
+                                            x-show="invReportesOpen"
+                                            x-transition:enter="transition ease-out duration-150"
+                                            x-transition:enter-start="opacity-0 -translate-y-1"
+                                            x-transition:enter-end="opacity-100 translate-y-0"
+                                            x-transition:leave="transition ease-in duration-100"
+                                            x-transition:leave-start="opacity-100 translate-y-0"
+                                            x-transition:leave-end="opacity-0 -translate-y-1"
+                                            class="mt-1 ml-4 space-y-1 border-l-2 border-indigo-100 pl-2"
+                                        >
+                                            <a href="{{ route('inventory.depreciation-report') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('inventory.depreciation-report') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                                <svg class="w-4 h-4 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l-4-4 4-4m6 8l4-4-4-4M5 20h14"/>
+                                                </svg>
+                                                Comprobante Depreciación
+                                            </a>
+                                            <a href="{{ route('inventory.reconciliation-report') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors {{ request()->routeIs('inventory.reconciliation-report') ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">
+                                                <svg class="w-4 h-4 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                                                </svg>
+                                                Conciliación Devolutivo
+                                            </a>
+                                            <a href="{{ route('inventory.consumable-reconciliation-report') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-teal-50 hover:text-teal-600 rounded-lg transition-colors {{ request()->routeIs('inventory.consumable-reconciliation-report') ? 'bg-teal-50 text-teal-600 font-medium' : '' }}">
+                                                <svg class="w-4 h-4 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                                </svg>
+                                                Conciliación Consumo
+                                            </a>
+                                            <a href="{{ route('inventory.balance-report') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors {{ request()->routeIs('inventory.balance-report') ? 'bg-gray-100 text-gray-800 font-medium' : '' }}">
+                                                <svg class="w-4 h-4 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
+                                                </svg>
+                                                Balance Inventarios
+                                            </a>
+                                        </div>
+                                    </div>
                                 @endcan
                                 @can('inventory_items.create')
                                     <a href="{{ route('inventory.initial-upload') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-colors {{ request()->routeIs('inventory.initial-upload') ? 'bg-purple-50 text-purple-600 font-medium' : '' }}">
@@ -572,6 +626,7 @@
                                 @endcan
                             </div>
                         </div>
+                        @endif {{-- inventory_module_enabled --}}
 
                         {{-- Noticias --}}
                         @can('news.view')

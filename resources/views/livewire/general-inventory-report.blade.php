@@ -68,7 +68,8 @@
                                 {{ $item->getMonthsInUse($parsedDate) }}
                             </td>
                             <td class="px-4 py-3 text-right text-gray-600">
-                                ${{ number_format($item->monthly_depreciation, 2) }}
+                                {{-- Si el artículo ya está totalmente depreciado, la cuota mensual efectiva es 0 --}}
+                                ${{ number_format($netValue > 0 ? $item->monthly_depreciation : 0, 2) }}
                             </td>
                             <td class="px-4 py-3 font-medium text-right text-orange-600">
                                 ${{ number_format($accumulated, 2) }}

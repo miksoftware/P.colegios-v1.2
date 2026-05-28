@@ -356,6 +356,28 @@
                         </div>
                     </div>
 
+                    {{-- Módulos del Sistema (admin-only, component is already admin-only) --}}
+                    <div class="px-8 py-4 border-t border-amber-100 bg-amber-50">
+                        <p class="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                            </svg>
+                            Módulos del Sistema
+                        </p>
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" wire:model.live="inventory_module_enabled" class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500">
+                            <div>
+                                <span class="text-sm font-medium text-gray-800">Activar módulo de Inventarios</span>
+                                <p class="text-xs text-gray-500">Requiere también que el usuario tenga los permisos del rol asignado.</p>
+                            </div>
+                            @if($inventory_module_enabled)
+                                <span class="ml-auto text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Activo</span>
+                            @else
+                                <span class="ml-auto text-xs font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Inactivo</span>
+                            @endif
+                        </label>
+                    </div>
+
                     <div class="flex items-center justify-end gap-3 px-8 py-4 border-t border-gray-200 bg-white">
                         <button type="button" @click="show = false" class="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors">
                             Cancelar

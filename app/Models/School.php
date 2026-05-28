@@ -34,6 +34,11 @@ class School extends Model
         'dian_range_2',
         'dian_expiration_1',
         'dian_expiration_2',
+        'inventory_module_enabled',
+    ];
+
+    protected $casts = [
+        'inventory_module_enabled' => 'boolean',
     ];
 
     /**

@@ -354,6 +354,22 @@ Route::get('inventories/general-report', App\Livewire\GeneralInventoryReport::cl
     ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('inventory.general-report');
 
+Route::get('inventories/depreciation-report', App\Livewire\InventoryDepreciationReport::class)
+    ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.depreciation-report');
+
+Route::get('inventories/reconciliation-report', App\Livewire\InventoryReconciliationReport::class)
+    ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.reconciliation-report');
+
+Route::get('inventories/consumable-reconciliation-report', App\Livewire\InventoryConsumableReconciliationReport::class)
+    ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.consumable-reconciliation-report');
+
+Route::get('inventories/balance-report', App\Livewire\InventoryBalanceReport::class)
+    ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('inventory.balance-report');
+
 Route::get('inventories/transfers', App\Livewire\InventoryTransferManagement::class)
     ->middleware(['auth', 'verified', 'can:inventory_items.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('inventory.transfers');

@@ -54,6 +54,21 @@ class InventoryDischargeDetail extends Component
             ->get();
     }
 
+    public function toggleItemSelection($itemId)
+    {
+        if (in_array($itemId, $this->selectedItems)) {
+            $this->selectedItems = array_values(array_diff($this->selectedItems, [$itemId]));
+        } else {
+            $this->selectedItems[] = $itemId;
+        }
+    }
+
+    public function getSelectedItemsListProperty()
+    {
+        if (empty($this->selectedItems)) return collect();
+        return InventoryItem::whereIn('id', $this->selectedItems)->get();
+    }
+
     public function openSelectModal()
     {
         if ($this->isFinished) {

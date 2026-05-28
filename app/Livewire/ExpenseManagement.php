@@ -114,6 +114,15 @@ class ExpenseManagement extends Component
         return ExpenseCode::active()->orderBy('code')->get();
     }
 
+    public function getExpenseCodesSelectProperty(): array
+    {
+        return ExpenseCode::active()->orderBy('code')->get()
+            ->map(fn($c) => [
+                'id'   => $c->id,
+                'name' => $c->code . ' — ' . $c->name,
+            ])->values()->all();
+    }
+
     public function getSummaryProperty()
     {
         $budgets = Budget::forSchool($this->schoolId)

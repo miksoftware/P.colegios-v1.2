@@ -40,6 +40,7 @@ class SchoolManagement extends Component
     public $dian_range_2 = '';
     public $dian_expiration_1 = '';
     public $dian_expiration_2 = '';
+    public bool $inventory_module_enabled = false;
 
     public function mount()
     {
@@ -86,6 +87,7 @@ class SchoolManagement extends Component
         $this->dian_range_2 = $this->school->dian_range_2;
         $this->dian_expiration_1 = $this->school->dian_expiration_1;
         $this->dian_expiration_2 = $this->school->dian_expiration_2;
+        $this->inventory_module_enabled = (bool) $this->school->inventory_module_enabled;
     }
 
     public function toggleEdit()
@@ -153,6 +155,11 @@ class SchoolManagement extends Component
         $validated['dian_resolution_2'] = $validated['dian_resolution_2'] ?: null;
         $validated['dian_range_2'] = $validated['dian_range_2'] ?: null;
         $validated['dian_expiration_2'] = $validated['dian_expiration_2'] ?: null;
+
+        // Only admins can toggle the inventory module
+        if (auth()->user()->hasRole('Admin')) {
+            $validated['inventory_module_enabled'] = $this->inventory_module_enabled;
+        }
 
         $this->school->update($validated);
         

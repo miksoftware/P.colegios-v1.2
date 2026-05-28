@@ -23,6 +23,10 @@ class InventoryEntryManagement extends Component
     public $invoice_number = '';
     public $observations = '';
     public $is_active = true;
+    public $consecutive = '';
+
+    public $showDeleteConfirm = false;
+    public $deleteEntryId = null;
 
     protected $queryString = [
         'search' => ['except' => ''],
@@ -89,6 +93,7 @@ class InventoryEntryManagement extends Component
         $entry = InventoryEntry::forSchool(session('selected_school_id'))->findOrFail($id);
         
         $this->entryId = $entry->id;
+        $this->consecutive = $entry->consecutive ?? '';
         $this->date = $entry->date ? $entry->date->format('Y-m-d') : '';
         $this->supplier_id = $entry->supplier_id;
         $this->invoice_number = $entry->invoice_number;
@@ -132,9 +137,36 @@ class InventoryEntryManagement extends Component
         }
     }
 
+    public function confirmDeleteEntry($id)
+    {
+        abort_if(auth()->user()->email !== 'softwaremik@gmail.com', 403);
+        $this->deleteEntryId = $id;
+        $this->showDeleteConfirm = true;
+    }
+
+    public function deleteEntry()
+    {
+        abort_if(auth()->user()->email !== 'softwaremik@gmail.com', 403);
+
+        $entry = InventoryEntry::forSchool(session('selected_school_id'))->findOrFail($this->deleteEntryId);
+        $entry->items()->delete();
+        $entry->delete();
+
+        $this->showDeleteConfirm = false;
+        $this->deleteEntryId = null;
+        $this->dispatch('toast', message: 'Entrada eliminada correctamente.', type: 'success');
+    }
+
+    public function cancelDelete()
+    {
+        $this->showDeleteConfirm = false;
+        $this->deleteEntryId = null;
+    }
+
     public function resetForm()
     {
         $this->entryId = null;
+        $this->consecutive = '';
         $this->date = '';
         $this->supplier_id = null;
         $this->invoice_number = '';

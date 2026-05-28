@@ -30,6 +30,7 @@ class SchoolSelect extends Component
     // Logo
     public $logo;
     public $currentLogoUrl = null;
+    public bool $inventory_module_enabled = false;
 
     public function mount()
     {
@@ -116,6 +117,7 @@ class SchoolSelect extends Component
         $this->dian_range_2 = $school->dian_range_2;
         $this->dian_expiration_2 = $school->dian_expiration_2;
         $this->currentLogoUrl = $school->logo_url;
+        $this->inventory_module_enabled = (bool) $school->inventory_module_enabled;
 
         $this->showCreateModal = true;
     }
@@ -184,6 +186,7 @@ class SchoolSelect extends Component
             'dian_resolution_2' => $this->dian_resolution_2 ?: null,
             'dian_range_2' => $this->dian_range_2 ?: null,
             'dian_expiration_2' => $this->dian_expiration_2 ?: null,
+            'inventory_module_enabled' => $this->inventory_module_enabled,
         ];
 
         if ($this->isEditing) {
@@ -267,7 +270,7 @@ class SchoolSelect extends Component
             'budget_agreement_number', 'budget_approval_date', 'contracting_manual_approval_number',
             'contracting_manual_approval_date', 'dian_resolution_1', 'dian_range_1',
             'dian_expiration_1', 'dian_resolution_2', 'dian_range_2', 'dian_expiration_2',
-            'editingId', 'isEditing', 'logo', 'currentLogoUrl'
+            'editingId', 'isEditing', 'logo', 'currentLogoUrl', 'inventory_module_enabled'
         ]);
     }
 

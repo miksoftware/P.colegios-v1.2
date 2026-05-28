@@ -129,86 +129,149 @@
     <!-- Modal Buscar y Asignar Artículos para dar de Baja -->
     @if($showSelectModal)
         <div class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="flex items-center justify-center min-h-screen p-4">
                 <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="$set('showSelectModal', false)"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-                    <div class="bg-red-50 px-6 py-4 border-b border-red-100">
-                        <h3 class="text-lg leading-6 font-bold text-red-900">Buscar y Seleccionar Bienes para dar de Baja</h3>
-                        <p class="text-sm text-red-700 mt-1">Busque por nombre, placa o ubicación. Solo se muestran artículos activos con entrada.</p>
+
+                <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden">
+
+                    {{-- Header --}}
+                    <div class="bg-red-50 px-6 py-4 border-b border-red-100 flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-red-900">Seleccionar Artículos para dar de Baja</h3>
+                            <p class="text-sm text-red-600 mt-0.5">Busque y haga clic sobre cada artículo para seleccionarlo. Solo se muestran artículos activos con entrada.</p>
+                        </div>
+                        <button wire:click="$set('showSelectModal', false)" class="text-gray-400 hover:text-gray-600 ml-4">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
                     </div>
-                    <div class="bg-white px-6 py-4">
-                        {{-- Buscador --}}
-                        <div class="mb-4">
+
+                    {{-- Two-panel body --}}
+                    <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                        {{-- LEFT: Buscador + lista --}}
+                        <div class="space-y-3">
                             <div class="relative">
                                 <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                                 </svg>
-                                <input 
-                                    wire:model.live.debounce.300ms="itemSearch" 
-                                    type="text" 
-                                    placeholder="Escriba el nombre, placa o ubicación del artículo..." 
-                                    class="w-full pl-10 pr-4 py-2.5 rounded-xl border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+                                <input
+                                    wire:model.live.debounce.300ms="itemSearch"
+                                    type="text"
+                                    placeholder="Buscar por nombre, placa o ubicación..."
+                                    class="w-full pl-10 pr-4 py-2.5 rounded-xl border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 text-sm"
                                     autofocus
                                 >
                             </div>
-                            @if(!empty($itemSearch) && $this->availableItems->isEmpty())
-                                <p class="text-sm text-gray-500 mt-2 text-center">No se encontraron artículos con "{{ $itemSearch }}"</p>
-                            @endif
-                            @if(empty($itemSearch))
-                                <p class="text-sm text-gray-400 mt-2 text-center">Escriba al menos un carácter para buscar artículos.</p>
-                            @endif
+
+                            <div class="border border-gray-200 rounded-xl bg-white overflow-hidden max-h-72 overflow-y-auto">
+                                @forelse($this->availableItems as $aItem)
+                                    <div
+                                        wire:click="toggleItemSelection({{ $aItem->id }})"
+                                        class="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer flex items-center justify-between transition-colors {{ in_array($aItem->id, $selectedItems) ? 'bg-red-50/60' : '' }}"
+                                    >
+                                        <div class="min-w-0 mr-3">
+                                            <div class="font-medium text-sm text-gray-900 truncate">{{ $aItem->name }}</div>
+                                            <div class="text-xs text-gray-500 flex flex-wrap gap-x-2 mt-0.5">
+                                                <span>Placa: {{ $aItem->current_tag ?? 'S/P' }}</span>
+                                                @if($aItem->location)
+                                                    <span>&bull; {{ $aItem->location }}</span>
+                                                @endif
+                                                @if($aItem->account)
+                                                    <span>&bull; {{ $aItem->account->code }}</span>
+                                                @endif
+                                                <span class="font-semibold text-gray-700">&bull; ${{ number_format($aItem->initial_value, 2) }}</span>
+                                            </div>
+                                        </div>
+                                        <div class="shrink-0">
+                                            <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors {{ in_array($aItem->id, $selectedItems) ? 'bg-red-600 border-red-600' : 'border-gray-300' }}">
+                                                @if(in_array($aItem->id, $selectedItems))
+                                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                                                    </svg>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+                                @empty
+                                    <div class="p-8 text-center text-sm text-gray-500">
+                                        @if(empty($itemSearch))
+                                            Use el buscador para encontrar artículos.
+                                        @else
+                                            No se encontraron artículos con "{{ $itemSearch }}".
+                                        @endif
+                                    </div>
+                                @endforelse
+                            </div>
                         </div>
 
-                        {{-- Seleccionados --}}
-                        @if(count($selectedItems) > 0)
-                            <div class="mb-3 px-3 py-2 bg-red-50 rounded-xl border border-red-200">
-                                <span class="text-sm font-medium text-red-800">{{ count($selectedItems) }} artículo(s) seleccionado(s) para dar de baja</span>
-                            </div>
-                        @endif
+                        {{-- RIGHT: Seleccionados --}}
+                        <div class="bg-gray-50 rounded-xl border border-gray-200 p-4 flex flex-col">
+                            <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600 text-white text-xs font-bold">
+                                    {{ count($selectedItems) }}
+                                </span>
+                                Artículos seleccionados para dar de baja
+                            </h4>
 
-                        {{-- Resultados --}}
-                        <div class="max-h-80 overflow-y-auto border rounded-xl">
-                            <table class="w-full">
-                                <thead class="bg-gray-50 sticky top-0">
-                                    <tr>
-                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 w-10">Sel.</th>
-                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">Placa</th>
-                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">Descripción</th>
-                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">Cuenta</th>
-                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">Ubicación</th>
-                                        <th class="px-4 py-2 text-right text-xs font-semibold text-gray-500">Valor</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-100">
-                                    @forelse($this->availableItems as $aItem)
-                                        <tr class="hover:bg-gray-50 cursor-pointer">
-                                            <td class="px-4 py-2">
-                                                <input type="checkbox" wire:model.live="selectedItems" value="{{ $aItem->id }}" class="rounded border-gray-300 text-red-600 focus:ring-red-500">
-                                            </td>
-                                            <td class="px-4 py-2 text-sm font-medium text-gray-900">{{ $aItem->current_tag ?? 'S/P' }}</td>
-                                            <td class="px-4 py-2 text-sm text-gray-700">{{ Str::limit($aItem->name, 35) }}</td>
-                                            <td class="px-4 py-2 text-xs text-gray-500">{{ $aItem->account->code ?? '' }}</td>
-                                            <td class="px-4 py-2 text-xs text-gray-500">{{ $aItem->location ?? 'N/A' }}</td>
-                                            <td class="px-4 py-2 text-sm text-right font-medium">${{ number_format($aItem->initial_value, 2) }}</td>
-                                        </tr>
-                                    @empty
-                                        @if(!empty($itemSearch))
-                                        @endif
-                                    @endforelse
-                                </tbody>
-                            </table>
+                            <div class="space-y-2 flex-1 max-h-64 overflow-y-auto">
+                                @forelse($this->selectedItemsList as $sItem)
+                                    <div class="flex items-center justify-between p-2.5 bg-white rounded-lg border border-red-100 shadow-sm">
+                                        <div class="truncate mr-2">
+                                            <div class="font-medium text-xs text-gray-900 truncate">{{ $sItem->name }}</div>
+                                            <div class="text-[10px] text-gray-500">
+                                                Placa: {{ $sItem->current_tag ?? 'S/P' }}
+                                                &bull; ${{ number_format($sItem->initial_value, 2) }}
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            wire:click="toggleItemSelection({{ $sItem->id }})"
+                                            class="shrink-0 text-red-400 hover:text-red-600 p-1 rounded transition-colors"
+                                            title="Quitar"
+                                        >
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                @empty
+                                    <div class="text-xs text-gray-400 text-center py-6">
+                                        Haga clic en los artículos de la izquierda para agregarlos.
+                                    </div>
+                                @endforelse
+                            </div>
+
+                            @if(count($selectedItems) > 0)
+                                <div class="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-600 font-medium">
+                                    Valor total a dar de baja:
+                                    <span class="text-red-600 font-bold">
+                                        ${{ number_format($this->selectedItemsList->sum('initial_value'), 2) }}
+                                    </span>
+                                </div>
+                            @endif
                         </div>
                     </div>
-                    <div class="bg-gray-50 px-4 py-4 sm:flex sm:flex-row-reverse border-t">
-                        <button 
-                            wire:click="assignSelectedItems" 
-                            class="w-full sm:ml-3 sm:w-auto inline-flex justify-center rounded-xl bg-red-600 px-4 py-2 text-white shadow-sm hover:bg-red-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+
+                    {{-- Footer --}}
+                    <div class="bg-gray-50 px-6 py-4 border-t flex flex-row-reverse gap-3">
+                        <button
+                            wire:click="assignSelectedItems"
                             @if(count($selectedItems) === 0) disabled @endif
+                            class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                         >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
                             Ejecutar Baja ({{ count($selectedItems) }})
                         </button>
-                        <button wire:click="$set('showSelectModal', false)" class="mt-3 w-full sm:mt-0 sm:w-auto inline-flex justify-center rounded-xl bg-white px-4 py-2 text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Cancelar</button>
+                        <button
+                            wire:click="$set('showSelectModal', false)"
+                            class="inline-flex items-center px-5 py-2 rounded-xl bg-white text-gray-700 font-medium ring-1 ring-gray-300 hover:bg-gray-50 transition-colors"
+                        >
+                            Cancelar
+                        </button>
                     </div>
                 </div>
             </div>

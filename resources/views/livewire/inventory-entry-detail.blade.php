@@ -42,13 +42,9 @@
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-bold text-gray-800">Artículos Asignados ({{ $entry->items->count() }})</h2>
         <div class="flex gap-2">
-            <button wire:click="openSelectModal" class="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
-                <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-                Asignar Existentes
-            </button>
             <button wire:click="openCreateModal" class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Crear Múltiples (Idénticos)
+                Crear Artículos
             </button>
         </div>
     </div>
@@ -95,78 +91,159 @@
         </div>
     </div>
 
-    <!-- Modal Crear Múltiples Artículos -->
+    <!-- Modal Crear Artículos -->
     @if($showCreateModal)
         <div class="fixed inset-0 z-50 overflow-y-auto">
             <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                 <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="$set('showCreateModal', false)"></div>
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                <div class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
                     <form wire:submit="createMultipleItems">
                         <div class="bg-blue-50 px-6 py-4 border-b border-blue-100">
-                            <h3 class="text-lg leading-6 font-bold text-blue-900">Creación Automática de Artículos</h3>
-                            <p class="text-sm text-blue-700 mt-1">Llena los datos una vez. El sistema creará individualmente la cantidad que indiques.</p>
+                            <h3 class="text-lg leading-6 font-bold text-blue-900">Crear Artículos en esta Entrada</h3>
+                            <p class="text-sm text-blue-700 mt-1">Completa los datos. El sistema creará individualmente la cantidad indicada.</p>
                         </div>
-                        <div class="bg-white px-6 py-5">
+                        <div class="bg-white px-6 py-5 max-h-[75vh] overflow-y-auto">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="col-span-2 md:col-span-1">
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad a generar *</label>
-                                    <input type="number" wire:model="quantity" min="1" max="100" class="w-full rounded-xl border-gray-300 bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500 font-bold text-lg text-center">
-                                    @error('quantity') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                                </div>
-                                <div class="col-span-2 md:col-span-1">
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Valor Unitario *</label>
-                                    <input type="number" step="0.01" wire:model="initial_value" class="w-full rounded-xl border-gray-300 shadow-sm">
-                                    @error('initial_value') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                                </div>
-                                
+
+                                {{-- Descripción --}}
                                 <div class="col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Descripción idéntica para todos *</label>
-                                    <input type="text" wire:model="name" class="w-full rounded-xl border-gray-300 shadow-sm">
-                                    @error('name') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                                </div>
-                                
-                                <div class="col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Cuenta Contable *</label>
-                                    <select wire:model="inventory_accounting_account_id" class="w-full rounded-xl border-gray-300 shadow-sm">
-                                        <option value="">Seleccione...</option>
-                                        @foreach($this->accounts as $account)
-                                            <option value="{{ $account->id }}">{{ $account->code }} - {{ $account->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('inventory_accounting_account_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Descripción del Artículo *</label>
+                                    <input type="text" wire:model="name" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    @error('name') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
 
+                                {{-- Cuenta Contable --}}
+                                <div class="col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Cuenta Contable *</label>
+                                    <select wire:model="inventory_accounting_account_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        <option value="">Seleccione una cuenta...</option>
+                                        @foreach($this->accounts as $account)
+                                            <option value="{{ $account->id }}">{{ $account->code }} – {{ $account->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('inventory_accounting_account_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                                </div>
+
+                                {{-- Valor unitario --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Estado Físico *</label>
-                                    <select wire:model="state" class="w-full rounded-xl border-gray-300 shadow-sm">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Valor Unitario *</label>
+                                    <input type="number" step="0.01" wire:model="initial_value" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    @error('initial_value') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                                </div>
+
+                                {{-- Cantidad --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad a crear *</label>
+                                    <input type="number" wire:model.live="quantity" min="1" max="100" class="w-full rounded-xl border-gray-300 bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500 font-bold text-lg text-center">
+                                    @error('quantity') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                                </div>
+
+                                {{-- Fecha Adquisición --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Adquisición *</label>
+                                    <input type="date" wire:model="acquisition_date" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    @error('acquisition_date') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                                </div>
+
+                                {{-- Proveedor --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+                                    <select wire:model="supplier_id" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                        <option value="">Ninguno / Histórico</option>
+                                        @foreach($this->suppliers as $supplier)
+                                            <option value="{{ $supplier->id }}">{{ $supplier->full_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('supplier_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                                </div>
+
+                                {{-- Estado --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Estado de Conservación *</label>
+                                    <select wire:model="state" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                                         @foreach(\App\Models\InventoryItem::STATES as $key => $val)
                                             <option value="{{ $key }}">{{ $val }}</option>
                                         @endforeach
                                     </select>
-                                    @error('state') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                    @error('state') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
 
+                                {{-- Tipo de Inventario --}}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Inventario *</label>
-                                    <select wire:model="inventory_type" class="w-full rounded-xl border-gray-300 shadow-sm">
+                                    <select wire:model="inventory_type" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                                         @foreach(\App\Models\InventoryItem::INVENTORY_TYPES as $key => $val)
                                             <option value="{{ $key }}">{{ $val }}</option>
                                         @endforeach
                                     </select>
-                                    @error('inventory_type') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                    @error('inventory_type') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
 
-                                <div class="col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Prefijo de Placa (Opcional)</label>
-                                    <input type="text" wire:model="base_tag" placeholder="Ej: SILLA" class="w-full rounded-xl border-gray-300 shadow-sm">
-                                    <span class="text-xs text-gray-500">Generará: SILLA-001, SILLA-002...</span>
-                                    @error('base_tag') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                {{-- Sede Ubicación --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Sede de Ubicación</label>
+                                    <input type="text" wire:model="location" placeholder="Ej: Sede Única" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    @error('location') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
+
+                                {{-- Procedencia Recursos --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Procedencia de Recursos</label>
+                                    <input type="text" wire:model="funding_source" placeholder="Ej: Est_Edu" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    @error('funding_source') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                                </div>
+
+                                {{-- Placa: toggle Auto / Manual --}}
+                                <div class="col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Asignación de Placas / Códigos</label>
+                                    <div class="flex gap-3 mb-3">
+                                        <label class="flex items-center gap-2 cursor-pointer px-4 py-2 rounded-xl border-2 transition-colors {{ $tag_mode === 'auto' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600' }}">
+                                            <input type="radio" wire:model.live="tag_mode" value="auto" class="sr-only">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                            <span class="text-sm font-medium">Automático</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer px-4 py-2 rounded-xl border-2 transition-colors {{ $tag_mode === 'manual' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600' }}">
+                                            <input type="radio" wire:model.live="tag_mode" value="manual" class="sr-only">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                            <span class="text-sm font-medium">Manual</span>
+                                        </label>
+                                    </div>
+
+                                    @if($tag_mode === 'auto')
+                                        <div>
+                                            <label class="block text-xs text-gray-500 mb-1">Prefijo (opcional) — generará: PREFIJO-001, PREFIJO-002...</label>
+                                            <input type="text" wire:model="base_tag" placeholder="Ej: SILLA, PC, MESA" class="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                            @error('base_tag') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                                        </div>
+                                    @else
+                                        <div class="space-y-2 max-h-52 overflow-y-auto pr-1">
+                                            @for($i = 0; $i < $quantity; $i++)
+                                                <div class="flex items-center gap-3">
+                                                    <span class="text-xs font-bold text-gray-400 w-14 shrink-0 text-right">Art. {{ $i + 1 }}</span>
+                                                    <input
+                                                        type="text"
+                                                        wire:model="manualTags.{{ $i }}"
+                                                        placeholder="Placa / código (opcional)"
+                                                        class="flex-1 rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                                    >
+                                                </div>
+                                            @endfor
+                                        </div>
+                                    @endif
+                                </div>
+
                             </div>
                         </div>
                         <div class="bg-gray-50 px-4 py-4 sm:flex sm:flex-row-reverse border-t">
-                            <button type="submit" class="w-full sm:ml-3 sm:w-auto inline-flex justify-center rounded-xl bg-blue-600 px-4 py-2 text-white shadow-sm hover:bg-blue-700 font-medium">Generar Artículos</button>
+                            <button type="submit" class="w-full sm:ml-3 sm:w-auto inline-flex justify-center rounded-xl bg-blue-600 px-4 py-2 text-white shadow-sm hover:bg-blue-700 font-medium">
+                                <svg wire:loading wire:target="createMultipleItems" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span wire:loading.remove wire:target="createMultipleItems">Generar {{ $quantity }} Artículo(s)</span>
+                                <span wire:loading wire:target="createMultipleItems">Creando...</span>
+                            </button>
                             <button type="button" wire:click="$set('showCreateModal', false)" class="mt-3 w-full sm:mt-0 sm:w-auto inline-flex justify-center rounded-xl bg-white px-4 py-2 text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Cancelar</button>
                         </div>
                     </form>

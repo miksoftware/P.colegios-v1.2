@@ -72,6 +72,11 @@
                                         Editar
                                     </button>
                                 @endcan
+                                @if(auth()->user()->email === 'softwaremik@gmail.com')
+                                    <button wire:click="confirmDeleteEntry({{ $entry->id }})" class="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                                        Eliminar
+                                    </button>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -106,7 +111,7 @@
                         <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="mb-5 border-b pb-4">
                                 <h3 class="text-xl leading-6 font-bold text-gray-900" id="modal-title">
-                                    {{ $isEditing ? 'Editar Entrada N° ' . str_pad($entries->firstWhere('id', $entryId)->consecutive ?? '', 4, '0', STR_PAD_LEFT) : 'Nueva Entrada' }}
+                                    {{ $isEditing ? 'Editar Entrada N° ' . str_pad($consecutive, 4, '0', STR_PAD_LEFT) : 'Nueva Entrada' }}
                                 </h3>
                             </div>
                             
@@ -157,6 +162,35 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Delete Confirmation Modal -->
+    @if($showDeleteConfirm)
+        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
+            <div class="flex items-center justify-center min-h-screen px-4">
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+                <div class="relative bg-white rounded-2xl shadow-xl p-6 max-w-md w-full z-10">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-red-100">
+                            <svg class="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-900">Eliminar entrada</h3>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">¿Está seguro de que desea eliminar esta entrada de almacén?</p>
+                    <p class="text-sm font-semibold text-red-600 mb-6">Esta acción también eliminará todos los artículos asociados y es irreversible.</p>
+                    <div class="flex justify-end gap-3">
+                        <button wire:click="cancelDelete" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
+                            Cancelar
+                        </button>
+                        <button wire:click="deleteEntry" class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors">
+                            Sí, eliminar
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

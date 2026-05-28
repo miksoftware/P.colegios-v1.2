@@ -354,6 +354,51 @@
                 </div>
             </div>
 
+            {{-- MÓDULOS DEL SISTEMA (solo Admin) --}}
+            @if(auth()->user()->hasRole('Admin'))
+                <div class="bg-white rounded-2xl shadow-lg shadow-gray-200/50 p-8 border border-amber-100 mb-6">
+                    <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                        </svg>
+                        Módulos del Sistema
+                        <span class="ml-2 text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Solo Admin</span>
+                    </h3>
+                    <p class="text-sm text-gray-500 mb-5">Activa o desactiva los módulos disponibles para este colegio. El usuario también debe tener los permisos del rol correspondiente.</p>
+
+                    <div class="space-y-3">
+                        {{-- Módulo Inventarios --}}
+                        <label class="flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-colors {{ $inventory_module_enabled ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200 hover:border-gray-300' }}">
+                            @if($isEditing)
+                                <input type="checkbox" wire:model.live="inventory_module_enabled" class="mt-0.5 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 shrink-0">
+                            @else
+                                <div class="mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 {{ $school->inventory_module_enabled ? 'bg-green-600 border-green-600' : 'border-gray-300 bg-white' }}">
+                                    @if($school->inventory_module_enabled)
+                                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                    @endif
+                                </div>
+                            @endif
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 {{ $inventory_module_enabled ? 'text-green-600' : 'text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                    </svg>
+                                    <span class="font-semibold text-gray-900">Módulo de Inventarios</span>
+                                    @if($inventory_module_enabled)
+                                        <span class="text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Activo</span>
+                                    @else
+                                        <span class="text-xs font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Inactivo</span>
+                                    @endif
+                                </div>
+                                <p class="text-sm text-gray-500 mt-0.5">Artículos, entradas, bajas, traslados, reportes y cuentas contables de inventario.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            @endif
+
             <!-- Save Button (only visible when editing) -->
             @if($isEditing)
                 <div class="flex items-center justify-end gap-4">

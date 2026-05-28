@@ -1,18 +1,6 @@
 <div>
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Artículos de Inventario</h1>
-        
-        @can('inventory_items.create')
-            <button 
-                wire:click="openCreateModal"
-                class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
-            >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                </svg>
-                Nuevo Artículo
-            </button>
-        @endcan
     </div>
 
     <!-- Filtros -->
@@ -58,7 +46,7 @@
                                 {{ Str::limit($item->name, 40) }}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-600">
-                                <span class="font-medium" title="{{ $item->account->name }}">{{ $item->account->code }}</span>
+                                <span class="font-medium" title="{{ $item->account?->name ?? '' }}">{{ $item->account?->code ?? '—' }}</span>
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-600">
                                 <span class="px-2.5 py-1 text-xs font-medium rounded-md bg-indigo-50 text-indigo-700 capitalize">

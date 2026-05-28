@@ -3,6 +3,8 @@
 namespace App\Livewire;
 
 use App\Imports\InitialInventoryImport;
+use App\Models\InventoryEntry;
+use App\Models\InventoryItem;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -14,6 +16,7 @@ class InventoryInitialUpload extends Component
 
     public $file;
     public $isUploading = false;
+    public $showDeleteConfirm = false;
 
     public function mount()
     {
@@ -47,9 +50,23 @@ class InventoryInitialUpload extends Component
         }
     }
 
+    public function deleteAllInventory()
+    {
+        abort_if(auth()->user()->email !== 'softwaremik@gmail.com', 403);
+
+        $schoolId = session('selected_school_id');
+
+        InventoryItem::where('school_id', $schoolId)->delete();
+        InventoryEntry::where('school_id', $schoolId)->delete();
+
+        $this->showDeleteConfirm = false;
+        $this->dispatch('toast', message: 'Se eliminaron todos los artículos y entradas del inventario.', type: 'success');
+    }
+
     #[Layout('layouts.app')]
     public function render()
     {
-        return view('livewire.inventory-initial-upload');
+        $isSuperUser = auth()->user()->email === 'softwaremik@gmail.com';
+        return view('livewire.inventory-initial-upload', compact('isSuperUser'));
     }
 }

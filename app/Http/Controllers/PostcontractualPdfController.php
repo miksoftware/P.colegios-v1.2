@@ -120,13 +120,16 @@ class PostcontractualPdfController extends Controller
         if ((float) $po->reteiva > 0) {
             $retentionRows[] = ['code' => '243625', 'name' => 'Impuesto a las Ventas Retenido 15%', 'amount' => (float) $po->reteiva, 'is_parent' => false];
         }
-        if ((float) $po->estampilla_procultura > 0 || (float) $po->estampilla_produlto_mayor > 0 || (float) $po->retencion_ica > 0) {
+        if ((float) $po->estampilla_procultura > 0 || (float) $po->estampilla_produlto_mayor > 0 || (float) $po->estampilla_prodeporte > 0 || (float) $po->retencion_ica > 0) {
             $retentionRows[] = ['code' => '2407', 'name' => 'IMPUESTOS TASAS, CONTRIBUCIONES', 'amount' => 0, 'is_parent' => true];
             if ((float) $po->estampilla_procultura > 0) {
                 $retentionRows[] = ['code' => '24072202', 'name' => 'OTROS IMP. MUNICIPALES (2% Procultura)', 'amount' => (float) $po->estampilla_procultura, 'is_parent' => false];
             }
             if ((float) $po->estampilla_produlto_mayor > 0) {
                 $retentionRows[] = ['code' => '24072204', 'name' => 'OTROS IMP. MUNICIPALES (2% Produlto may)', 'amount' => (float) $po->estampilla_produlto_mayor, 'is_parent' => false];
+            }
+            if ((float) $po->estampilla_prodeporte > 0) {
+                $retentionRows[] = ['code' => '24072203', 'name' => 'OTROS IMP. MUNICIPALES (Estampilla Prodeporte)', 'amount' => (float) $po->estampilla_prodeporte, 'is_parent' => false];
             }
             if ((float) $po->retencion_ica > 0) {
                 $retentionRows[] = ['code' => '24072209', 'name' => 'OTROS IMPUESTOS MUNICIPALES (ReteICA)', 'amount' => (float) $po->retencion_ica, 'is_parent' => false];

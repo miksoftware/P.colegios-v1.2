@@ -77,6 +77,10 @@ class RetentionConfig extends Model
             'display_name' => 'Estampilla Produlto Mayor',
             'category' => 'estampilla',
         ],
+        'estampilla_prodeporte' => [
+            'display_name' => 'Estampilla Prodeporte',
+            'category' => 'estampilla',
+        ],
         'retencion_ica' => [
             'display_name' => 'Retención ICA',
             'category' => 'ica',

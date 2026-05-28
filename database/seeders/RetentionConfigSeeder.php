@@ -132,6 +132,16 @@ class RetentionConfigSeeder extends Seeder
                 'min_base'          => 35018010,
                 'accounting_code'   => '24072202 - Estampilla Procultura',
             ],
+            [
+                'concept'           => 'estampilla_prodeporte',
+                'display_name'      => 'Estampilla Prodeporte',
+                'category'          => 'estampilla',
+                'rate_not_declares' => null,
+                'rate_declares'     => null,
+                'rate'              => 2.0,
+                'min_base'          => 35018010,
+                'accounting_code'   => '24072203 - Estampilla Prodeporte',
+            ],
 
             // ── ICA ───────────────────────────────────────────────
             [

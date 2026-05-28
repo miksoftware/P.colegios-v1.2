@@ -163,6 +163,7 @@
             $municipalRows = [
                 'estampilla_procultura'     => ['24072202', 'Otros Imp. Municipales (Estampilla Procultura 2%)'],
                 'estampilla_produlto_mayor' => ['24072204', 'Otros Imp. Municipales (Estampilla Produlto Mayor 2.5%)'],
+                'estampilla_prodeporte'     => ['24072203', 'Otros Imp. Municipales (Estampilla Prodeporte)'],
                 'retencion_ica'             => ['24072209', 'Otros Impuestos Municipales (Retención ICA)'],
             ];
         @endphp

@@ -111,9 +111,10 @@
     @php
         $cfgEstProdulto   = $this->retentionConfigs['estampilla_produlto_mayor'] ?? null;
         $cfgEstProcultura = $this->retentionConfigs['estampilla_procultura'] ?? null;
+        $cfgEstProdeporte = $this->retentionConfigs['estampilla_prodeporte'] ?? null;
         $cfgIca           = $this->retentionConfigs['retencion_ica'] ?? null;
     @endphp
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         @if($paymentType === 'accounts_payable')
         <div class="bg-gray-50 rounded-xl p-3 {{ ($cfgEstProdulto && !$cfgEstProdulto->is_active) ? 'opacity-60' : '' }}">
             <div class="flex items-center justify-between mb-2">
@@ -153,6 +154,25 @@
                 @endif
             </p>
         </div>
+        <div class="bg-gray-50 rounded-xl p-3 {{ ($cfgEstProdeporte && !$cfgEstProdeporte->is_active) ? 'opacity-60' : '' }}">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-xs text-gray-500">{{ $cfgEstProdeporte->display_name ?? 'Estampilla Prodeporte' }}</p>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" wire:model.live="applyEstampillaProdeporte"
+                        @if(!$cfgEstProdeporte || !$cfgEstProdeporte->is_active) disabled @endif
+                        class="rounded border-gray-300 text-orange-500 focus:ring-orange-400">
+                    <span class="text-xs font-medium text-gray-600">Aplicar</span>
+                </label>
+            </div>
+            <p class="text-lg font-bold text-center {{ $estampillaProdeporte > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProdeporte, 2, ',', '.') }}</p>
+            <p class="text-[10px] text-gray-400 text-center">
+                @if($cfgEstProdeporte && $cfgEstProdeporte->is_active)
+                    {{ number_format((float) $cfgEstProdeporte->rate, 2, ',', '.') }}% del subtotal (base ≥ ${{ number_format((float) $cfgEstProdeporte->min_base, 0, ',', '.') }})
+                @else
+                    No configurado / inactivo
+                @endif
+            </p>
+        </div>
         @else
         <div class="bg-gray-50 rounded-xl p-3 text-center {{ ($cfgEstProdulto && !$cfgEstProdulto->is_active) ? 'opacity-60' : '' }}">
             <p class="text-xs text-gray-500">{{ $cfgEstProdulto->display_name ?? 'Estampilla Produlto Mayor' }}</p>
@@ -171,6 +191,17 @@
             <p class="text-[10px] text-gray-400">
                 @if($cfgEstProcultura && $cfgEstProcultura->is_active)
                     {{ number_format((float) $cfgEstProcultura->rate, 2, ',', '.') }}% del subtotal (base ≥ ${{ number_format((float) $cfgEstProcultura->min_base, 0, ',', '.') }})
+                @else
+                    No aplica en este colegio
+                @endif
+            </p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-3 text-center {{ ($cfgEstProdeporte && !$cfgEstProdeporte->is_active) ? 'opacity-60' : '' }}">
+            <p class="text-xs text-gray-500">{{ $cfgEstProdeporte->display_name ?? 'Estampilla Prodeporte' }}</p>
+            <p class="text-lg font-bold {{ $estampillaProdeporte > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($estampillaProdeporte, 2, ',', '.') }}</p>
+            <p class="text-[10px] text-gray-400">
+                @if($cfgEstProdeporte && $cfgEstProdeporte->is_active)
+                    {{ number_format((float) $cfgEstProdeporte->rate, 2, ',', '.') }}% del subtotal (base ≥ ${{ number_format((float) $cfgEstProdeporte->min_base, 0, ',', '.') }})
                 @else
                     No aplica en este colegio
                 @endif

@@ -1077,9 +1077,9 @@
                         </div>
                     </div>
 
-                    @if((float)$paymentOrder->estampilla_produlto_mayor > 0 || (float)$paymentOrder->estampilla_procultura > 0 || (float)$paymentOrder->retencion_ica > 0)
+                    @if((float)$paymentOrder->estampilla_produlto_mayor > 0 || (float)$paymentOrder->estampilla_procultura > 0 || (float)$paymentOrder->estampilla_prodeporte > 0 || (float)$paymentOrder->retencion_ica > 0)
                     <h3 class="text-sm font-semibold text-gray-700 mb-3 mt-4">Otros Impuestos</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                         @if((float)$paymentOrder->estampilla_produlto_mayor > 0)
                         <div class="bg-orange-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-orange-500">Estampilla Produlto Mayor</p>
@@ -1090,6 +1090,12 @@
                         <div class="bg-orange-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-orange-500">Estampilla Procultura</p>
                             <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->estampilla_procultura, 2, ',', '.') }}</p>
+                        </div>
+                        @endif
+                        @if((float)$paymentOrder->estampilla_prodeporte > 0)
+                        <div class="bg-orange-50 rounded-xl p-3 text-center">
+                            <p class="text-xs text-orange-500">Estampilla Prodeporte</p>
+                            <p class="text-lg font-bold text-orange-700">${{ number_format($paymentOrder->estampilla_prodeporte, 2, ',', '.') }}</p>
                         </div>
                         @endif
                         @if((float)$paymentOrder->retencion_ica > 0)

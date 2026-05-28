@@ -116,11 +116,12 @@
                                 'reteiva' => 'RETEIVA',
                                 'estampilla_procultura' => 'ESTAMPILLA PROCULTURA',
                                 'estampilla_produlto' => 'ESTAMPILLA PRODULTO MAYOR',
+                                'estampilla_prodeporte' => 'ESTAMPILLA PRODEPORTE',
                                 'retencion_ica' => 'RETENCIÓN ICA',
                             ];
-                            $soloRetencionKeys = ['reteiva', 'estampilla_procultura', 'estampilla_produlto', 'retencion_ica'];
+                            $soloRetencionKeys = ['reteiva', 'estampilla_procultura', 'estampilla_produlto', 'estampilla_prodeporte', 'retencion_ica'];
                         @endphp
-                        @foreach(['servicios', 'compras', 'honorarios', 'reteiva', 'estampilla_procultura', 'estampilla_produlto', 'retencion_ica'] as $concept)
+                        @foreach(['servicios', 'compras', 'honorarios', 'reteiva', 'estampilla_procultura', 'estampilla_produlto', 'estampilla_prodeporte', 'retencion_ica'] as $concept)
                         @php $row = $fsData['rows'][$concept]; @endphp
                         <tr class="border-t border-gray-200 hover:bg-white/80 transition-colors">
                             <td class="px-4 py-3 font-semibold text-gray-800 border-r border-gray-200">{{ $conceptLabels[$concept] }}</td>
@@ -197,6 +198,7 @@
                 'reteiva'               => collect($monthlySummary)->sum('reteiva'),
                 'estampilla_procultura' => collect($monthlySummary)->sum('estampilla_procultura'),
                 'estampilla_produlto'   => collect($monthlySummary)->sum('estampilla_produlto'),
+                'estampilla_prodeporte' => collect($monthlySummary)->sum('estampilla_prodeporte'),
                 'retencion_ica'         => collect($monthlySummary)->sum('retencion_ica'),
                 'total'                 => collect($monthlySummary)->sum('total'),
             ];
@@ -215,6 +217,7 @@
                             <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">ReteIVA</th>
                             <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Estampilla Procultura</th>
                             <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Estampilla Produlto Mayor</th>
+                            <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prodeporte</th>
                             <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ret. ICA</th>
                             <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Mes</th>
                         </tr>
@@ -227,6 +230,7 @@
                             <td class="px-3 py-2.5 text-right font-mono">{{ $m['reteiva'] > 0 ? '$'.number_format($m['reteiva'], 0, ',', '.') : '—' }}</td>
                             <td class="px-3 py-2.5 text-right font-mono">{{ $m['estampilla_procultura'] > 0 ? '$'.number_format($m['estampilla_procultura'], 0, ',', '.') : '—' }}</td>
                             <td class="px-3 py-2.5 text-right font-mono">{{ $m['estampilla_produlto'] > 0 ? '$'.number_format($m['estampilla_produlto'], 0, ',', '.') : '—' }}</td>
+                            <td class="px-3 py-2.5 text-right font-mono">{{ $m['estampilla_prodeporte'] > 0 ? '$'.number_format($m['estampilla_prodeporte'], 0, ',', '.') : '—' }}</td>
                             <td class="px-3 py-2.5 text-right font-mono">{{ $m['retencion_ica'] > 0 ? '$'.number_format($m['retencion_ica'], 0, ',', '.') : '—' }}</td>
                             <td class="px-3 py-2.5 text-right font-mono font-semibold {{ $m['total'] > 0 ? 'text-red-700' : '' }}">{{ $m['total'] > 0 ? '$'.number_format($m['total'], 0, ',', '.') : '—' }}</td>
                         </tr>
@@ -239,6 +243,7 @@
                             <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['reteiva'], 0, ',', '.') }}</td>
                             <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['estampilla_procultura'], 0, ',', '.') }}</td>
                             <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['estampilla_produlto'], 0, ',', '.') }}</td>
+                            <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['estampilla_prodeporte'], 0, ',', '.') }}</td>
                             <td class="px-3 py-3 text-right font-mono text-gray-900">${{ number_format($monthlyTotals['retencion_ica'], 0, ',', '.') }}</td>
                             <td class="px-3 py-3 text-right font-mono text-red-800 text-base">${{ number_format($monthlyTotals['total'], 0, ',', '.') }}</td>
                         </tr>
@@ -324,9 +329,9 @@ document.addEventListener('DOMContentLoaded', function() {
         mSheet.push(['MUNICIPIO:', d.school.municipality || 'N/A']);
         mSheet.push(['VIGENCIA:', d.year]);
         mSheet.push([]);
-        mSheet.push(['MES', 'RETEFUENTE', 'RETEIVA', 'ESTAMPILLA PROCULTURA', 'ESTAMPILLA PRODULTO MAYOR', 'RETENCION ICA', 'TOTAL MES']);
+        mSheet.push(['MES', 'RETEFUENTE', 'RETEIVA', 'ESTAMPILLA PROCULTURA', 'ESTAMPILLA PRODULTO MAYOR', 'ESTAMPILLA PRODEPORTE', 'RETENCION ICA', 'TOTAL MES']);
 
-        var tots = {retefuente:0,reteiva:0,procult:0,prod:0,ica:0,total:0};
+        var tots = {retefuente:0,reteiva:0,procult:0,prod:0,deporte:0,ica:0,total:0};
         d.monthly.forEach(function(m, idx){
             mSheet.push([
                 monthNames[idx] + ' ' + d.year,
@@ -334,6 +339,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 m.reteiva || 0,
                 m.estampilla_procultura || 0,
                 m.estampilla_produlto || 0,
+                m.estampilla_prodeporte || 0,
                 m.retencion_ica || 0,
                 m.total || 0
             ]);
@@ -341,16 +347,17 @@ document.addEventListener('DOMContentLoaded', function() {
             tots.reteiva += m.reteiva || 0;
             tots.procult += m.estampilla_procultura || 0;
             tots.prod += m.estampilla_produlto || 0;
+            tots.deporte += m.estampilla_prodeporte || 0;
             tots.ica += m.retencion_ica || 0;
             tots.total += m.total || 0;
         });
-        mSheet.push(['TOTAL AÑO', tots.retefuente, tots.reteiva, tots.procult, tots.prod, tots.ica, tots.total]);
+        mSheet.push(['TOTAL AÑO', tots.retefuente, tots.reteiva, tots.procult, tots.prod, tots.deporte, tots.ica, tots.total]);
 
         var ws1 = XLSX.utils.aoa_to_sheet(mSheet);
-        ws1['!cols'] = [{wch:20},{wch:18},{wch:18},{wch:26},{wch:28},{wch:18},{wch:20}];
-        ws1['!merges'] = [{s:{r:0,c:0},e:{r:0,c:6}}];
+        ws1['!cols'] = [{wch:20},{wch:18},{wch:18},{wch:26},{wch:28},{wch:28},{wch:18},{wch:20}];
+        ws1['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}}];
         for (var r = 6; r < mSheet.length; r++) {
-            for (var c = 1; c <= 6; c++) {
+            for (var c = 1; c <= 7; c++) {
                 var cell = XLSX.utils.encode_cell({r:r,c:c});
                 if (ws1[cell] && typeof ws1[cell].v === 'number') ws1[cell].z = '#,##0.00';
             }
@@ -385,10 +392,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 'reteiva': 'RETEIVA',
                 'estampilla_procultura': 'ESTAMPILLA PROCULTURA',
                 'estampilla_produlto': 'ESTAMPILLA PRODULTO MAYOR',
+                'estampilla_prodeporte': 'ESTAMPILLA PRODEPORTE',
                 'retencion_ica': 'RETENCION ICA'
             };
-            var conceptOrder = ['servicios', 'compras', 'honorarios', 'reteiva', 'estampilla_procultura', 'estampilla_produlto', 'retencion_ica'];
-            var soloRetencion = {'reteiva':1,'estampilla_procultura':1,'estampilla_produlto':1,'retencion_ica':1};
+            var conceptOrder = ['servicios', 'compras', 'honorarios', 'reteiva', 'estampilla_procultura', 'estampilla_produlto', 'estampilla_prodeporte', 'retencion_ica'];
+            var soloRetencion = {'reteiva':1,'estampilla_procultura':1,'estampilla_produlto':1,'estampilla_prodeporte':1,'retencion_ica':1};
 
             d.report.forEach(function(fs) {
                 allRows.push(['FORMATO PARA LIQUIDAR RETENCIONES - ' + fs.funding_source.toUpperCase()]);

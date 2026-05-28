@@ -68,12 +68,14 @@ class PostcontractualManagement extends Component
     // Otros impuestos
     public $estampillaProdultoMayor = 0;
     public $estampillaProcultura = 0;
+    public $estampillaProdeporte = 0;
     public $retencionIca = 0;
     public $otherTaxesTotal = 0;
 
     // Flags manuales para estampillas
     public $applyEstampillaProdulto = false;
     public $applyEstampillaProcultura = false;
+    public $applyEstampillaProdeporte = false;
 
     // Totales
     public $totalRetentions = 0;
@@ -1207,11 +1209,13 @@ class PostcontractualManagement extends Component
         // configuración activa del colegio/vigencia cuya base mínima se cumpla.
         $line['estampilla_produlto_mayor'] = 0;
         $line['estampilla_procultura'] = 0;
+        $line['estampilla_prodeporte'] = 0;
         $line['retencion_ica'] = 0;
 
         $localConcepts = [
             'estampilla_produlto_mayor' => 'estampilla_produlto_mayor',
             'estampilla_procultura'     => 'estampilla_procultura',
+            'estampilla_prodeporte'     => 'estampilla_prodeporte',
             'retencion_ica'             => 'retencion_ica',
         ];
 
@@ -1226,7 +1230,7 @@ class PostcontractualManagement extends Component
         }
 
         $line['total_retentions'] = $line['retefuente'] + $line['reteiva']
-            + $line['estampilla_produlto_mayor'] + $line['estampilla_procultura'] + $line['retencion_ica'];
+            + $line['estampilla_produlto_mayor'] + $line['estampilla_procultura'] + $line['estampilla_prodeporte'] + $line['retencion_ica'];
         $line['net_payment'] = $total - $line['total_retentions'];
 
         $this->expenseLines[$index] = $line;
@@ -1247,6 +1251,7 @@ class PostcontractualManagement extends Component
         $totalReteiva = 0;
         $totalEstProdulto = 0;
         $totalEstProcultura = 0;
+        $totalEstProdeporte = 0;
         $totalRetencionIca = 0;
 
         foreach ($this->expenseLines as $line) {
@@ -1256,6 +1261,7 @@ class PostcontractualManagement extends Component
             $totalReteiva += (float) ($line['reteiva'] ?? 0);
             $totalEstProdulto += (float) ($line['estampilla_produlto_mayor'] ?? 0);
             $totalEstProcultura += (float) ($line['estampilla_procultura'] ?? 0);
+            $totalEstProdeporte += (float) ($line['estampilla_prodeporte'] ?? 0);
             $totalRetencionIca += (float) ($line['retencion_ica'] ?? 0);
         }
 
@@ -1266,9 +1272,10 @@ class PostcontractualManagement extends Component
         $this->reteiva = $totalReteiva;
         $this->estampillaProdultoMayor = $totalEstProdulto;
         $this->estampillaProcultura = $totalEstProcultura;
+        $this->estampillaProdeporte = $totalEstProdeporte;
         $this->retencionIca = $totalRetencionIca;
         $this->totalRetentionsDian = $totalRetefuente + $totalReteiva;
-        $this->otherTaxesTotal = $totalEstProdulto + $totalEstProcultura + $totalRetencionIca;
+        $this->otherTaxesTotal = $totalEstProdulto + $totalEstProcultura + $totalEstProdeporte + $totalRetencionIca;
         $this->totalRetentions = $this->totalRetentionsDian + $this->otherTaxesTotal;
         $this->netPayment = $this->payTotal - $this->totalRetentions;
     }
@@ -1315,6 +1322,7 @@ class PostcontractualManagement extends Component
             $this->totalRetentionsDian   = 0;
             $this->estampillaProdultoMayor = 0;
             $this->estampillaProcultura  = 0;
+            $this->estampillaProdeporte  = 0;
             $this->retencionIca          = 0;
             $this->otherTaxesTotal       = 0;
             $this->totalRetentions       = 0;
@@ -1385,6 +1393,7 @@ class PostcontractualManagement extends Component
         // ── OTROS IMPUESTOS (estampillas / ICA) ──
         $this->estampillaProdultoMayor = 0;
         $this->estampillaProcultura = 0;
+        $this->estampillaProdeporte = 0;
         $this->retencionIca = 0;
 
         // Para "cuentas por pagar" el usuario activa/desactiva estampillas manualmente.
@@ -1392,6 +1401,7 @@ class PostcontractualManagement extends Component
         // y el subtotal cumple la base mínima.
         $estProdultoCfg   = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'estampilla_produlto_mayor');
         $estProculturaCfg = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'estampilla_procultura');
+        $estProdeporteCfg = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'estampilla_prodeporte');
         $icaCfg           = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'retencion_ica');
 
         if ($this->paymentType === 'accounts_payable') {
@@ -1401,6 +1411,9 @@ class PostcontractualManagement extends Component
             if ($this->applyEstampillaProcultura && $estProculturaCfg && $subtotal >= (float) $estProculturaCfg->min_base && (float) $estProculturaCfg->rate > 0) {
                 $this->estampillaProcultura = $this->roundRetention($subtotal * ((float) $estProculturaCfg->rate / 100));
             }
+            if ($this->applyEstampillaProdeporte && $estProdeporteCfg && $subtotal >= (float) $estProdeporteCfg->min_base && (float) $estProdeporteCfg->rate > 0) {
+                $this->estampillaProdeporte = $this->roundRetention($subtotal * ((float) $estProdeporteCfg->rate / 100));
+            }
         } elseif ($this->paymentType === 'contract') {
             // Para pagos directos las estampillas no aplican; se quedan en 0.
             if ($estProdultoCfg && $subtotal >= (float) $estProdultoCfg->min_base && (float) $estProdultoCfg->rate > 0) {
@@ -1409,13 +1422,16 @@ class PostcontractualManagement extends Component
             if ($estProculturaCfg && $subtotal >= (float) $estProculturaCfg->min_base && (float) $estProculturaCfg->rate > 0) {
                 $this->estampillaProcultura = $this->roundRetention($subtotal * ((float) $estProculturaCfg->rate / 100));
             }
+            if ($estProdeporteCfg && $subtotal >= (float) $estProdeporteCfg->min_base && (float) $estProdeporteCfg->rate > 0) {
+                $this->estampillaProdeporte = $this->roundRetention($subtotal * ((float) $estProdeporteCfg->rate / 100));
+            }
         }
 
         if ($icaCfg && $subtotal >= (float) $icaCfg->min_base && (float) $icaCfg->rate > 0) {
             $this->retencionIca = $this->roundRetention($subtotal * ((float) $icaCfg->rate / 100));
         }
 
-        $this->otherTaxesTotal = $this->estampillaProdultoMayor + $this->estampillaProcultura + $this->retencionIca;
+        $this->otherTaxesTotal = $this->estampillaProdultoMayor + $this->estampillaProcultura + $this->estampillaProdeporte + $this->retencionIca;
 
         // ── TOTALES ──
         $this->totalRetentions = $this->totalRetentionsDian + $this->otherTaxesTotal;
@@ -1773,6 +1789,7 @@ class PostcontractualManagement extends Component
                 'reteiva'                    => $this->skipCdpRp ? 0 : $this->reteiva,
                 'estampilla_produlto_mayor'  => $this->skipCdpRp ? 0 : $this->estampillaProdultoMayor,
                 'estampilla_procultura'      => $this->skipCdpRp ? 0 : $this->estampillaProcultura,
+                'estampilla_prodeporte'      => $this->skipCdpRp ? 0 : $this->estampillaProdeporte,
                 'retencion_ica'              => $this->skipCdpRp ? 0 : $this->retencionIca,
                 'other_taxes_total'          => $this->skipCdpRp ? 0 : $this->otherTaxesTotal,
                 'total_retentions'           => $this->skipCdpRp ? 0 : $this->totalRetentions,
@@ -1938,6 +1955,7 @@ class PostcontractualManagement extends Component
                             'reteiva'                 => 0,
                             'estampilla_produlto_mayor' => 0,
                             'estampilla_procultura'   => 0,
+                            'estampilla_prodeporte'   => 0,
                             'retencion_ica'           => 0,
                             'total_retentions'        => 0,
                             'net_payment'             => $lineTotal,
@@ -2006,6 +2024,7 @@ class PostcontractualManagement extends Component
                             'reteiva'                 => $this->reteiva,
                             'estampilla_produlto_mayor' => $this->estampillaProdultoMayor,
                             'estampilla_procultura'   => $this->estampillaProcultura,
+                            'estampilla_prodeporte'   => $this->estampillaProdeporte,
                             'retencion_ica'           => $this->retencionIca,
                             'total_retentions'        => $this->totalRetentions,
                             'net_payment'             => $this->netPayment,
@@ -2030,6 +2049,7 @@ class PostcontractualManagement extends Component
                             'reteiva'                 => (float) ($line['reteiva'] ?? 0),
                             'estampilla_produlto_mayor' => (float) ($line['estampilla_produlto_mayor'] ?? 0),
                             'estampilla_procultura'   => (float) ($line['estampilla_procultura'] ?? 0),
+                            'estampilla_prodeporte'   => (float) ($line['estampilla_prodeporte'] ?? 0),
                             'retencion_ica'           => (float) ($line['retencion_ica'] ?? 0),
                             'total_retentions'        => (float) ($line['total_retentions'] ?? 0),
                             'net_payment'             => (float) ($line['net_payment'] ?? 0),

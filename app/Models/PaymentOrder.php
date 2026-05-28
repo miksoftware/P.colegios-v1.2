@@ -37,6 +37,7 @@ class PaymentOrder extends Model
         'reteiva',
         'estampilla_produlto_mayor',
         'estampilla_procultura',
+        'estampilla_prodeporte',
         'retencion_ica',
         'other_taxes_total',
         'total_retentions',
@@ -63,6 +64,7 @@ class PaymentOrder extends Model
         'reteiva' => 'decimal:2',
         'estampilla_produlto_mayor' => 'decimal:2',
         'estampilla_procultura' => 'decimal:2',
+        'estampilla_prodeporte' => 'decimal:2',
         'retencion_ica' => 'decimal:2',
         'other_taxes_total' => 'decimal:2',
         'total_retentions' => 'decimal:2',
@@ -142,6 +144,7 @@ class PaymentOrder extends Model
         'reteiva'                    => '243625 - ReteIVA',
         'estampilla_procultura'      => '24072202 - Estampilla Procultura',
         'estampilla_produlto_mayor'  => '24072204 - Estampilla Produlto Mayor',
+        'estampilla_prodeporte'     => '24072203 - Estampilla Prodeporte',
         'retencion_ica'              => '24072209 - ReteICA',
     ];
 

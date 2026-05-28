@@ -57,6 +57,7 @@ class RetentionLiquidationReport extends Component
                 . 'SUM(reteiva) AS reteiva, '
                 . 'SUM(estampilla_procultura) AS estampilla_procultura, '
                 . 'SUM(estampilla_produlto_mayor) AS estampilla_produlto, '
+                . 'SUM(estampilla_prodeporte) AS estampilla_prodeporte, '
                 . 'SUM(retencion_ica) AS retencion_ica'
             )
             ->groupBy('m')
@@ -70,6 +71,7 @@ class RetentionLiquidationReport extends Component
                 'reteiva'              => 0.0,
                 'estampilla_procultura'=> 0.0,
                 'estampilla_produlto'  => 0.0,
+                'estampilla_prodeporte'=> 0.0,
                 'retencion_ica'        => 0.0,
                 'total'                => 0.0,
             ];
@@ -83,11 +85,13 @@ class RetentionLiquidationReport extends Component
                 'reteiva'              => (float) $row->reteiva,
                 'estampilla_procultura'=> (float) $row->estampilla_procultura,
                 'estampilla_produlto'  => (float) $row->estampilla_produlto,
+                'estampilla_prodeporte'=> (float) $row->estampilla_prodeporte,
                 'retencion_ica'        => (float) $row->retencion_ica,
                 'total'                => (float) $row->retefuente
                                           + (float) $row->reteiva
                                           + (float) $row->estampilla_procultura
                                           + (float) $row->estampilla_produlto
+                                          + (float) $row->estampilla_prodeporte
                                           + (float) $row->retencion_ica,
             ];
         }
@@ -131,6 +135,7 @@ class RetentionLiquidationReport extends Component
                     'reteiva'              => $this->emptyConceptRow(),
                     'estampilla_procultura'=> $this->emptyConceptRow(),
                     'estampilla_produlto'  => $this->emptyConceptRow(),
+                    'estampilla_prodeporte'=> $this->emptyConceptRow(),
                     'retencion_ica'        => $this->emptyConceptRow(),
                 ];
             }
@@ -198,11 +203,13 @@ class RetentionLiquidationReport extends Component
             // Se atribuyen a la fuente del contrato y al tipo de persona del proveedor.
             $estamCultura = (float) $po->estampilla_procultura;
             $estamProd    = (float) $po->estampilla_produlto_mayor;
+            $estamDeporte = (float) $po->estampilla_prodeporte;
             $ica          = (float) $po->retencion_ica;
 
             foreach ([
                 'estampilla_procultura' => $estamCultura,
                 'estampilla_produlto'   => $estamProd,
+                'estampilla_prodeporte' => $estamDeporte,
                 'retencion_ica'         => $ica,
             ] as $key => $amount) {
                 if ($amount <= 0) continue;
@@ -218,7 +225,7 @@ class RetentionLiquidationReport extends Component
         $this->reportData = [];
         $this->grandTotals = ['total_retentions' => 0];
 
-        $conceptOrder = ['servicios', 'compras', 'honorarios', 'reteiva', 'estampilla_procultura', 'estampilla_produlto', 'retencion_ica'];
+        $conceptOrder = ['servicios', 'compras', 'honorarios', 'reteiva', 'estampilla_procultura', 'estampilla_produlto', 'estampilla_prodeporte', 'retencion_ica'];
 
         foreach ($grouped as $fsName => $concepts) {
             $fsTotal = 0;

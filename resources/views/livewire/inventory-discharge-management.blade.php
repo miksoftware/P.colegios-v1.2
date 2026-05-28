@@ -112,7 +112,7 @@
                         <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="mb-5 border-b pb-4">
                                 <h3 class="text-xl leading-6 font-bold text-gray-900" id="modal-title">
-                                    {{ $isEditing ? 'Editar Baja N° ' . str_pad($discharges->firstWhere('id', $dischargeId)->consecutive ?? '', 4, '0', STR_PAD_LEFT) : 'Nueva Resolución de Baja' }}
+                                    {{ $isEditing ? 'Editar Baja N° ' . str_pad($consecutive ?? '', 4, '0', STR_PAD_LEFT) : 'Nueva Resolución de Baja' }}
                                 </h3>
                             </div>
                             

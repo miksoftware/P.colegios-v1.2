@@ -15,6 +15,7 @@ class InventoryDischargeManagement extends Component
     public $showModal = false;
     public $isEditing = false;
     public $dischargeId;
+    public $consecutive;
 
     public $date = '';
     public $resolution_number = '';
@@ -81,6 +82,7 @@ class InventoryDischargeManagement extends Component
         }
 
         $this->dischargeId = $discharge->id;
+        $this->consecutive = $discharge->consecutive;
         $this->date = $discharge->date ? $discharge->date->format('Y-m-d') : '';
         $this->resolution_number = $discharge->resolution_number;
         $this->observations = $discharge->observations;
@@ -125,6 +127,7 @@ class InventoryDischargeManagement extends Component
     public function resetForm()
     {
         $this->dischargeId = null;
+        $this->consecutive = null;
         $this->date = '';
         $this->resolution_number = '';
         $this->observations = '';

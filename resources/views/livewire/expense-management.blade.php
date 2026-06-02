@@ -455,6 +455,18 @@
                                 />
                                 @error('distributeExpenseCodeId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Naturaleza del monto <span class="text-red-500">*</span></label>
+                                <select wire:model="distributeEntryType" class="w-full rounded-xl border-gray-300">
+                                    <option value="initial">Inicial del rubro</option>
+                                    <option value="addition">Adición al rubro</option>
+                                </select>
+                                @error('distributeEntryType') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                @if((float) $selectedBudget->initial_amount <= 0)
+                                    <p class="mt-1 text-xs text-amber-600">Este presupuesto nació en $0, por consistencia fiscal debe usar "Adición".</p>
+                                @endif
+                            </div>
                         @else
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Rubro existente <span class="text-red-500">*</span></label>
@@ -482,7 +494,12 @@
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de Realización <span class="text-red-500">*</span></label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Fecha de Realización
+                                    @if($distributeMode === 'add' || ($distributeMode === 'create' && $distributeEntryType === 'addition'))
+                                        <span class="text-red-500">*</span>
+                                    @endif
+                                </label>
                                 <input type="date" wire:model="distributeDocumentDate" class="w-full rounded-xl border-gray-300">
                                 @error('distributeDocumentDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                                 <p class="mt-1 text-xs text-gray-500">Fecha fiscal real del movimiento (puede ser distinta a hoy).</p>

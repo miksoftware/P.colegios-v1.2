@@ -22,6 +22,7 @@ class ExpenseManagement extends Component
     public $showDistributeModal = false;
     public $selectedBudget = null;
     public $distributeMode = 'create'; // 'create' | 'add'
+    public $distributeEntryType = 'initial'; // 'initial' | 'addition' (solo create)
     public $distributeExpenseCodeId = '';
     public $distributeExistingDistributionId = '';
     public $distributeAmount = '';
@@ -168,6 +169,7 @@ class ExpenseManagement extends Component
 
         $this->resetDistributeForm();
         $this->distributeMode = 'create';
+        $this->distributeEntryType = ((float) $this->selectedBudget->initial_amount > 0) ? 'initial' : 'addition';
         $this->distributeDocumentDate = now()->format('Y-m-d');
         $this->showDistributeModal = true;
     }
@@ -179,6 +181,13 @@ class ExpenseManagement extends Component
         $this->distributeExistingDistributionId = '';
         $this->distributeAmount = '';
         $this->distributeDescription = '';
+        if ($value === 'add') {
+            $this->distributeEntryType = 'addition';
+        } else {
+            $this->distributeEntryType = ($this->selectedBudget && (float) $this->selectedBudget->initial_amount > 0)
+                ? 'initial'
+                : 'addition';
+        }
         $this->resetValidation();
     }
 
@@ -190,10 +199,17 @@ class ExpenseManagement extends Component
         }
 
         // Reglas de validación según el modo
+        $isAdditionFlow = $this->distributeMode === 'add'
+            || ($this->distributeMode === 'create' && $this->distributeEntryType === 'addition');
+
         $rules = [
-            'distributeAmount'        => 'required|numeric|min:0.01',
-            'distributeDocumentDate'  => 'required|date',
+            'distributeAmount' => 'required|numeric|min:0.01',
         ];
+        if ($isAdditionFlow) {
+            $rules['distributeDocumentDate'] = 'required|date';
+        } else {
+            $rules['distributeDocumentDate'] = 'nullable|date';
+        }
         $messages = [
             'distributeAmount.required'       => 'Ingrese el monto a distribuir.',
             'distributeAmount.min'            => 'El monto debe ser mayor a 0.',
@@ -202,7 +218,9 @@ class ExpenseManagement extends Component
         ];
         if ($this->distributeMode === 'create') {
             $rules['distributeExpenseCodeId'] = 'required|exists:expense_codes,id';
+            $rules['distributeEntryType'] = 'required|in:initial,addition';
             $messages['distributeExpenseCodeId.required'] = 'Seleccione un código de gasto.';
+            $messages['distributeEntryType.required'] = 'Seleccione si el valor corresponde a inicial o adición.';
         } else {
             $rules['distributeExistingDistributionId'] = 'required|exists:expense_distributions,id';
             $messages['distributeExistingDistributionId.required'] = 'Seleccione el rubro al cual adicionar.';
@@ -224,6 +242,12 @@ class ExpenseManagement extends Component
         \Illuminate\Support\Facades\DB::beginTransaction();
         try {
             if ($this->distributeMode === 'create') {
+                if ($this->distributeEntryType === 'initial' && (float) $this->selectedBudget->initial_amount <= 0) {
+                    \Illuminate\Support\Facades\DB::rollBack();
+                    $this->dispatch('toast', message: 'Este presupuesto nació en $0. Para este caso use naturaleza "Adición".', type: 'error');
+                    return;
+                }
+
                 // Crear nueva distribución
                 $exists = ExpenseDistribution::where('budget_id', $this->selectedBudget->id)
                     ->where('expense_code_id', $this->distributeExpenseCodeId)
@@ -235,18 +259,21 @@ class ExpenseManagement extends Component
                     return;
                 }
 
+                $isAdditionEntry = $this->distributeEntryType === 'addition';
                 $distribution = ExpenseDistribution::create([
                     'school_id'       => $this->schoolId,
                     'budget_id'       => $this->selectedBudget->id,
                     'expense_code_id' => $this->distributeExpenseCodeId,
                     'amount'          => $amount,
-                    'initial_amount'  => $amount,
+                    'initial_amount'  => $isAdditionEntry ? 0 : $amount,
                     'description'     => $this->distributeDescription,
                     'created_by'      => auth()->id(),
                 ]);
 
-                // Registrar línea de adición (amount_before = 0) para trazabilidad
-                $this->recordModificationLine($distribution, 0, $amount);
+                // Solo las adiciones crean movimiento de modificación.
+                if ($isAdditionEntry) {
+                    $this->recordModificationLine($distribution, 0, $amount);
+                }
 
                 $msg = 'Distribución creada exitosamente.';
             } else {
@@ -322,6 +349,7 @@ class ExpenseManagement extends Component
     public function resetDistributeForm()
     {
         $this->distributeMode = 'create';
+        $this->distributeEntryType = 'initial';
         $this->distributeExpenseCodeId = '';
         $this->distributeExistingDistributionId = '';
         $this->distributeAmount = '';

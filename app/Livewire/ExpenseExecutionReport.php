@@ -326,7 +326,6 @@ class ExpenseExecutionReport extends Component
         foreach ($budgets as $budget) {
             $fundingCode = $budget->fundingSource?->code ?? '';
             $fundingName = $budget->fundingSource?->name ?? '';
-            $budgetInitial = (float) $budget->initial_amount;
 
             $distributions = $budget->distributions;
 
@@ -335,10 +334,6 @@ class ExpenseExecutionReport extends Component
                 // aún no está asignado a ningún rubro de gasto.
                 continue;
             }
-
-            // Proporción para distribuir el budget.initial_amount entre rubros (usa
-            // initial_amount de cada distribución como peso).
-            $totalDistInitial = (float) $distributions->sum('initial_amount');
 
             foreach ($distributions as $dist) {
                 $expCode = $dist->expenseCode;
@@ -355,14 +350,10 @@ class ExpenseExecutionReport extends Component
                 $distAdditions     = (float) ($additionsByDist[$dist->id] ?? 0);
                 $distReductions    = (float) ($reductionsByDist[$dist->id] ?? 0);
 
-                // Apropiación inicial del rubro: se deriva del budget.
-                // Si el budget nació con apropiación inicial > 0, se reparte proporcional
-                // al initial_amount del rubro (que representa el peso histórico del rubro).
-                // Si el budget nació en 0 (puro superávit/adición), el rubro nace en 0.
-                $distInitial = 0;
-                if ($budgetInitial > 0 && $totalDistInitial > 0) {
-                    $distInitial = round($budgetInitial * ((float) $dist->initial_amount / $totalDistInitial), 2);
-                }
+                // Apropiación inicial EXACTA del rubro según su distribución.
+                // No se prorratea desde budget.initial_amount para evitar desajustes
+                // cuando el rubro ya tiene un initial_amount definido (ej. 1.000.000).
+                $distInitial = (float) $dist->initial_amount;
 
                 // Apropiación definitiva CALCULADA: inicial + adiciones del año - reducciones
                 // + créditos - contracréditos. Se respeta el filtro de periodo.

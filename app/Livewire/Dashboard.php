@@ -6,6 +6,7 @@ use App\Models\Budget;
 use App\Models\BudgetTransfer;
 use App\Models\Cdp;
 use App\Models\Contract;
+use App\Models\ContractRp;
 use App\Models\Convocatoria;
 use App\Models\ExpenseDistribution;
 use App\Models\Income;
@@ -90,7 +91,12 @@ class Dashboard extends Component
             ->get();
 
         $this->totalExpenseExecuted = $distributions->sum(fn($d) => $d->total_executed);
-        $this->totalExpenseCommitted = $distributions->sum(fn($d) => $d->total_committed);
+
+        // Comprometido = suma de RPs activos (valor formal del contrato/RP, no el estimado del CDP)
+        $this->totalExpenseCommitted = (float) ContractRp::whereHas('cdp', fn($q) => $q->where('school_id', $schoolId))
+            ->where('fiscal_year', $year)
+            ->where('status', 'active')
+            ->sum('total_amount');
 
         $this->expenseExecutionPercent = $this->totalExpenseBudget > 0
             ? round(($this->totalExpenseExecuted / $this->totalExpenseBudget) * 100, 1)

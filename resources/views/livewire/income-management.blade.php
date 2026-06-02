@@ -13,11 +13,11 @@
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                 <div class="text-center px-4 py-2 border-r border-gray-100">
                     <p class="text-xs font-medium text-gray-500 uppercase">Presupuestado</p>
-                    <p class="text-xl font-bold text-gray-900 mt-1">${{ number_format($this->summary['budgeted'], 2, ',', '.') }}</p>
+                    <p class="text-sm font-bold text-gray-900 mt-1 whitespace-nowrap">${{ number_format($this->summary['budgeted'], 2, ',', '.') }}</p>
                 </div>
                 <div class="text-center px-4 py-2 border-r border-gray-100">
                     <p class="text-xs font-medium text-gray-500 uppercase">Recaudado</p>
-                    <p class="text-xl font-bold text-green-600 mt-1">${{ number_format($this->summary['executed'], 2, ',', '.') }}</p>
+                    <p class="text-sm font-bold text-green-600 mt-1 whitespace-nowrap">${{ number_format($this->summary['executed'], 2, ',', '.') }}</p>
                     <p class="text-xs text-green-600">{{ number_format($this->summary['percentage'], 1) }}%</p>
                 </div>
                 <div class="text-center px-4 py-2 border-r border-gray-100">
@@ -46,7 +46,7 @@
                 @if($this->summary['total_pending_addition'] > 0)
                 <div class="text-center px-4 py-2 bg-orange-50 rounded-xl">
                     <p class="text-xs font-medium text-orange-600 uppercase">Por Adicionar</p>
-                    <p class="text-lg font-bold text-orange-700 mt-1">${{ number_format($this->summary['total_pending_addition'], 2, ',', '.') }}</p>
+                    <p class="text-sm font-bold text-orange-700 mt-1 whitespace-nowrap">${{ number_format($this->summary['total_pending_addition'], 2, ',', '.') }}</p>
                 </div>
                 @endif
             </div>
@@ -157,13 +157,13 @@
                             </span>
                             <div class="text-xs text-gray-500 mt-1">{{ $budget['funding_source']->name }}</div>
                         </td>
-                        <td class="px-6 py-4 text-right text-sm font-medium text-gray-900">
+                        <td class="px-6 py-4 text-right text-sm font-medium text-gray-900 whitespace-nowrap">
                             ${{ number_format($budget['budgeted'], 2, ',', '.') }}
                         </td>
-                        <td class="px-6 py-4 text-right text-sm font-medium text-green-600">
+                        <td class="px-6 py-4 text-right text-sm font-medium text-green-600 whitespace-nowrap">
                             ${{ number_format($budget['collected'], 2, ',', '.') }}
                         </td>
-                        <td class="px-6 py-4 text-right text-sm font-medium {{ $budget['pending'] > 0 ? 'text-blue-600' : ($budget['pending'] < 0 ? 'text-orange-600' : 'text-gray-500') }}">
+                        <td class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap {{ $budget['pending'] > 0 ? 'text-blue-600' : ($budget['pending'] < 0 ? 'text-orange-600' : 'text-gray-500') }}">
                             @if($budget['pending'] > 0)
                                 -${{ number_format($budget['pending'], 2, ',', '.') }}
                                 <div class="text-xs text-gray-400">por recaudar</div>

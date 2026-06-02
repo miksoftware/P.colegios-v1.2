@@ -1189,18 +1189,28 @@ class PostcontractualManagement extends Component
         }
 
         // ── ReteIVA ──
+        // - Régimen Simple: aplica directamente sin requerir concepto de retefuente.
+        // - Otros regímenes: requiere concepto seleccionado y base mínima de retefuente.
         $line['reteiva'] = 0;
         $isIvaResponsible = in_array($taxRegime, ['comun', 'gran_contribuyente', 'simple']);
-        if ($isIvaResponsible && $iva > 0 && $concept) {
-            $retefuenteConfig = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $concept);
-            $reteivaConfig    = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'reteiva');
-            if ($retefuenteConfig
-                && $reteivaConfig
-                && $contractSubtotal >= (float) $retefuenteConfig->min_base
-                && $iva >= (float) $reteivaConfig->min_base
-            ) {
-                $rate = (float) $reteivaConfig->rate;
-                $line['reteiva'] = $this->roundRetention($iva * ($rate / 100));
+        if ($isIvaResponsible && $iva > 0) {
+            $reteivaConfig = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'reteiva');
+            if ($taxRegime === 'simple') {
+                // Para Régimen Simple: ReteIVA aplica directamente (no requiere concepto de retefuente)
+                if ($reteivaConfig && $iva >= (float) $reteivaConfig->min_base) {
+                    $rate = (float) $reteivaConfig->rate;
+                    $line['reteiva'] = $this->roundRetention($iva * ($rate / 100));
+                }
+            } elseif ($concept) {
+                $retefuenteConfig = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $concept);
+                if ($retefuenteConfig
+                    && $reteivaConfig
+                    && $contractSubtotal >= (float) $retefuenteConfig->min_base
+                    && $iva >= (float) $reteivaConfig->min_base
+                ) {
+                    $rate = (float) $reteivaConfig->rate;
+                    $line['reteiva'] = $this->roundRetention($iva * ($rate / 100));
+                }
             }
         }
 
@@ -1370,16 +1380,23 @@ class PostcontractualManagement extends Component
         }
 
         // ── RETEIVA ──
-        // Solo para responsables de IVA y si la base del contrato supera el umbral
-        // del concepto de retefuente. La tarifa sale de la configuración activa.
+        // Solo para responsables de IVA. La tarifa sale de la configuración activa.
+        // - Régimen Simple: aplica directamente sin requerir concepto de retefuente.
+        // - Otros regímenes: requiere que el concepto de retefuente esté seleccionado
+        //   y que la base del contrato supere el umbral del concepto.
         $this->reteiva = 0;
         $isIvaResponsible = in_array($taxRegime, ['comun', 'gran_contribuyente', 'simple']);
 
-        if ($isIvaResponsible && $iva > 0 && $this->retentionConcept) {
+        if ($isIvaResponsible && $iva > 0) {
             $reteivaConfig = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'reteiva');
 
-            if ($retefuenteConfig
-                && $reteivaConfig
+            if ($taxRegime === 'simple') {
+                // Para Régimen Simple: ReteIVA aplica directamente (no requiere concepto de retefuente)
+                if ($reteivaConfig && $iva >= (float) $reteivaConfig->min_base) {
+                    $rate = (float) $reteivaConfig->rate;
+                    $this->reteiva = $this->roundRetention($iva * ($rate / 100));
+                }
+            } elseif ($this->retentionConcept && $retefuenteConfig && $reteivaConfig
                 && $contractSubtotal >= (float) $retefuenteConfig->min_base
                 && $iva >= (float) $reteivaConfig->min_base
             ) {

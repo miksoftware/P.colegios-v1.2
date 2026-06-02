@@ -326,6 +326,7 @@ class ExpenseExecutionReport extends Component
         foreach ($budgets as $budget) {
             $fundingCode = $budget->fundingSource?->code ?? '';
             $fundingName = $budget->fundingSource?->name ?? '';
+            $budgetInitial = (float) $budget->initial_amount;
 
             $distributions = $budget->distributions;
 
@@ -350,10 +351,12 @@ class ExpenseExecutionReport extends Component
                 $distAdditions     = (float) ($additionsByDist[$dist->id] ?? 0);
                 $distReductions    = (float) ($reductionsByDist[$dist->id] ?? 0);
 
-                // Apropiación inicial EXACTA del rubro según su distribución.
-                // No se prorratea desde budget.initial_amount para evitar desajustes
-                // cuando el rubro ya tiene un initial_amount definido (ej. 1.000.000).
-                $distInitial = (float) $dist->initial_amount;
+                // Regla fiscal: si el presupuesto nació en 0, la apropiación inicial
+                // del rubro también es 0 (el monto debe verse solo en adiciones).
+                // Si nació con inicial > 0, tomamos el initial_amount de la distribución.
+                $distInitial = $budgetInitial > 0
+                    ? (float) $dist->initial_amount
+                    : 0.0;
 
                 // Apropiación definitiva CALCULADA: inicial + adiciones del año - reducciones
                 // + créditos - contracréditos. Se respeta el filtro de periodo.

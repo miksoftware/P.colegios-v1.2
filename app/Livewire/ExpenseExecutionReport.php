@@ -59,16 +59,15 @@ class ExpenseExecutionReport extends Component
         $quarter = $this->filterQuarter ? (int) $this->filterQuarter : null;
         $semester = $this->filterSemester ? (int) $this->filterSemester : null;
 
-        // Rango de fechas ACUMULADO: siempre desde enero 1 hasta el fin del período seleccionado.
-        // Trimestre 2 → enero–junio, Semestre 1 → enero–junio, Semestre 2 → enero–diciembre, etc.
-        $dateFrom = null;
-        $dateTo = null;
+        // Rango de fechas ACUMULADO: siempre desde enero 1.
+        // Vista anual: enero 1 a diciembre 31 del año fiscal seleccionado.
+        // Trimestre/Semestre: enero 1 hasta el cierre del periodo.
+        $dateFrom = "{$year}-01-01";
+        $dateTo = "{$year}-12-31";
         if ($quarter) {
-            $dateFrom = "{$year}-01-01";
             $lastMonth = $quarter * 3;
             $dateTo = \Carbon\Carbon::parse("{$year}-{$lastMonth}-01")->endOfMonth()->format('Y-m-d');
         } elseif ($semester) {
-            $dateFrom = "{$year}-01-01";
             $lastMonth = $semester * 6;
             $dateTo = \Carbon\Carbon::parse("{$year}-{$lastMonth}-01")->endOfMonth()->format('Y-m-d');
         }
@@ -88,6 +87,15 @@ class ExpenseExecutionReport extends Component
         $budgetIds = $budgets->pluck('id')->toArray();
         $distIds = $budgets->flatMap(fn($b) => $b->distributions->pluck('id'))->toArray();
         $validDistIds = array_flip($distIds);
+        $distInitialById = [];
+        $distBudgetInitialById = [];
+        foreach ($budgets as $b) {
+            $bInitial = (float) $b->initial_amount;
+            foreach ($b->distributions as $d) {
+                $distInitialById[$d->id] = (float) $d->initial_amount;
+                $distBudgetInitialById[$d->id] = $bInitial;
+            }
+        }
 
         // --- Modificaciones filtradas por corte ---
         // Regla: SOLO las líneas de budget_modification_lines impactan distribuciones.
@@ -111,7 +119,6 @@ class ExpenseExecutionReport extends Component
                 ->get();
 
             $inRange = function ($date) use ($dateFrom, $dateTo) {
-                if (!$dateFrom || !$dateTo) return true;
                 if (!$date) return false;
                 $d = $date instanceof \Carbon\Carbon ? $date->toDateString() : (string) $date;
                 return $d >= $dateFrom && $d <= $dateTo;
@@ -140,6 +147,20 @@ class ExpenseExecutionReport extends Component
 
                     // Filtrar por el periodo solicitado (Q1, Q2, etc.)
                     if (!$inRange($lineDate)) continue;
+
+                    // Ignorar trazas legacy de creación inicial de distribución que se
+                    // guardaron como "addition" en ExpenseManagement. Esas líneas son
+                    // de forma 0 -> initial_amount y no representan una adición real.
+                    $distId = (int) $line->expense_distribution_id;
+                    $before = (float) $line->amount_before;
+                    $after = (float) $line->amount_after;
+                    $distInitialRef = (float) ($distInitialById[$distId] ?? 0);
+                    $budgetInitialRef = (float) ($distBudgetInitialById[$distId] ?? 0);
+                    $isInitialAllocationTrace = $isAddition
+                        && $budgetInitialRef > 0
+                        && abs($before) < 0.01
+                        && abs($after - $distInitialRef) < 0.01;
+                    if ($isInitialAllocationTrace) continue;
 
                     $delta = abs((float) $line->amount_after - (float) $line->amount_before);
 

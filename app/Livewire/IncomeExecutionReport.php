@@ -107,7 +107,8 @@ class IncomeExecutionReport extends Component
         $additionsByBudget = [];
         $reductionsByBudget = [];
         if (!empty($budgetIds)) {
-            $modQuery = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds);
+            $modQuery = \App\Models\BudgetModification::whereIn('budget_id', $budgetIds)
+                ->whereNull('cancelled_at');
             if ($dateFrom && $dateTo) {
                 // Filtrar por document_date (fecha del acto) y caer a created_at si es nula
                 $modQuery->where(function ($q) use ($dateFrom, $dateTo) {

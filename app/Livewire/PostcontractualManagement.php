@@ -136,6 +136,7 @@ class PostcontractualManagement extends Component
 
     // Códigos de gasto para pago directo (nuevo flujo)
     public $directExpenseCodes = []; // códigos de gasto disponibles con disponibilidad
+    public $directExpenseCodeSearch = ''; // filtro de búsqueda para códigos de gasto
     public $directSelectedExpenseCodes = []; // códigos seleccionados [{id, code, name, budget_items: [{id, name, sources: [...]}]}]
     public $directExpenseAllocations = []; // asignaciones [{expense_code_id, budget_item_id, funding_source_id, amount, budget_id, bank_id, bank_account_id}]
     public $directBanks = []; // Bancos del colegio para selección en pago directo
@@ -510,23 +511,10 @@ class PostcontractualManagement extends Component
         $this->loadDirectExpenseCodes();
     }
 
-    /**
-     * Códigos de gasto PAA permitidos para pagos directos.
-     */
-    public const DIRECT_PAYMENT_EXPENSE_CODES = [
-        '2.1.2.02.02.006.06',
-        '2.1.2.02.02.006.07',
-        '2.1.2.02.02.007.01',
-        '2.1.2.02.02.007.02',
-        '2.1.2.02.02.008.02',
-        '2.1.2.02.02.008.03',
-    ];
-
     public function loadDirectExpenseCodes()
     {
         $year = (int) $this->filterYear;
         $expenseCodes = \App\Models\ExpenseCode::active()
-            ->whereIn('code', self::DIRECT_PAYMENT_EXPENSE_CODES)
             ->with('accountingAccount')
             ->get();
 

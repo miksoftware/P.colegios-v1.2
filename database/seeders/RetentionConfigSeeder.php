@@ -98,6 +98,26 @@ class RetentionConfigSeeder extends Seeder
                 'min_base'          => 524000,
                 'accounting_code'   => '243605 - Retenciones de Servicios y Arrendamientos',
             ],
+            [
+                'concept'           => 'impuesto_contribucion_especial',
+                'display_name'      => 'Impuesto de contribución especial',
+                'category'          => 'retefuente',
+                'rate_not_declares' => 0.0,
+                'rate_declares'     => 0.0,
+                'rate'              => null,
+                'min_base'          => 1,
+                'accounting_code'   => '243605 - Retenciones de Servicios y Arrendamientos',
+            ],
+            [
+                'concept'           => 'retencion_contrato_obra',
+                'display_name'      => 'Retención contrato de obra',
+                'category'          => 'retefuente',
+                'rate_not_declares' => 0.0,
+                'rate_declares'     => 0.0,
+                'rate'              => null,
+                'min_base'          => 1,
+                'accounting_code'   => '243605 - Retenciones de Servicios y Arrendamientos',
+            ],
 
             // ── ReteIVA ───────────────────────────────────────────
             [

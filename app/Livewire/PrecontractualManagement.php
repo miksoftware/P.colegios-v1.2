@@ -15,6 +15,7 @@ use App\Models\Supplier;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class PrecontractualManagement extends Component
@@ -152,7 +153,7 @@ class PrecontractualManagement extends Component
 
     public function getConvocatoriasProperty()
     {
-        return Convocatoria::with(['expenseDistribution.expenseCode', 'expenseDistribution.budget.budgetItem', 'expenseDistribution.budget.fundingSource', 'cdps', 'proposals', 'selectedProposal.supplier'])
+        return Convocatoria::with(['expenseDistribution.expenseCode', 'expenseDistribution.budget.budgetItem', 'expenseDistribution.budget.fundingSource', 'cdps', 'proposals', 'selectedProposal.supplier', 'contract'])
             ->forSchool($this->schoolId)
             ->when($this->filterYear, fn($q) => $q->forYear($this->filterYear))
             ->when($this->filterStatus, fn($q) => $q->byStatus($this->filterStatus))
@@ -1154,9 +1155,20 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        $conv = Convocatoria::forSchool($this->schoolId)->findOrFail($id);
-        if ($conv->status !== 'draft') {
-            $this->dispatch('toast', message: 'Solo se pueden eliminar convocatorias en borrador.', type: 'error');
+        $user = Auth::user();
+        $isAdmin = $user instanceof \App\Models\User && $user->hasRole('Admin');
+        $conv = Convocatoria::with('contract')->forSchool($this->schoolId)->findOrFail($id);
+
+        $canDelete = $conv->status === 'draft'
+            || ($isAdmin && $conv->status === 'awarded');
+
+        if (!$canDelete) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden eliminar convocatorias adjudicadas.', type: 'error');
+            return;
+        }
+
+        if ($conv->contract) {
+            $this->dispatch('toast', message: 'No se puede eliminar la convocatoria porque ya tiene un contrato asociado.', type: 'error');
             return;
         }
 
@@ -1188,15 +1200,40 @@ class PrecontractualManagement extends Component
         if (!$this->itemToDelete) return;
 
         if ($this->deleteType === 'convocatoria') {
+            $convocatoria = Convocatoria::with(['cdps.fundingSources', 'contract'])
+                ->forSchool($this->schoolId)
+                ->findOrFail($this->itemToDelete->id);
+
+            $user = Auth::user();
+            $isAdmin = $user instanceof \App\Models\User && $user->hasRole('Admin');
+
+            $canDelete = $convocatoria->status === 'draft'
+                || ($isAdmin && $convocatoria->status === 'awarded');
+
+            if (!$canDelete) {
+                $this->dispatch('toast', message: 'Solo los administradores pueden eliminar convocatorias adjudicadas.', type: 'error');
+                $this->closeDeleteModal();
+                return;
+            }
+
+            if ($convocatoria->contract) {
+                $this->dispatch('toast', message: 'No se puede eliminar la convocatoria porque ya tiene un contrato asociado.', type: 'error');
+                $this->closeDeleteModal();
+                return;
+            }
+
             // Eliminar CDPs, propuestas y distribuciones asociadas
-            DB::transaction(function () {
-                foreach ($this->itemToDelete->cdps as $cdp) {
+            DB::transaction(function () use ($convocatoria) {
+                foreach ($convocatoria->cdps as $cdp) {
                     $cdp->fundingSources()->delete();
                     $cdp->delete();
                 }
-                $this->itemToDelete->proposals()->delete();
-                $this->itemToDelete->distributionDetails()->delete();
-                $this->itemToDelete->delete();
+                $convocatoria->proposals()->delete();
+                $convocatoria->distributionDetails()->delete();
+                $convocatoria->delete();
+
+                $this->resequenceConvocatoriasForYear($this->schoolId, $convocatoria->fiscal_year);
+                $this->resequenceCdpsForYear($this->schoolId, $convocatoria->fiscal_year);
             });
 
             $this->dispatch('toast', message: 'Convocatoria eliminada.', type: 'success');
@@ -1224,6 +1261,71 @@ class PrecontractualManagement extends Component
         $this->showDeleteModal = false;
         $this->itemToDelete = null;
         $this->deleteType = '';
+    }
+
+    private function resequenceConvocatoriasForYear(int $schoolId, int $fiscalYear): void
+    {
+        $convocatoriaIds = Convocatoria::query()
+            ->forSchool($schoolId)
+            ->forYear($fiscalYear)
+            ->orderBy('convocatoria_number')
+            ->orderBy('id')
+            ->pluck('id');
+
+        if ($convocatoriaIds->isEmpty()) {
+            return;
+        }
+
+        foreach ($convocatoriaIds as $index => $convocatoriaId) {
+            Convocatoria::whereKey($convocatoriaId)->update([
+                'convocatoria_number' => 100000 + $index,
+            ]);
+        }
+
+        foreach ($convocatoriaIds as $index => $convocatoriaId) {
+            Convocatoria::whereKey($convocatoriaId)->update([
+                'convocatoria_number' => $index + 1,
+            ]);
+        }
+    }
+
+    private function resequenceCdpsForYear(int $schoolId, int $fiscalYear): void
+    {
+        $hasProtectedCdps = Cdp::query()
+            ->forSchool($schoolId)
+            ->forYear($fiscalYear)
+            ->where(function ($query) {
+                $query->whereNull('convocatoria_id')
+                    ->orWhereHas('contractRp');
+            })
+            ->exists();
+
+        if ($hasProtectedCdps) {
+            return;
+        }
+
+        $cdpIds = Cdp::query()
+            ->forSchool($schoolId)
+            ->forYear($fiscalYear)
+            ->orderBy('cdp_number')
+            ->orderBy('id')
+            ->pluck('id');
+
+        if ($cdpIds->isEmpty()) {
+            return;
+        }
+
+        foreach ($cdpIds as $index => $cdpId) {
+            Cdp::whereKey($cdpId)->update([
+                'cdp_number' => 100000 + $index,
+            ]);
+        }
+
+        foreach ($cdpIds as $index => $cdpId) {
+            Cdp::whereKey($cdpId)->update([
+                'cdp_number' => $index + 1,
+            ]);
+        }
     }
 
     // === IMPRIMIR DOCUMENTOS ===

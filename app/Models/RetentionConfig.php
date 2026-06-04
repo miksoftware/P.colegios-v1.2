@@ -65,6 +65,14 @@ class RetentionConfig extends Model
             'display_name' => 'Retefuente Servicio de Transporte de Pasajeros',
             'category' => 'retefuente',
         ],
+        'impuesto_contribucion_especial' => [
+            'display_name' => 'Impuesto de contribución especial',
+            'category' => 'retefuente',
+        ],
+        'retencion_contrato_obra' => [
+            'display_name' => 'Retención contrato de obra',
+            'category' => 'retefuente',
+        ],
         'reteiva' => [
             'display_name' => 'ReteIVA',
             'category' => 'reteiva',

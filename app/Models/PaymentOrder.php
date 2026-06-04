@@ -100,6 +100,8 @@ class PaymentOrder extends Model
         'arrendamiento_sitios_web'   => 'Arrendamientos Sitios Web',
         'arrendamiento_inmuebles'    => 'Arrendamientos Bienes Inmuebles',
         'transporte_pasajeros'       => 'Servicio de Transporte de Pasajeros',
+        'impuesto_contribucion_especial' => 'Impuesto de contribución especial',
+        'retencion_contrato_obra'    => 'Retención contrato de obra',
     ];
 
     /**
@@ -117,6 +119,8 @@ class PaymentOrder extends Model
         'arrendamiento_sitios_web'   => [11.0, 3.5],
         'arrendamiento_inmuebles'    => [3.5, 3.5],
         'transporte_pasajeros'       => [3.5, 3.5],
+        'impuesto_contribucion_especial' => [0.0, 0.0],
+        'retencion_contrato_obra'    => [0.0, 0.0],
     ];
 
     /**
@@ -132,6 +136,8 @@ class PaymentOrder extends Model
         'arrendamiento_sitios_web'   => 1,
         'arrendamiento_inmuebles'    => 524000,
         'transporte_pasajeros'       => 524000,
+        'impuesto_contribucion_especial' => 1,
+        'retencion_contrato_obra'    => 1,
     ];
 
     /**

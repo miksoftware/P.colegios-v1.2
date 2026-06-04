@@ -325,9 +325,31 @@
                     {{-- Selección de Códigos de Gasto --}}
                     @if(count($directExpenseCodes) > 0)
                     <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Seleccione los códigos de gasto</label>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="block text-sm font-medium text-gray-700">Seleccione los códigos de gasto</label>
+                            <span class="text-xs text-gray-500">{{ count($directExpenseCodes) }} disponible(s)</span>
+                        </div>
+
+                        {{-- Filtro de búsqueda --}}
+                        <div class="relative mb-2">
+                            <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input type="text" wire:model.live.debounce.200ms="directExpenseCodeSearch"
+                                   placeholder="Buscar por código o nombre..."
+                                   class="w-full rounded-xl border-gray-300 pl-10 text-sm focus:border-purple-500 focus:ring-purple-500">
+                        </div>
+
                         <div class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-xl p-3">
-                            @foreach($directExpenseCodes as $ec)
+                            @php
+                                $search = strtolower($directExpenseCodeSearch ?? '');
+                                $filteredCodes = !$search
+                                    ? $directExpenseCodes
+                                    : array_filter($directExpenseCodes, fn($ec) =>
+                                        str_contains(strtolower($ec['code']), $search) ||
+                                        str_contains(strtolower($ec['name']), $search) ||
+                                        str_contains(strtolower($ec['sifse_code'] ?? ''), $search)
+                                    );
+                            @endphp
+                            @forelse($filteredCodes as $ec)
                                 @php $isSelected = collect($directSelectedExpenseCodes)->contains('id', $ec['id']); @endphp
                                 <label class="flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors {{ $isSelected ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300' }}" wire:key="dec-{{ $ec['id'] }}">
                                     <input type="checkbox" wire:click="toggleDirectExpenseCode({{ $ec['id'] }})" {{ $isSelected ? 'checked' : '' }} class="mt-1 rounded border-gray-300 text-purple-600 focus:ring-purple-500">
@@ -337,7 +359,9 @@
                                     </div>
                                     <span class="text-sm font-semibold text-green-700 flex-shrink-0">Disp: ${{ number_format($ec['available'], 2, ',', '.') }}</span>
                                 </label>
-                            @endforeach
+                            @empty
+                                <p class="text-sm text-gray-400 text-center py-4">No se encontraron códigos de gasto con "{{ $directExpenseCodeSearch }}"</p>
+                            @endforelse
                         </div>
                     </div>
 

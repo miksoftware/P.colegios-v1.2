@@ -206,6 +206,7 @@ class ContractualPdfController extends Controller
             'contract' => $contract,
             'school' => $school,
             'supplier' => $supplier,
+            'comprobanteNumber' => $rp->formatted_number,
             'amount' => $amount,
             'amountInWords' => $amountInWords,
             'debitEntries' => $debitEntries,

@@ -78,7 +78,7 @@
                     @endif
                 </td>
                 <td class="header-right">
-                    <div class="doc-title">COMPROBANTE DE CONTABILIDAD No. {{ $contract->formatted_number }}</div>
+                    <div class="doc-title">COMPROBANTE DE CONTABILIDAD No. {{ $comprobanteNumber ?? $contract->formatted_number }}</div>
                 </td>
             </tr>
         </table>

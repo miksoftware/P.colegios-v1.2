@@ -726,7 +726,7 @@ class PostcontractualPdfController extends Controller
         ]];
 
         $contractData = new \stdClass();
-        $contractData->formatted_number = 'PD-' . $po->formatted_number;
+        $contractData->formatted_number = 'PD-' . $rp->formatted_number;
         $contractData->fiscal_year = $po->fiscal_year;
         $contractData->object = $po->description ?? 'Pago directo';
         $contractData->start_date = $po->payment_date;
@@ -735,6 +735,7 @@ class PostcontractualPdfController extends Controller
             'contract' => $contractData,
             'school' => $school,
             'supplier' => $supplier,
+            'comprobanteNumber' => 'PD-' . $rp->formatted_number,
             'amount' => $amount,
             'amountInWords' => $amountInWords,
             'debitEntries' => $debitEntries,

@@ -33,6 +33,7 @@ class PrecontractualManagement extends Component
     // Convocatoria activa para detalle
     public $convocatoriaId = null;
     public $convocatoria = null;
+    public $isLastConvocatoria = false;
 
     // Modal crear convocatoria
     public $showCreateModal = false;
@@ -199,6 +200,13 @@ class PrecontractualManagement extends Component
 
         $this->convocatoriaId = $id;
         $this->currentView = 'detail';
+
+        // Verificar si es la última convocatoria (para permitir eliminación)
+        $maxNumber = Convocatoria::where('school_id', $this->schoolId)
+            ->where('fiscal_year', $this->filterYear)
+            ->max('convocatoria_number');
+        
+        $this->isLastConvocatoria = ($this->convocatoria->convocatoria_number === $maxNumber);
     }
 
     public function backToList()
@@ -487,6 +495,52 @@ class PrecontractualManagement extends Component
     }
 
     // === CAMBIAR ESTADO ===
+
+    public function deleteConvocatoria()
+    {
+        if (!auth()->user()->is_system_admin && !auth()->user()->hasRole('admin')) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden eliminar convocatorias.', type: 'error');
+            return;
+        }
+
+        if (!$this->convocatoria) return;
+
+        $maxNumber = Convocatoria::where('school_id', $this->schoolId)
+            ->where('fiscal_year', $this->filterYear)
+            ->max('convocatoria_number');
+
+        if ($this->convocatoria->convocatoria_number !== $maxNumber) {
+            $this->dispatch('toast', message: 'Solo se puede eliminar la última convocatoria registrada. Las anteriores solo pueden ser canceladas.', type: 'error');
+            return;
+        }
+
+        if ($this->convocatoria->contract) {
+            $this->dispatch('toast', message: 'No se puede eliminar una convocatoria que ya tiene un contrato asociado. Primero debe anular o eliminar el contrato.', type: 'error');
+            return;
+        }
+
+        DB::transaction(function () {
+            // Borrar CDPs y sus fuentes
+            foreach ($this->convocatoria->cdps as $cdp) {
+                $cdp->fundingSources()->delete();
+                $cdp->delete();
+            }
+            
+            // Borrar distribuciones
+            $this->convocatoria->distributionDetails()->delete();
+            
+            // Borrar propuestas
+            $this->convocatoria->proposals()->delete();
+
+            // Finalmente borrar la convocatoria
+            $this->convocatoria->delete();
+        });
+
+        $this->dispatch('toast', message: 'Convocatoria eliminada exitosamente.', type: 'success');
+        $this->currentView = 'list';
+        $this->convocatoriaId = null;
+        $this->convocatoria = null;
+    }
 
     public function openStatusModal($status)
     {

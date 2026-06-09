@@ -38,6 +38,21 @@ class ContractualManagement extends Component
     public $contractId = null;
     public $contract = null;
 
+    // Modal Editar Contrato (solo admin)
+    public $showEditModal = false;
+    public $editSupplierId = '';
+    public $editContractingModality = '';
+    public $editStartDate = '';
+    public $editEndDate = '';
+    public $editDurationDays = 0;
+    public $editSupervisorId = '';
+    public $editContractSubtotal = '';
+    public $editContractIva = '';
+    public $editContractTotal = '';
+    public $editRpAssignments = [];
+    public $editRpLineAccounts = [];
+    public $editCanModifyRps = true;
+
     // ── Formulario de creación ────────────────────────────────
     public $selectedConvocatoriaId = '';
     public $contractNumber = '';
@@ -64,6 +79,7 @@ class ContractualManagement extends Component
     // Datos auxiliares
     public $awardedConvocatorias = [];
     public $supervisors = [];
+    public $availableSuppliers = [];
     public $availableBanks = [];
     public $rpLineAccounts = []; // Cuentas bancarias por línea de RP
     public $convocatoriaEndDate = ''; // Fecha fin de la convocatoria seleccionada (para restringir fechas del contrato)
@@ -248,7 +264,19 @@ class ContractualManagement extends Component
         $this->supervisors = User::whereHas('schools', fn($q) => $q->where('schools.id', $this->schoolId))
             ->orderBy('name')
             ->get()
-            ->map(fn($u) => ['id' => $u->id, 'name' => $u->name])
+            ->map(fn($u) => ['id' => $u->id, 'name' => trim($u->name . ' ' . $u->surname)])
+            ->toArray();
+
+        $this->availableSuppliers = Supplier::forSchool($this->schoolId)
+            ->active()
+            ->orderBy('first_surname')
+            ->orderBy('first_name')
+            ->get()
+            ->map(fn($supplier) => [
+                'id' => $supplier->id,
+                'name' => $supplier->full_name,
+                'document' => $supplier->full_document,
+            ])
             ->toArray();
 
         // Bancos disponibles
@@ -385,6 +413,69 @@ class ContractualManagement extends Component
                 'rp_number'       => ContractRp::getNextRpNumber($this->schoolId, (int) $this->filterYear),
                 'funding_sources' => $rpFundingSources,
             ];
+        }
+    }
+
+    public function updatedEditStartDate()
+    {
+        $this->calculateEditDuration();
+    }
+
+    public function updatedEditEndDate()
+    {
+        $this->calculateEditDuration();
+    }
+
+    public function updatedEditRpAssignments($value, $key)
+    {
+        $parts = explode('.', $key);
+        if (count($parts) === 4 && $parts[1] === 'funding_sources' && $parts[3] === 'bank_id') {
+            $rpId = $parts[0];
+            $fsIndex = (int) $parts[2];
+            $bankId = $value;
+
+            $this->editRpAssignments[$rpId]['funding_sources'][$fsIndex]['bank_account_id'] = '';
+
+            $lineKey = $rpId . '_' . $fsIndex;
+            if ($bankId) {
+                $this->editRpLineAccounts[$lineKey] = BankAccount::where('bank_id', $bankId)
+                    ->active()
+                    ->orderBy('account_number')
+                    ->get()
+                    ->toArray();
+            } else {
+                $this->editRpLineAccounts[$lineKey] = [];
+            }
+        }
+    }
+
+    public function calculateEditDuration()
+    {
+        if ($this->editStartDate && $this->editEndDate) {
+            try {
+                $start = \Carbon\Carbon::parse($this->editStartDate);
+                $end = \Carbon\Carbon::parse($this->editEndDate);
+
+                if ($end->lt($start)) {
+                    $this->editDurationDays = 0;
+                    return;
+                }
+
+                $days = 0;
+                $current = $start->copy();
+                while ($current->lte($end)) {
+                    if ($current->isWeekday()) {
+                        $days++;
+                    }
+                    $current->addDay();
+                }
+
+                $this->editDurationDays = $days;
+            } catch (\Exception $e) {
+                $this->editDurationDays = 0;
+            }
+        } else {
+            $this->editDurationDays = 0;
         }
     }
 
@@ -585,6 +676,292 @@ class ContractualManagement extends Component
         } catch (\Exception $e) {
             DB::rollBack();
             $this->dispatch('toast', message: 'Error al crear contrato: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // EDITAR CONTRATO
+    // ══════════════════════════════════════════════════════════
+
+    protected function canAdminEditContract(): bool
+    {
+        $user = auth()->user();
+
+        return $user && $user->can('contractual.edit') && $user->hasRole('Admin');
+    }
+
+    public function openEditModal()
+    {
+        if (!$this->canAdminEditContract()) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden editar contratos.', type: 'error');
+            return;
+        }
+
+        if (!$this->contractId) {
+            return;
+        }
+
+        $contract = Contract::with([
+            'convocatoria',
+            'paymentOrders',
+            'rps.cdp.fundingSources',
+            'rps.fundingSources.fundingSource',
+            'rps.fundingSources.bank',
+            'rps.fundingSources.bankAccount',
+        ])->forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        if ($contract->status === 'annulled') {
+            $this->dispatch('toast', message: 'No se puede editar un contrato anulado.', type: 'error');
+            return;
+        }
+
+        if ($contract->hasPaymentOrders()) {
+            $this->dispatch('toast', message: 'No se puede editar un contrato que ya tiene órdenes de pago asociadas.', type: 'error');
+            return;
+        }
+
+        $this->resetValidation();
+        $this->resetEditForm();
+        $this->loadAuxiliaryData();
+
+        $this->convocatoriaEndDate = $contract->convocatoria?->end_date?->format('Y-m-d') ?? '';
+        $this->editSupplierId = (string) $contract->supplier_id;
+        $this->editContractingModality = $contract->contracting_modality;
+        $this->editStartDate = $contract->start_date?->format('Y-m-d') ?? '';
+        $this->editEndDate = $contract->end_date?->format('Y-m-d') ?? '';
+        $this->editSupervisorId = $contract->supervisor_id ? (string) $contract->supervisor_id : '';
+        $this->editContractSubtotal = (string) $contract->subtotal;
+        $this->editContractIva = (string) $contract->iva;
+        $this->editContractTotal = (string) $contract->total;
+        $this->editCanModifyRps = !$contract->hasPaymentOrders();
+
+        foreach ($contract->rps->where('status', 'active') as $rp) {
+            $fundingSources = [];
+
+            foreach ($rp->fundingSources as $index => $rpFs) {
+                $cdpFundingSource = $rp->cdp?->fundingSources?->first(function ($item) use ($rpFs) {
+                    return (int) $item->funding_source_id === (int) $rpFs->funding_source_id
+                        && ((int) ($item->budget_id ?? 0) === (int) ($rpFs->budget_id ?? 0));
+                });
+
+                $lineKey = $rp->id . '_' . $index;
+                if ($rpFs->bank_id) {
+                    $this->editRpLineAccounts[$lineKey] = BankAccount::where('bank_id', $rpFs->bank_id)
+                        ->active()
+                        ->orderBy('account_number')
+                        ->get()
+                        ->toArray();
+                }
+
+                $fundingSources[] = [
+                    'id' => $rpFs->id,
+                    'funding_source_id' => $rpFs->funding_source_id,
+                    'budget_id' => $rpFs->budget_id,
+                    'name' => $rpFs->fundingSource?->name ?? 'N/D',
+                    'amount' => (float) $rpFs->amount,
+                    'max_amount' => (float) ($cdpFundingSource->amount ?? $rpFs->amount),
+                    'bank_id' => $rpFs->bank_id ? (string) $rpFs->bank_id : '',
+                    'bank_account_id' => $rpFs->bank_account_id ? (string) $rpFs->bank_account_id : '',
+                ];
+            }
+
+            $this->editRpAssignments[$rp->id] = [
+                'rp_id' => $rp->id,
+                'rp_number' => $rp->formatted_number,
+                'cdp_number' => $rp->cdp?->formatted_number ?? 'N/D',
+                'budget_item' => trim(($rp->cdp?->budgetItem?->code ?? '') . ' - ' . ($rp->cdp?->budgetItem?->name ?? 'N/D'), ' -'),
+                'funding_sources' => $fundingSources,
+            ];
+        }
+
+        $this->calculateEditDuration();
+        $this->showEditModal = true;
+    }
+
+    public function closeEditModal()
+    {
+        $this->showEditModal = false;
+        $this->resetValidation();
+        $this->resetEditForm();
+    }
+
+    public function saveContractEdit()
+    {
+        if (!$this->canAdminEditContract()) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden editar contratos.', type: 'error');
+            return;
+        }
+
+        if (!$this->contractId) {
+            return;
+        }
+
+        $contract = Contract::with([
+            'convocatoria',
+            'paymentOrders',
+            'rps.cdp.fundingSources',
+            'rps.fundingSources',
+        ])->forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        if ($contract->status === 'annulled') {
+            $this->dispatch('toast', message: 'No se puede editar un contrato anulado.', type: 'error');
+            return;
+        }
+
+        if ($contract->hasPaymentOrders()) {
+            $this->dispatch('toast', message: 'No se puede editar un contrato que ya tiene órdenes de pago asociadas.', type: 'error');
+            return;
+        }
+
+        $this->validate([
+            'editSupplierId' => 'required|integer',
+            'editContractingModality' => 'required|in:' . implode(',', array_keys(Contract::MODALITIES)),
+            'editStartDate' => 'required|date|after:convocatoriaEndDate',
+            'editEndDate' => 'required|date|after_or_equal:editStartDate',
+            'editSupervisorId' => 'nullable|integer',
+            'editContractSubtotal' => 'required|numeric|min:0',
+            'editContractIva' => 'nullable|numeric|min:0',
+            'editContractTotal' => 'required|numeric|min:0',
+        ], [
+            'editSupplierId.required' => 'Debe seleccionar un proveedor.',
+            'editContractingModality.required' => 'Debe seleccionar la modalidad del contrato.',
+            'editStartDate.required' => 'La fecha de inicio es obligatoria.',
+            'editStartDate.after' => 'La fecha de inicio debe ser posterior a la fecha fin de la convocatoria.',
+            'editEndDate.required' => 'La fecha de terminación es obligatoria.',
+            'editEndDate.after_or_equal' => 'La fecha de terminación debe ser posterior o igual a la fecha de inicio.',
+            'editContractSubtotal.required' => 'El subtotal es obligatorio.',
+            'editContractTotal.required' => 'El valor total del contrato es obligatorio.',
+        ]);
+
+        $expectedTotal = round((float) $this->editContractSubtotal + (float) ($this->editContractIva ?: 0), 2);
+        $providedTotal = round((float) $this->editContractTotal, 2);
+        if (abs($expectedTotal - $providedTotal) > 0.01) {
+            $this->addError('editContractTotal', 'El valor total debe ser igual al subtotal más el IVA.');
+            return;
+        }
+
+        $supplier = Supplier::forSchool($this->schoolId)
+            ->active()
+            ->find($this->editSupplierId);
+
+        if (!$supplier) {
+            $this->addError('editSupplierId', 'El proveedor seleccionado no es válido para este colegio.');
+            return;
+        }
+
+        $supervisorId = $this->editSupervisorId ?: null;
+        if ($supervisorId) {
+            $supervisorExists = User::whereHas('schools', fn($q) => $q->where('schools.id', $this->schoolId))
+                ->where('id', $supervisorId)
+                ->exists();
+
+            if (!$supervisorExists) {
+                $this->addError('editSupervisorId', 'El supervisor seleccionado no es válido para este colegio.');
+                return;
+            }
+        }
+
+        $totalAllRps = 0;
+        foreach ($this->editRpAssignments as $rpId => $rpData) {
+            $rp = $contract->rps->firstWhere('id', (int) $rpId);
+            if (!$rp) {
+                $this->dispatch('toast', message: 'Uno de los RPs a editar no pertenece al contrato.', type: 'error');
+                return;
+            }
+
+            $totalRp = collect($rpData['funding_sources'])->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
+            if ($totalRp <= 0) {
+                $this->dispatch('toast', message: 'Cada RP debe conservar al menos un valor mayor a cero.', type: 'error');
+                return;
+            }
+
+            foreach ($rpData['funding_sources'] as $index => $fs) {
+                $amount = (float) ($fs['amount'] ?? 0);
+                if ($amount < 0) {
+                    $this->dispatch('toast', message: 'Los montos de los RPs no pueden ser negativos.', type: 'error');
+                    return;
+                }
+
+                $cdpFundingSource = $rp->cdp?->fundingSources?->first(function ($item) use ($fs) {
+                    return (int) $item->funding_source_id === (int) ($fs['funding_source_id'] ?? 0)
+                        && ((int) ($item->budget_id ?? 0) === (int) ($fs['budget_id'] ?? 0));
+                });
+
+                $maxAmount = (float) ($cdpFundingSource->amount ?? ($fs['max_amount'] ?? 0));
+                if ($amount > $maxAmount + 0.01) {
+                    $this->dispatch('toast', message: 'El valor del RP en la línea ' . ($index + 1) . ' excede el disponible del CDP asociado.', type: 'error');
+                    return;
+                }
+
+                if (!empty($fs['bank_account_id'])) {
+                    $bankAccount = BankAccount::whereHas('bank', function ($q) {
+                        $q->forSchool($this->schoolId);
+                    })->active()->find($fs['bank_account_id']);
+
+                    if (!$bankAccount) {
+                        $this->dispatch('toast', message: 'Una de las cuentas bancarias seleccionadas no es válida.', type: 'error');
+                        return;
+                    }
+
+                    if (!empty($fs['bank_id']) && (int) $bankAccount->bank_id !== (int) $fs['bank_id']) {
+                        $this->dispatch('toast', message: 'La cuenta bancaria seleccionada no corresponde al banco elegido.', type: 'error');
+                        return;
+                    }
+                }
+            }
+
+            $totalAllRps += $totalRp;
+        }
+
+        if ($totalAllRps > $providedTotal + 0.01) {
+            $this->dispatch('toast', message: 'La suma de los RPs no puede ser mayor al valor total del contrato.', type: 'error');
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
+            $contract->update([
+                'supplier_id' => $supplier->id,
+                'supervisor_id' => $supervisorId,
+                'contracting_modality' => $this->editContractingModality,
+                'start_date' => $this->editStartDate,
+                'end_date' => $this->editEndDate,
+                'duration_days' => $this->editDurationDays,
+                'subtotal' => (float) $this->editContractSubtotal,
+                'iva' => (float) ($this->editContractIva ?: 0),
+                'total' => $providedTotal,
+            ]);
+
+            foreach ($this->editRpAssignments as $rpId => $rpData) {
+                $rp = $contract->rps->firstWhere('id', (int) $rpId);
+                if (!$rp) {
+                    continue;
+                }
+
+                $totalRp = collect($rpData['funding_sources'])->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
+                $rp->update([
+                    'total_amount' => $totalRp,
+                ]);
+
+                foreach ($rpData['funding_sources'] as $fs) {
+                    RpFundingSource::where('id', $fs['id'])
+                        ->where('contract_rp_id', $rp->id)
+                        ->update([
+                            'amount' => (float) ($fs['amount'] ?? 0),
+                            'bank_id' => !empty($fs['bank_id']) ? (int) $fs['bank_id'] : null,
+                            'bank_account_id' => !empty($fs['bank_account_id']) ? (int) $fs['bank_account_id'] : null,
+                        ]);
+                }
+            }
+
+            DB::commit();
+
+            $this->closeEditModal();
+            $this->dispatch('toast', message: 'Contrato actualizado exitosamente.', type: 'success');
+            $this->viewDetail($contract->id);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error al actualizar el contrato: ' . $e->getMessage(), type: 'error');
         }
     }
 
@@ -1401,7 +1778,26 @@ class ContractualManagement extends Component
         $this->rpAssignments = [];
         $this->awardedConvocatorias = [];
         $this->supervisors = [];
+        $this->availableSuppliers = [];
+        $this->availableBanks = [];
+        $this->rpLineAccounts = [];
         $this->convocatoriaEndDate = '';
+    }
+
+    public function resetEditForm()
+    {
+        $this->editSupplierId = '';
+        $this->editContractingModality = '';
+        $this->editStartDate = '';
+        $this->editEndDate = '';
+        $this->editDurationDays = 0;
+        $this->editSupervisorId = '';
+        $this->editContractSubtotal = '';
+        $this->editContractIva = '';
+        $this->editContractTotal = '';
+        $this->editRpAssignments = [];
+        $this->editRpLineAccounts = [];
+        $this->editCanModifyRps = true;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1522,6 +1918,8 @@ class ContractualManagement extends Component
                 'creator',
                 'rps.cdp.budgetItem',
                 'rps.fundingSources.fundingSource',
+                'rps.fundingSources.bank',
+                'rps.fundingSources.bankAccount',
                 'paymentOrders',
             ])->forSchool($this->schoolId)->find($this->contractId);
         }

@@ -712,6 +712,13 @@
                                     Imprimir
                                 </button>
 
+                                @if(auth()->user() && auth()->user()->hasRole('Admin'))
+                                    <button wire:click="openEditModal" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors inline-flex items-center gap-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        Editar Contrato
+                                    </button>
+                                @endif
+
                                 @can('contractual.edit')
                                     @if($contract->status === 'draft')
                                         <button wire:click="openStatusModal('active')" class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
@@ -1021,6 +1028,189 @@
     </div>
 
     {{-- ==================== MODALES ==================== --}}
+
+    {{-- Modal Editar Contrato --}}
+    @if($showEditModal && $contract)
+    <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" wire:click.self="closeEditModal">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+            <form wire:submit="saveContractEdit">
+                <div class="px-6 py-4 border-b bg-indigo-50">
+                    <h3 class="text-lg font-bold text-indigo-900">Editar Contrato</h3>
+                    <p class="text-sm text-indigo-700">Contrato N° {{ $contract->formatted_number }}. Esta opción está disponible solo para administradores.</p>
+                </div>
+
+                <div class="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+                        Los cambios actualizarán los datos del contrato y sus RPs activos. Si la suma de los RPs supera el valor total del contrato, el guardado será rechazado.
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <div class="xl:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor <span class="text-red-500">*</span></label>
+                            <select wire:model="editSupplierId" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                <option value="">Seleccionar proveedor...</option>
+                                @foreach($availableSuppliers as $supplier)
+                                    <option value="{{ $supplier['id'] }}">{{ $supplier['name'] }} - {{ $supplier['document'] }}</option>
+                                @endforeach
+                            </select>
+                            @error('editSupplierId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
+                            <select wire:model="editSupervisorId" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                <option value="">-- Sin supervisor --</option>
+                                @foreach($supervisors as $sup)
+                                    <option value="{{ $sup['id'] }}">{{ $sup['name'] }}</option>
+                                @endforeach
+                            </select>
+                            @error('editSupervisorId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Modalidad <span class="text-red-500">*</span></label>
+                            <select wire:model="editContractingModality" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                <option value="">Seleccionar...</option>
+                                @foreach(\App\Models\Contract::MODALITIES as $key => $label)
+                                    <option value="{{ $key }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('editContractingModality') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de inicio <span class="text-red-500">*</span></label>
+                            <input type="date" wire:model="editStartDate" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                            @error('editStartDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha de terminación <span class="text-red-500">*</span></label>
+                            <input type="date" wire:model="editEndDate" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                            @error('editEndDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Duración calculada</label>
+                            <div class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+                                {{ $editDurationDays }} días hábiles
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Subtotal <span class="text-red-500">*</span></label>
+                            <input type="number" wire:model="editContractSubtotal" step="0.01" min="0" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                            @error('editContractSubtotal') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">IVA</label>
+                            <input type="number" wire:model="editContractIva" step="0.01" min="0" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                            @error('editContractIva') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Valor total del contrato <span class="text-red-500">*</span></label>
+                            <input type="number" wire:model="editContractTotal" step="0.01" min="0" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                            @error('editContractTotal') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-base font-semibold text-gray-900">Registros Presupuestales (RPs)</h4>
+                            <span class="text-xs text-gray-500">Puede modificar valor, banco y cuenta bancaria por cada línea.</span>
+                        </div>
+
+                        <div class="space-y-4">
+                            @forelse($editRpAssignments as $rpId => $rpData)
+                                @php
+                                    $rpTotal = collect($rpData['funding_sources'])->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
+                                @endphp
+                                <div class="border border-gray-200 rounded-2xl p-4" wire:key="edit-rp-{{ $rpId }}">
+                                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+                                        <div>
+                                            <p class="font-semibold text-gray-900">RP N° {{ $rpData['rp_number'] }}</p>
+                                            <p class="text-sm text-gray-500">CDP #{{ $rpData['cdp_number'] }} - {{ $rpData['budget_item'] }}</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-xs text-gray-500">Total RP</p>
+                                            <p class="text-lg font-bold text-emerald-600">${{ number_format($rpTotal, 2, ',', '.') }}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-sm min-w-[900px]">
+                                            <thead>
+                                                <tr class="bg-gray-50">
+                                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
+                                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
+                                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Máximo</th>
+                                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Banco</th>
+                                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cuenta bancaria</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-gray-100">
+                                                @foreach($rpData['funding_sources'] as $index => $fs)
+                                                    @php
+                                                        $lineKey = $rpId . '_' . $index;
+                                                        $lineAccounts = $editRpLineAccounts[$lineKey] ?? [];
+                                                    @endphp
+                                                    <tr wire:key="edit-rp-line-{{ $rpId }}-{{ $index }}">
+                                                        <td class="px-3 py-3 text-gray-900">{{ $fs['name'] }}</td>
+                                                        <td class="px-3 py-3">
+                                                            <input type="number"
+                                                                wire:model.live="editRpAssignments.{{ $rpId }}.funding_sources.{{ $index }}.amount"
+                                                                step="0.01"
+                                                                min="0"
+                                                                max="{{ $fs['max_amount'] }}"
+                                                                class="w-40 rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                                        </td>
+                                                        <td class="px-3 py-3 text-gray-600">${{ number_format($fs['max_amount'], 2, ',', '.') }}</td>
+                                                        <td class="px-3 py-3">
+                                                            <select wire:model.live="editRpAssignments.{{ $rpId }}.funding_sources.{{ $index }}.bank_id" class="w-52 rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                                                <option value="">Sin banco</option>
+                                                                @foreach($availableBanks as $bank)
+                                                                    <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
+                                                                @endforeach
+                                                            </select>
+                                                        </td>
+                                                        <td class="px-3 py-3">
+                                                            <select wire:model="editRpAssignments.{{ $rpId }}.funding_sources.{{ $index }}.bank_account_id" class="w-64 rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                                                <option value="">Sin cuenta bancaria</option>
+                                                                @foreach($lineAccounts as $account)
+                                                                    <option value="{{ $account['id'] }}">{{ $account['account_number'] }}</option>
+                                                                @endforeach
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-500">
+                                    Este contrato no tiene RPs activos para editar.
+                                </div>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t">
+                    <button type="button" wire:click="closeEditModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700">
+                        <span wire:loading.remove wire:target="saveContractEdit">Guardar Cambios</span>
+                        <span wire:loading wire:target="saveContractEdit">Guardando...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
 
     {{-- Modal Confirmación de Cambio de Estado --}}
     @if($showStatusModal && $contract && $newStatus)

@@ -202,8 +202,9 @@ class PrecontractualManagement extends Component
         $this->currentView = 'detail';
 
         // Verificar si es la última convocatoria (para permitir eliminación)
+        $year = (int) $this->convocatoria->fiscal_year;
         $maxNumber = Convocatoria::where('school_id', $this->schoolId)
-            ->where('fiscal_year', $this->filterYear)
+            ->where('fiscal_year', $year)
             ->max('convocatoria_number');
         
         $this->isLastConvocatoria = ($this->convocatoria->convocatoria_number === $maxNumber);
@@ -498,15 +499,16 @@ class PrecontractualManagement extends Component
 
     public function deleteConvocatoria()
     {
-        if (!auth()->user()->is_system_admin && !auth()->user()->hasRole('admin')) {
+        if (!auth()->user()->is_system_admin && !auth()->user()->hasRole('Admin')) {
             $this->dispatch('toast', message: 'Solo los administradores pueden eliminar convocatorias.', type: 'error');
             return;
         }
 
         if (!$this->convocatoria) return;
 
+        $year = (int) $this->convocatoria->fiscal_year;
         $maxNumber = Convocatoria::where('school_id', $this->schoolId)
-            ->where('fiscal_year', $this->filterYear)
+            ->where('fiscal_year', $year)
             ->max('convocatoria_number');
 
         if ($this->convocatoria->convocatoria_number !== $maxNumber) {

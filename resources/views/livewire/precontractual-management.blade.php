@@ -218,6 +218,13 @@
                                     Imprimir
                                 </button>
 
+                                @if(auth()->user() && auth()->user()->hasRole('Admin') && !$convocatoria->contract)
+                                    <button wire:click="openEditModal" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 inline-flex items-center gap-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        Editar Convocatoria
+                                    </button>
+                                @endif
+
                                 {{-- Botón Cambiar Fechas --}}
                                 @if(!in_array($convocatoria->status, ['awarded', 'cancelled']))
                                     @can('precontractual.reschedule')
@@ -536,15 +543,17 @@
     {{-- ==================== MODALES ==================== --}}
 
     {{-- Modal Crear Convocatoria --}}
-    @if($showCreateModal)
+    @if($showCreateModal || $showEditModal)
     <div class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
-            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeCreateModal"></div>
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="{{ $showEditModal ? 'closeEditModal' : 'closeCreateModal' }}"></div>
             <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-2xl">
-                <form wire:submit="saveConvocatoria">
+                <form wire:submit="{{ $showEditModal ? 'saveConvocatoriaEdit' : 'saveConvocatoria' }}">
                     <div class="px-6 py-4 border-b border-gray-200 bg-indigo-50">
-                        <h3 class="text-lg font-bold text-indigo-900">Nueva Convocatoria</h3>
-                        <p class="text-sm text-indigo-700">Crear proceso precontractual desde distribuciones de gasto</p>
+                        <h3 class="text-lg font-bold text-indigo-900">{{ $showEditModal ? 'Editar Convocatoria' : 'Nueva Convocatoria' }}</h3>
+                        <p class="text-sm text-indigo-700">
+                            {{ $showEditModal ? 'Actualizar proceso precontractual sin contrato asociado' : 'Crear proceso precontractual desde distribuciones de gasto' }}
+                        </p>
                     </div>
                     
                     <div class="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
@@ -724,8 +733,10 @@
                     </div>
                     
                     <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
-                        <button type="button" wire:click="closeCreateModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700">Crear Convocatoria</button>
+                        <button type="button" wire:click="{{ $showEditModal ? 'closeEditModal' : 'closeCreateModal' }}" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700">
+                            {{ $showEditModal ? 'Guardar Cambios' : 'Crear Convocatoria' }}
+                        </button>
                     </div>
                 </form>
             </div>

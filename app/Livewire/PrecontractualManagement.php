@@ -37,6 +37,7 @@ class PrecontractualManagement extends Component
 
     // Modal crear convocatoria
     public $showCreateModal = false;
+    public $showEditModal = false;
     public $distributions = [];
     public $selectedDistributionId = '';
     public $groupedDistributions = []; // agrupadas por código de gasto
@@ -226,51 +227,8 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        // Cargar distribuciones disponibles agrupadas por código de gasto
-        $rawDistributions = ExpenseDistribution::with([
-                'expenseCode', 
-                'budget.budgetItem', 
-                'budget.fundingSource',
-                'convocatoriaDistributions.convocatoria.contract.paymentOrders',
-                'paymentOrderLines.paymentOrder.contract',
-            ])
-            ->forSchool($this->schoolId)
-            ->whereHas('budget', fn($q) => $q->where('fiscal_year', $this->filterYear))
-            ->where('is_active', true)
-            ->get();
-
-        // Guardar todas las distribuciones planas
-        $this->distributions = $rawDistributions->map(fn($d) => [
-            'id' => $d->id,
-            'expense_code_id' => $d->expense_code_id,
-            'expense_code' => ($d->expenseCode?->code ?? '') . ' - ' . ($d->expenseCode?->name ?? 'Sin código'),
-            'budget_item' => $d->budget?->budgetItem?->name ?? '',
-            'budget_item_code' => $d->budget?->budgetItem?->code ?? '',
-            'funding_source' => $d->budget?->fundingSource?->name ?? '',
-            'amount' => (float) $d->amount,
-            'available' => (float) $d->available_balance,
-        ])->filter(fn($d) => $d['available'] > 0)->values()->toArray();
-
-        // Agrupar por código de gasto
-        $this->groupedDistributions = collect($this->distributions)
-            ->groupBy('expense_code_id')
-            ->map(function ($group) {
-                $first = $group->first();
-                return [
-                    'expense_code_id' => $first['expense_code_id'],
-                    'expense_code' => $first['expense_code'],
-                    'total_available' => $group->sum('available'),
-                    'distributions' => $group->values()->toArray(),
-                    'count' => $group->count(),
-                ];
-            })
-            ->filter(fn($g) => $g['total_available'] > 0)
-            ->values()
-            ->toArray();
-
-        $this->distributionAmounts = [];
-        $this->selectedDistributionIds = [];
-        $this->selectedExpenseCodeIds = [];
+        $this->resetConvocatoriaForm();
+        $this->loadDistributionOptions((int) $this->filterYear);
 
         if ($distributionId) {
             $dist = collect($this->distributions)->firstWhere('id', $distributionId);
@@ -289,6 +247,140 @@ class PrecontractualManagement extends Component
         $this->convEndDate = now()->addDays(15)->format('Y-m-d');
         $this->convEndTime = '16:00';
         $this->showCreateModal = true;
+    }
+
+    protected function canAdminEditConvocatoria(): bool
+    {
+        $user = auth()->user();
+
+        return $user && $user->can('precontractual.edit') && $user->hasRole('Admin');
+    }
+
+    protected function loadDistributionOptions(int $year, ?Convocatoria $currentConvocatoria = null): void
+    {
+        $currentAmounts = [];
+
+        if ($currentConvocatoria) {
+            $currentConvocatoria->loadMissing('distributionDetails');
+            $currentAmounts = $currentConvocatoria->distributionDetails
+                ->groupBy('expense_distribution_id')
+                ->map(fn($group) => (float) $group->sum('amount'))
+                ->toArray();
+        }
+
+        $rawDistributions = ExpenseDistribution::with([
+                'expenseCode',
+                'budget.budgetItem',
+                'budget.fundingSource',
+                'convocatoriaDistributions.convocatoria.contract.paymentOrders',
+                'paymentOrderLines.paymentOrder.contract',
+            ])
+            ->forSchool($this->schoolId)
+            ->whereHas('budget', fn($q) => $q->where('fiscal_year', $year))
+            ->where('is_active', true)
+            ->get();
+
+        $this->distributions = $rawDistributions->map(function ($d) use ($currentAmounts, $currentConvocatoria) {
+            $currentAmount = (float) ($currentAmounts[$d->id] ?? 0);
+            $editableAvailable = (float) $d->available_balance + $currentAmount;
+
+            return [
+                'id' => $d->id,
+                'expense_code_id' => $d->expense_code_id,
+                'expense_code' => ($d->expenseCode?->code ?? '') . ' - ' . ($d->expenseCode?->name ?? 'Sin código'),
+                'budget_item' => $d->budget?->budgetItem?->name ?? '',
+                'budget_item_code' => $d->budget?->budgetItem?->code ?? '',
+                'funding_source' => $d->budget?->fundingSource?->name ?? '',
+                'amount' => (float) $d->amount,
+                'available' => $editableAvailable,
+                'current_amount' => $currentAmount,
+                'base_available' => (float) $d->available_balance,
+            ];
+        })->filter(function ($d) use ($currentConvocatoria) {
+            return $currentConvocatoria
+                ? ($d['available'] > 0 || $d['current_amount'] > 0)
+                : $d['available'] > 0;
+        })->values()->toArray();
+
+        $this->groupedDistributions = collect($this->distributions)
+            ->groupBy('expense_code_id')
+            ->map(function ($group) {
+                $first = $group->first();
+                return [
+                    'expense_code_id' => $first['expense_code_id'],
+                    'expense_code' => $first['expense_code'],
+                    'total_available' => $group->sum('available'),
+                    'distributions' => $group->values()->toArray(),
+                    'count' => $group->count(),
+                ];
+            })
+            ->filter(fn($g) => $g['total_available'] > 0)
+            ->values()
+            ->toArray();
+    }
+
+    public function openEditModal()
+    {
+        if (!$this->canAdminEditConvocatoria()) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden editar convocatorias.', type: 'error');
+            return;
+        }
+
+        if (!$this->convocatoriaId) {
+            return;
+        }
+
+        $convocatoria = Convocatoria::with([
+            'distributionDetails',
+            'contract',
+        ])->forSchool($this->schoolId)->findOrFail($this->convocatoriaId);
+
+        if ($convocatoria->contract) {
+            $this->dispatch('toast', message: 'No se puede editar la convocatoria porque ya tiene un contrato asociado.', type: 'error');
+            return;
+        }
+
+        $this->resetValidation();
+        $this->resetConvocatoriaForm();
+        $this->loadDistributionOptions((int) $convocatoria->fiscal_year, $convocatoria);
+
+        $this->convObject = $convocatoria->object ?? '';
+        $this->convJustification = $convocatoria->justification ?? '';
+        $this->convStartDate = $convocatoria->start_date?->format('Y-m-d') ?? '';
+        $this->convStartTime = $convocatoria->start_time ?? '';
+        $this->convEndDate = $convocatoria->end_date?->format('Y-m-d') ?? '';
+        $this->convEndTime = $convocatoria->end_time ?? '';
+        $this->convEstimatedDuration = $convocatoria->estimated_duration_days ?? '';
+        $this->convContractingModality = $convocatoria->contracting_modality ?: 'especial';
+        $this->convRequesterName = $convocatoria->requester_name ?? '';
+        $this->convRequesterPosition = $convocatoria->requester_position ?? '';
+
+        $selectedDetails = $convocatoria->distributionDetails
+            ->groupBy('expense_distribution_id')
+            ->map(fn($group) => (float) $group->sum('amount'));
+
+        foreach ($selectedDetails as $distId => $amount) {
+            $dist = collect($this->distributions)->firstWhere('id', (int) $distId);
+            if (!$dist) {
+                continue;
+            }
+
+            $this->selectedDistributionIds[(int) $distId] = true;
+            $this->selectedExpenseCodeIds[$dist['expense_code_id']] = true;
+            $this->distributionAmounts[(int) $distId] = $amount;
+        }
+
+        if ($selectedDetails->isEmpty() && $convocatoria->expense_distribution_id) {
+            $dist = collect($this->distributions)->firstWhere('id', (int) $convocatoria->expense_distribution_id);
+            if ($dist) {
+                $this->selectedDistributionIds[$dist['id']] = true;
+                $this->selectedExpenseCodeIds[$dist['expense_code_id']] = true;
+                $this->distributionAmounts[$dist['id']] = (float) $convocatoria->assigned_budget;
+            }
+        }
+
+        $this->recalculateBudget();
+        $this->showEditModal = true;
     }
 
     public function toggleExpenseCode($expenseCodeId)
@@ -472,9 +564,158 @@ class PrecontractualManagement extends Component
         }
     }
 
+    public function saveConvocatoriaEdit()
+    {
+        if (!$this->canAdminEditConvocatoria()) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden editar convocatorias.', type: 'error');
+            return;
+        }
+
+        if (!$this->convocatoriaId) {
+            return;
+        }
+
+        $convocatoria = Convocatoria::with(['distributionDetails', 'contract'])
+            ->forSchool($this->schoolId)
+            ->findOrFail($this->convocatoriaId);
+
+        if ($convocatoria->contract) {
+            $this->dispatch('toast', message: 'No se puede editar la convocatoria porque ya tiene un contrato asociado.', type: 'error');
+            return;
+        }
+
+        $this->validate([
+            'convObject' => 'required|min:10|max:500',
+            'convJustification' => 'required|min:10|max:1000',
+            'convStartDate' => 'required|date',
+            'convStartTime' => 'required',
+            'convEndDate' => 'required|date|after_or_equal:convStartDate',
+            'convEndTime' => 'required',
+            'convAssignedBudget' => 'required|numeric|min:1',
+            'convEstimatedDuration' => 'required|integer|min:1',
+            'convContractingModality' => 'required|string',
+            'convRequesterName' => 'nullable|string|max:255',
+            'convRequesterPosition' => 'nullable|string|max:255',
+        ], [
+            'convObject.required' => 'El objeto es obligatorio.',
+            'convObject.min' => 'El objeto debe tener al menos 10 caracteres.',
+            'convJustification.required' => 'La justificación es obligatoria.',
+            'convJustification.min' => 'La justificación debe tener al menos 10 caracteres.',
+            'convStartDate.required' => 'La fecha de inicio es obligatoria.',
+            'convStartTime.required' => 'La hora de inicio es obligatoria.',
+            'convEndDate.required' => 'La fecha de cierre es obligatoria.',
+            'convEndDate.after_or_equal' => 'La fecha de cierre debe ser igual o posterior a la de inicio.',
+            'convEndTime.required' => 'La hora de cierre es obligatoria.',
+            'convAssignedBudget.required' => 'El presupuesto es obligatorio.',
+            'convAssignedBudget.min' => 'El presupuesto debe ser mayor a 0.',
+            'convEstimatedDuration.required' => 'La duración probable es obligatoria.',
+            'convEstimatedDuration.min' => 'La duración debe ser al menos 1 día.',
+            'convContractingModality.required' => 'La modalidad contractual es obligatoria.',
+        ]);
+
+        if (empty(array_filter($this->selectedExpenseCodeIds))) {
+            $this->dispatch('toast', message: 'Debe seleccionar al menos un código de gasto.', type: 'error');
+            return;
+        }
+
+        $validAmounts = collect($this->distributionAmounts)
+            ->filter(fn($a, $id) => (float) $a > 0 && !empty($this->selectedDistributionIds[$id]));
+
+        if ($validAmounts->isEmpty()) {
+            $this->dispatch('toast', message: 'Debe seleccionar y asignar monto a al menos un rubro.', type: 'error');
+            return;
+        }
+
+        foreach ($this->distributionAmounts as $distId => $amount) {
+            if (empty($this->selectedDistributionIds[$distId])) {
+                continue;
+            }
+
+            $amount = (float) $amount;
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $dist = collect($this->distributions)->firstWhere('id', (int) $distId);
+            if ($dist && $amount > (float) $dist['available']) {
+                $this->dispatch('toast', message: 'El monto para "' . $dist['budget_item'] . '" excede el disponible editable ($' . number_format($dist['available'], 2, ',', '.') . ').', type: 'error');
+                return;
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            $firstDistId = $validAmounts->keys()->first();
+
+            $convocatoria->update([
+                'expense_distribution_id' => $firstDistId,
+                'start_date' => $this->convStartDate,
+                'start_time' => $this->convStartTime ?: null,
+                'end_date' => $this->convEndDate,
+                'end_time' => $this->convEndTime ?: null,
+                'object' => $this->convObject,
+                'justification' => $this->convJustification,
+                'assigned_budget' => $this->convAssignedBudget,
+                'estimated_duration_days' => (int) $this->convEstimatedDuration,
+                'contracting_modality' => $this->convContractingModality,
+                'requester_name' => $this->convRequesterName ?: null,
+                'requester_position' => $this->convRequesterPosition ?: null,
+                'requires_multiple_cdps' => $validAmounts->count() > 1,
+            ]);
+
+            $selectedIds = [];
+            foreach ($this->distributionAmounts as $distId => $amount) {
+                if (empty($this->selectedDistributionIds[$distId])) {
+                    continue;
+                }
+
+                $amount = (float) $amount;
+                if ($amount <= 0) {
+                    continue;
+                }
+
+                $selectedIds[] = (int) $distId;
+
+                ConvocatoriaDistribution::updateOrCreate(
+                    [
+                        'convocatoria_id' => $convocatoria->id,
+                        'expense_distribution_id' => (int) $distId,
+                    ],
+                    [
+                        'amount' => $amount,
+                    ]
+                );
+            }
+
+            $convocatoria->distributionDetails()
+                ->whereNotIn('expense_distribution_id', $selectedIds)
+                ->delete();
+
+            DB::commit();
+
+            $this->dispatch('toast', message: 'Convocatoria #' . $convocatoria->formatted_number . ' actualizada exitosamente.', type: 'success');
+            $this->closeEditModal();
+            $this->viewDetail($convocatoria->id);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
     public function closeCreateModal()
     {
         $this->showCreateModal = false;
+        $this->resetConvocatoriaForm();
+    }
+
+    public function closeEditModal()
+    {
+        $this->showEditModal = false;
+        $this->resetConvocatoriaForm();
+    }
+
+    protected function resetConvocatoriaForm(): void
+    {
         $this->selectedDistributionId = '';
         $this->selectedExpenseCodeIds = [];
         $this->groupedDistributions = [];

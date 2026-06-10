@@ -50,6 +50,61 @@
                 </div>
                 @endif
             </div>
+    @if($showMonthlyReceiptModal)
+    <div class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeMonthlyReceiptModal"></div>
+            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-md">
+                <div class="bg-gradient-to-r from-purple-600 to-purple-500 px-6 py-4">
+                    <h3 class="text-xl font-bold text-white">Imprimir Comprobante Mensual</h3>
+                    <p class="text-purple-100 text-sm">Un solo comprobante con todos los movimientos del mes</p>
+                </div>
+                <div class="px-6 py-5 space-y-4">
+                    <div>
+                        <p class="text-sm text-gray-500">Rubro / Fuente</p>
+                        <p class="font-semibold text-gray-900">{{ $monthlyReceiptBudgetText }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Mes *</label>
+                        @php
+                            $months = [
+                                1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
+                                7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+                            ];
+                        @endphp
+                        <select wire:model="monthlyReceiptMonth" class="w-full rounded-xl border-gray-300">
+                            <option value="">-- Seleccione un mes --</option>
+                            @foreach($months as $m => $label)
+                                <option value="{{ $m }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        @error('monthlyReceiptMonth') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+                    <button type="button" wire:click="closeMonthlyReceiptModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cancelar</button>
+                    <button type="button" wire:click="printMonthlyReceipt" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium inline-flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                        Imprimir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
+        </div>
+
+@push('scripts')
+<script>
+    document.addEventListener('livewire:init', () => {
+        Livewire.on('openPdfWindow', (data) => {
+            const url = Array.isArray(data) ? data[0].url : data.url;
+            window.open(url, '_blank');
+        });
+    });
+</script>
+@endpush
         </div>
 
         <!-- Tabs -->
@@ -228,7 +283,9 @@
                                     @endif
                                 @endif
 
-                                {{-- Botón imprimir reporte de ingresos --}}
+                                <button wire:click="openMonthlyReceiptModal({{ $budget['id'] }})" type="button" class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-all" title="Imprimir comprobante mensual">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M5 11h14M5 7h14a2 2 0 012 2v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2z"/></svg>
+                                </button>
                                 <a href="{{ route('incomes.budget.pdf', $budget['id']) }}" target="_blank" class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all" title="Imprimir reporte de ingresos">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                                 </a>

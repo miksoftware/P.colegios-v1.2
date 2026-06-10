@@ -64,6 +64,11 @@ class IncomeManagement extends Component
     public $budgetForAddition = null;
     public $additionReason = '';
 
+    public $showMonthlyReceiptModal = false;
+    public $monthlyReceiptBudgetId = null;
+    public $monthlyReceiptBudgetText = '';
+    public $monthlyReceiptMonth = '';
+
     // Listas para selects
     public $budgetItems = [];
     public $fundingSources = [];
@@ -725,6 +730,65 @@ class IncomeManagement extends Component
         $this->showAdditionModal = false;
         $this->budgetForAddition = null;
         $this->additionReason = '';
+    }
+
+    public function openMonthlyReceiptModal($budgetId)
+    {
+        $budget = Budget::forSchool($this->schoolId)
+            ->with(['budgetItem', 'fundingSource'])
+            ->findOrFail($budgetId);
+
+        $this->monthlyReceiptBudgetId = $budgetId;
+        $this->monthlyReceiptBudgetText = trim(($budget->budgetItem->code ?? '') . ' - ' . ($budget->budgetItem->name ?? '')) .
+            ' / ' . trim(($budget->fundingSource->code ?? '') . ' - ' . ($budget->fundingSource->name ?? ''));
+        $this->monthlyReceiptMonth = (string) now()->month;
+        $this->showMonthlyReceiptModal = true;
+    }
+
+    public function closeMonthlyReceiptModal()
+    {
+        $this->showMonthlyReceiptModal = false;
+        $this->monthlyReceiptBudgetId = null;
+        $this->monthlyReceiptBudgetText = '';
+        $this->monthlyReceiptMonth = '';
+    }
+
+    public function printMonthlyReceipt()
+    {
+        if (!$this->monthlyReceiptBudgetId) {
+            return;
+        }
+
+        $this->validate([
+            'monthlyReceiptMonth' => 'required|integer|min:1|max:12',
+        ], [
+            'monthlyReceiptMonth.required' => 'Seleccione un mes.',
+            'monthlyReceiptMonth.integer' => 'Mes inválido.',
+            'monthlyReceiptMonth.min' => 'Mes inválido.',
+            'monthlyReceiptMonth.max' => 'Mes inválido.',
+        ]);
+
+        $budget = Budget::forSchool($this->schoolId)->findOrFail($this->monthlyReceiptBudgetId);
+        $year = (int) ($budget->fiscal_year ?? $this->filterYear);
+
+        $exists = Income::forSchool($this->schoolId)
+            ->where('funding_source_id', $budget->funding_source_id)
+            ->whereYear('date', $year)
+            ->whereMonth('date', (int) $this->monthlyReceiptMonth)
+            ->exists();
+
+        if (!$exists) {
+            $this->dispatch('toast', message: 'No hay ingresos registrados para ese mes en este rubro.', type: 'info');
+            return;
+        }
+
+        $url = route('incomes.budget.month.pdf', [
+            'budgetId' => $this->monthlyReceiptBudgetId,
+            'month' => (int) $this->monthlyReceiptMonth,
+        ]);
+
+        $this->dispatch('openPdfWindow', url: $url);
+        $this->closeMonthlyReceiptModal();
     }
 
     public function confirmDelete($id)

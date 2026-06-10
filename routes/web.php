@@ -80,6 +80,10 @@ Route::get('incomes/budget/{budgetId}/pdf', [App\Http\Controllers\IncomePdfContr
     ->middleware(['auth', 'verified', 'can:incomes.view', \App\Http\Middleware\EnsureSchoolSelected::class])
     ->name('incomes.budget.pdf');
 
+Route::get('incomes/budget/{budgetId}/month/{month}/pdf', [App\Http\Controllers\IncomePdfController::class, 'byBudgetMonth'])
+    ->middleware(['auth', 'verified', 'can:incomes.view', \App\Http\Middleware\EnsureSchoolSelected::class])
+    ->name('incomes.budget.month.pdf');
+
 Route::get('expense-codes', App\Livewire\ExpenseCodeManagement::class)
     ->middleware(['auth', 'verified', 'can:expense_codes.view'])
     ->name('expense-codes.index');

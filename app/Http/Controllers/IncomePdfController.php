@@ -7,7 +7,9 @@ use App\Models\Budget;
 use App\Models\Income;
 use App\Models\School;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class IncomePdfController extends Controller
 {
@@ -112,6 +114,71 @@ class IncomePdfController extends Controller
         return $pdf->stream("ingresos-rubro-{$budget->budgetItem->code}.pdf");
     }
 
+    public function byBudgetMonth(Request $request, int $budgetId, int $month)
+    {
+        $schoolId = (int) session('selected_school_id');
+        abort_if(!$schoolId, 403);
+        abort_if(!auth()->user()->can('incomes.view'), 403);
+        abort_if($month < 1 || $month > 12, 404);
+
+        $budget = Budget::where('school_id', $schoolId)
+            ->with(['budgetItem.accountingAccount', 'fundingSource'])
+            ->findOrFail($budgetId);
+
+        $year = (int) ($budget->fiscal_year ?? now()->year);
+        $periodStart = Carbon::create($year, $month, 1)->startOfDay();
+        $periodEnd = (clone $periodStart)->endOfMonth()->endOfDay();
+
+        $incomes = Income::where('school_id', $schoolId)
+            ->where('funding_source_id', $budget->funding_source_id)
+            ->whereBetween('date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->with([
+                'fundingSource.budgetItem.accountingAccount',
+                'creator',
+                'bankAccounts.bank',
+                'bankAccounts.bankAccount',
+            ])
+            ->orderBy('date', 'asc')
+            ->get();
+
+        $totalCollected = (float) $incomes->sum('amount');
+        $school = School::findOrFail($schoolId);
+
+        $creditHierarchy = $this->buildAccountHierarchy(
+            $budget->budgetItem->accountingAccount ?? null
+        );
+
+        $debitAccounts = $this->buildDebitEntriesFromIncomes($incomes);
+        $amountInWords = self::amountToWords($totalCollected);
+
+        $months = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
+            7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+        ];
+        $periodLabel = ($months[$month] ?? (string) $month) . ' ' . $year;
+
+        $receiptNumber = sprintf('%d%02d-%s-%s', $year, $month, $budget->budgetItem->code ?? 'RUBRO', $budget->fundingSource->code ?? 'FUENTE');
+
+        $pdf = Pdf::loadView('pdf.income-monthly-receipt', [
+            'budget' => $budget,
+            'incomes' => $incomes,
+            'totalCollected' => $totalCollected,
+            'school' => $school,
+            'user' => auth()->user(),
+            'amountInWords' => $amountInWords,
+            'debitAccounts' => $debitAccounts,
+            'creditHierarchy' => $creditHierarchy,
+            'receiptNumber' => $receiptNumber,
+            'periodStart' => $periodStart,
+            'periodEnd' => $periodEnd,
+            'periodLabel' => $periodLabel,
+        ]);
+
+        $pdf->setPaper('letter');
+
+        return $pdf->stream("comprobante-ingreso-{$year}-" . str_pad((string) $month, 2, '0', STR_PAD_LEFT) . "-{$budgetId}.pdf");
+    }
+
     /**
      * Construir entradas de débito a partir de las cuentas bancarias del ingreso.
      * Busca la cuenta contable 1110 (Bancos) o 1105 (Caja) según el tipo.
@@ -143,6 +210,61 @@ class IncomePdfController extends Controller
                 'amount' => (float) $ba->amount,
                 'bank_name' => $ba->bank->name ?? '',
                 'account_number' => $ba->bankAccount->account_number ?? '',
+            ];
+        }
+
+        return $entries;
+    }
+
+    private function buildDebitEntriesFromIncomes(Collection $incomes): array
+    {
+        $groups = [];
+
+        foreach ($incomes as $income) {
+            foreach ($income->bankAccounts as $ba) {
+                $accountType = $ba->bankAccount?->account_type ?? '';
+                $key = implode('-', [
+                    (string) ($ba->bank_id ?? ''),
+                    (string) ($ba->bank_account_id ?? ''),
+                    (string) $accountType,
+                ]);
+
+                if (!isset($groups[$key])) {
+                    $groups[$key] = [
+                        'bank_name' => $ba->bank->name ?? '',
+                        'account_number' => $ba->bankAccount->account_number ?? '',
+                        'account_type' => $accountType,
+                        'account_type_name' => $ba->bankAccount->account_type_name ?? '',
+                        'amount' => 0.0,
+                    ];
+                }
+
+                $groups[$key]['amount'] += (float) ($ba->amount ?? 0);
+            }
+        }
+
+        $entries = [];
+
+        foreach ($groups as $group) {
+            $accountCode = ($group['account_type'] === 'corriente') ? '111005' : '111010';
+            $account = AccountingAccount::where('code', $accountCode)->first();
+
+            if (!$account) {
+                $account = AccountingAccount::where('code', '1110')->first();
+            }
+
+            if (!$account) {
+                $account = AccountingAccount::where('code', '1105')->first();
+            }
+
+            $hierarchy = $account ? $this->buildAccountHierarchy($account) : [];
+
+            $entries[] = [
+                'hierarchy' => $hierarchy,
+                'amount' => (float) $group['amount'],
+                'bank_name' => $group['bank_name'],
+                'account_number' => $group['account_number'],
+                'account_type_name' => $group['account_type_name'],
             ];
         }
 

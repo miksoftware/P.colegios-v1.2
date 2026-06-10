@@ -39,6 +39,9 @@ class PrecontractualManagement extends Component
     public $showCreateModal = false;
     public $showEditModal = false;
     public $distributions = [];
+    public $distributionDetailMap = []; // [expense_distribution_id => convocatoria_distribution_id]
+    public $lockedDistributionIds = []; // distribuciones que no se pueden quitar en edición por CDP asociado
+    public $lockedExpenseCodeIds = []; // códigos de gasto que no se pueden quitar totalmente en edición
     public $selectedDistributionId = '';
     public $groupedDistributions = []; // agrupadas por código de gasto
     public $selectedExpenseCodeIds = []; // [expense_code_id => bool]
@@ -58,6 +61,7 @@ class PrecontractualManagement extends Component
 
     // Modal CDP
     public $showCdpModal = false;
+    public $editingCdpId = null;
     public $cdpDistributionId = '';   // ConvocatoriaDistribution seleccionada
     public $cdpBudgetItemId = '';     // se llena automáticamente desde la distribución
     public $cdpFundingSources = [];
@@ -191,6 +195,7 @@ class PrecontractualManagement extends Component
             'distributionDetails.expenseDistribution.budget.budgetItem',
             'distributionDetails.expenseDistribution.budget.fundingSource',
             'cdps.budgetItem',
+            'cdps.contractRp',
             'cdps.fundingSources.fundingSource',
             'cdps.fundingSources.budget',
             'cdps.convocatoriaDistribution.expenseDistribution.expenseCode',
@@ -317,6 +322,67 @@ class PrecontractualManagement extends Component
             ->filter(fn($g) => $g['total_available'] > 0)
             ->values()
             ->toArray();
+
+        if ($currentConvocatoria) {
+            $this->loadLockedEditDistributions($currentConvocatoria);
+        }
+    }
+
+    protected function loadLockedEditDistributions(Convocatoria $convocatoria): void
+    {
+        $convocatoria->loadMissing('distributionDetails');
+
+        $this->distributionDetailMap = $convocatoria->distributionDetails
+            ->mapWithKeys(fn($detail) => [(int) $detail->expense_distribution_id => (int) $detail->id])
+            ->toArray();
+
+        if (empty($this->distributionDetailMap)) {
+            $this->lockedDistributionIds = [];
+            $this->lockedExpenseCodeIds = [];
+            return;
+        }
+
+        $lockedDistributionDetailIds = Cdp::where('convocatoria_id', $convocatoria->id)
+            ->whereNotNull('convocatoria_distribution_id')
+            ->whereIn('convocatoria_distribution_id', array_values($this->distributionDetailMap))
+            ->pluck('convocatoria_distribution_id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $this->lockedDistributionIds = collect($this->distributionDetailMap)
+            ->filter(fn($detailId) => in_array((int) $detailId, $lockedDistributionDetailIds, true))
+            ->keys()
+            ->map(fn($id) => (int) $id)
+            ->values()
+            ->toArray();
+
+        $this->lockedExpenseCodeIds = collect($this->distributions)
+            ->filter(fn($dist) => in_array((int) $dist['id'], $this->lockedDistributionIds, true))
+            ->pluck('expense_code_id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->toArray();
+    }
+
+    protected function canRemoveDistributionInEdit(int $distId): bool
+    {
+        if (!$this->showEditModal) {
+            return true;
+        }
+
+        return !in_array($distId, $this->lockedDistributionIds, true);
+    }
+
+    protected function canRemoveExpenseCodeInEdit(int $expenseCodeId): bool
+    {
+        if (!$this->showEditModal) {
+            return true;
+        }
+
+        return !in_array($expenseCodeId, $this->lockedExpenseCodeIds, true);
     }
 
     public function openEditModal()
@@ -387,12 +453,20 @@ class PrecontractualManagement extends Component
     {
         $expenseCodeId = (int) $expenseCodeId;
         if (!empty($this->selectedExpenseCodeIds[$expenseCodeId])) {
+            if (!$this->canRemoveExpenseCodeInEdit($expenseCodeId)) {
+                $this->dispatch('toast', message: 'No se puede quitar este código de gasto porque ya tiene CDPs vinculados. Esto se bloquea para proteger reportes y trazabilidad.', type: 'error');
+                return;
+            }
+
             unset($this->selectedExpenseCodeIds[$expenseCodeId]);
             // Deseleccionar distribuciones de este código
             $group = collect($this->groupedDistributions)
                 ->firstWhere('expense_code_id', $expenseCodeId);
             if ($group) {
                 foreach ($group['distributions'] as $dist) {
+                    if (!$this->canRemoveDistributionInEdit((int) $dist['id'])) {
+                        continue;
+                    }
                     unset($this->selectedDistributionIds[$dist['id']]);
                     unset($this->distributionAmounts[$dist['id']]);
                 }
@@ -423,6 +497,11 @@ class PrecontractualManagement extends Component
     {
         $distId = (int) $distId;
         if (!empty($this->selectedDistributionIds[$distId])) {
+            if (!$this->canRemoveDistributionInEdit($distId)) {
+                $this->dispatch('toast', message: 'No se puede quitar este rubro porque ya tiene CDP asociado. Así evitamos romper CDPs y reportes.', type: 'error');
+                return;
+            }
+
             unset($this->selectedDistributionIds[$distId]);
             unset($this->distributionAmounts[$distId]);
         } else {
@@ -643,6 +722,16 @@ class PrecontractualManagement extends Component
             }
         }
 
+        $selectedIds = $validAmounts->keys()->map(fn($id) => (int) $id)->values()->toArray();
+        $removedLockedIds = collect($this->lockedDistributionIds)
+            ->filter(fn($id) => !in_array((int) $id, $selectedIds, true))
+            ->values();
+
+        if ($removedLockedIds->isNotEmpty()) {
+            $this->dispatch('toast', message: 'No se pueden quitar distribuciones que ya tienen CDPs asociados. Quite solo las que no tengan movimiento.', type: 'error');
+            return;
+        }
+
         DB::beginTransaction();
         try {
             $firstDistId = $validAmounts->keys()->first();
@@ -716,6 +805,9 @@ class PrecontractualManagement extends Component
 
     protected function resetConvocatoriaForm(): void
     {
+        $this->distributionDetailMap = [];
+        $this->lockedDistributionIds = [];
+        $this->lockedExpenseCodeIds = [];
         $this->selectedDistributionId = '';
         $this->selectedExpenseCodeIds = [];
         $this->groupedDistributions = [];
@@ -968,6 +1060,63 @@ class PrecontractualManagement extends Component
 
     // === CDP ===
 
+    protected function loadAvailableDistributionsForCdp(?Cdp $currentCdp = null): void
+    {
+        $this->convocatoria->loadMissing([
+            'distributionDetails.expenseDistribution.budget.budgetItem',
+            'distributionDetails.expenseDistribution.budget.fundingSource',
+            'distributionDetails.expenseDistribution.expenseCode',
+            'cdps',
+        ]);
+
+        $coveredDistributionIds = $this->convocatoria->cdps
+            ->where('status', 'active')
+            ->when($currentCdp, fn($collection) => $collection->where('id', '!=', $currentCdp->id))
+            ->whereNotNull('convocatoria_distribution_id')
+            ->pluck('convocatoria_distribution_id')
+            ->toArray();
+
+        $availableDistributions = $this->convocatoria->distributionDetails
+            ->filter(function ($dd) use ($coveredDistributionIds, $currentCdp) {
+                if ($currentCdp && (int) $dd->id === (int) $currentCdp->convocatoria_distribution_id) {
+                    return true;
+                }
+
+                return !in_array($dd->id, $coveredDistributionIds);
+            })
+            ->values();
+
+        $this->availableDistributions = $availableDistributions->map(function ($dd) {
+            $expDist = $dd->expenseDistribution;
+            $budget  = $expDist?->budget;
+            $item    = $budget?->budgetItem;
+            $source  = $budget?->fundingSource;
+            $expCode = $expDist?->expenseCode;
+
+            return [
+                'id' => $dd->id,
+                'amount' => (float) $dd->amount,
+                'expense_code' => ($expCode?->code ?? '') . ' - ' . ($expCode?->name ?? ''),
+                'budget_item_id' => $item?->id,
+                'budget_item' => ($item?->code ?? '') . ' - ' . ($item?->name ?? ''),
+                'funding_source_id' => $source?->id,
+                'funding_source' => ($source?->code ?? '') . ' - ' . ($source?->name ?? ''),
+                'budget_id' => $budget?->id,
+            ];
+        })->toArray();
+    }
+
+    protected function resetCdpForm(): void
+    {
+        $this->editingCdpId = null;
+        $this->cdpDistributionId = '';
+        $this->cdpBudgetItemId = '';
+        $this->cdpFundingSources = [];
+        $this->availableFundingSources = [];
+        $this->availableDistributions = [];
+        $this->resetValidation();
+    }
+
     public function openCdpModal()
     {
         if (!auth()->user()->can('precontractual.create')) {
@@ -980,66 +1129,69 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        // Cargar distribuciones con relaciones necesarias
-        $this->convocatoria->loadMissing([
-            'distributionDetails.expenseDistribution.budget.budgetItem',
-            'distributionDetails.expenseDistribution.budget.fundingSource',
-            'distributionDetails.expenseDistribution.expenseCode',
-            'cdps',
-        ]);
+        $this->resetCdpForm();
+        $this->loadAvailableDistributionsForCdp();
 
-        // IDs de ConvocatoriaDistribution que ya tienen CDP activo vinculado
-        $coveredDistributionIds = $this->convocatoria->cdps
-            ->where('status', 'active')
-            ->whereNotNull('convocatoria_distribution_id')
-            ->pluck('convocatoria_distribution_id')
-            ->toArray();
-
-        // Para CDPs legacy (sin convocatoria_distribution_id), calcular qué distribuciones
-        // están cubiertas por monto (retrocompatibilidad)
-        $legacyCdps = $this->convocatoria->cdps
-            ->where('status', 'active')
-            ->whereNull('convocatoria_distribution_id');
-
-        // Distribuciones pendientes (sin CDP vinculado)
-        $pendingDistributions = $this->convocatoria->distributionDetails
-            ->filter(fn($dd) => !in_array($dd->id, $coveredDistributionIds))
-            ->values();
-
-        if ($pendingDistributions->isEmpty()) {
+        if (empty($this->availableDistributions)) {
             $this->dispatch('toast', message: 'Todas las distribuciones de esta convocatoria ya tienen CDP activo.', type: 'info');
             return;
         }
-
-        // Construir lista de distribuciones disponibles para seleccionar
-        $this->availableDistributions = $pendingDistributions->map(function ($dd) {
-            $expDist = $dd->expenseDistribution;
-            $budget  = $expDist?->budget;
-            $item    = $budget?->budgetItem;
-            $source  = $budget?->fundingSource;
-            $expCode = $expDist?->expenseCode;
-            return [
-                'id'              => $dd->id,
-                'amount'          => (float) $dd->amount,
-                'expense_code'    => ($expCode?->code ?? '') . ' - ' . ($expCode?->name ?? ''),
-                'budget_item_id'  => $item?->id,
-                'budget_item'     => ($item?->code ?? '') . ' - ' . ($item?->name ?? ''),
-                'funding_source_id' => $source?->id,
-                'funding_source'  => ($source?->code ?? '') . ' - ' . ($source?->name ?? ''),
-                'budget_id'       => $budget?->id,
-            ];
-        })->toArray();
-
-        $this->cdpDistributionId  = '';
-        $this->cdpBudgetItemId    = '';
-        $this->cdpFundingSources  = [];
-        $this->availableFundingSources = [];
 
         // Si solo hay una distribución, auto-seleccionarla
         if (count($this->availableDistributions) === 1) {
             $this->cdpDistributionId = $this->availableDistributions[0]['id'];
             $this->updatedCdpDistributionId($this->cdpDistributionId);
         }
+
+        $this->showCdpModal = true;
+    }
+
+    public function openEditCdpModal($cdpId)
+    {
+        if (!auth()->user()->can('precontractual.edit')) {
+            $this->dispatch('toast', message: 'No tienes permisos.', type: 'error');
+            return;
+        }
+
+        if (!in_array($this->convocatoria->status, ['draft'])) {
+            $this->dispatch('toast', message: 'Solo se pueden editar CDPs cuando la convocatoria está en borrador.', type: 'error');
+            return;
+        }
+
+        $cdp = Cdp::with(['fundingSources.fundingSource', 'contractRp'])
+            ->forSchool($this->schoolId)
+            ->where('convocatoria_id', $this->convocatoria->id)
+            ->findOrFail($cdpId);
+
+        if ($cdp->status !== 'active') {
+            $this->dispatch('toast', message: 'Solo se pueden editar CDPs activos.', type: 'error');
+            return;
+        }
+
+        if ($cdp->contractRp) {
+            $this->dispatch('toast', message: 'No se puede editar este CDP porque ya está siendo usado por un RP o contrato.', type: 'error');
+            return;
+        }
+
+        $this->resetCdpForm();
+        $this->editingCdpId = $cdp->id;
+        $this->loadAvailableDistributionsForCdp($cdp);
+
+        $this->cdpDistributionId = (string) $cdp->convocatoria_distribution_id;
+        $this->updatedCdpDistributionId($this->cdpDistributionId);
+
+        $selectedSourceAvailability = collect($this->availableFundingSources)->keyBy('id');
+        $this->cdpFundingSources = $cdp->fundingSources->map(function ($fs) use ($selectedSourceAvailability) {
+            $availability = $selectedSourceAvailability->get($fs->funding_source_id);
+
+            return [
+                'id' => $fs->funding_source_id,
+                'name' => $fs->fundingSource?->code . ' - ' . $fs->fundingSource?->name,
+                'available' => (float) ($availability['available'] ?? $fs->amount),
+                'budget_id' => $fs->budget_id,
+                'amount' => (float) $fs->amount,
+            ];
+        })->toArray();
 
         $this->showCdpModal = true;
     }
@@ -1072,6 +1224,7 @@ class PrecontractualManagement extends Component
         $alreadyCoveredThisDist = (float) \App\Models\Cdp::where('convocatoria_id', $this->convocatoria->id)
             ->where('convocatoria_distribution_id', $value)
             ->where('status', 'active')
+            ->when($this->editingCdpId, fn($q) => $q->where('id', '!=', $this->editingCdpId))
             ->sum('total_amount');
 
         // Saldo disponible en la fuente = monto de la distribución - ya cubierto
@@ -1186,15 +1339,87 @@ class PrecontractualManagement extends Component
         $this->viewDetail($this->convocatoria->id);
     }
 
+    public function saveCdpEdit()
+    {
+        if (!auth()->user()->can('precontractual.edit')) {
+            $this->dispatch('toast', message: 'No tienes permisos.', type: 'error');
+            return;
+        }
+
+        if (!$this->editingCdpId) {
+            return;
+        }
+
+        if (!in_array($this->convocatoria->status, ['draft'])) {
+            $this->dispatch('toast', message: 'Solo se pueden editar CDPs cuando la convocatoria está en borrador.', type: 'error');
+            return;
+        }
+
+        $cdp = Cdp::with(['fundingSources', 'contractRp'])
+            ->forSchool($this->schoolId)
+            ->where('convocatoria_id', $this->convocatoria->id)
+            ->findOrFail($this->editingCdpId);
+
+        if ($cdp->status !== 'active') {
+            $this->dispatch('toast', message: 'Solo se pueden editar CDPs activos.', type: 'error');
+            return;
+        }
+
+        if ($cdp->contractRp) {
+            $this->dispatch('toast', message: 'No se puede editar este CDP porque ya está siendo usado por un RP o contrato.', type: 'error');
+            return;
+        }
+
+        $this->validate([
+            'cdpDistributionId' => 'required|exists:convocatoria_distributions,id',
+            'cdpFundingSources' => 'required|array|min:1',
+            'cdpFundingSources.*.amount' => 'required|numeric|min:0.01',
+        ], [
+            'cdpDistributionId.required' => 'Seleccione una distribución/código de gasto.',
+            'cdpFundingSources.required' => 'Agregue al menos una fuente.',
+            'cdpFundingSources.min' => 'Agregue al menos una fuente.',
+            'cdpFundingSources.*.amount.required' => 'Ingrese un monto.',
+            'cdpFundingSources.*.amount.min' => 'El monto debe ser mayor a 0.',
+        ]);
+
+        foreach ($this->cdpFundingSources as $i => $fs) {
+            if ((float) $fs['amount'] > (float) $fs['available']) {
+                $this->addError("cdpFundingSources.{$i}.amount", 'Excede el saldo disponible.');
+                return;
+            }
+        }
+
+        $totalAmount = collect($this->cdpFundingSources)->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
+
+        DB::transaction(function () use ($cdp, $totalAmount) {
+            $cdp->update([
+                'convocatoria_distribution_id' => $this->cdpDistributionId,
+                'budget_item_id' => $this->cdpBudgetItemId,
+                'total_amount' => $totalAmount,
+            ]);
+
+            $cdp->fundingSources()->delete();
+
+            foreach ($this->cdpFundingSources as $fs) {
+                CdpFundingSource::create([
+                    'cdp_id' => $cdp->id,
+                    'funding_source_id' => $fs['id'],
+                    'budget_id' => $fs['budget_id'],
+                    'amount' => $fs['amount'],
+                    'available_balance_at_creation' => $fs['available'],
+                ]);
+            }
+        });
+
+        $this->dispatch('toast', message: 'CDP actualizado exitosamente.', type: 'success');
+        $this->closeCdpModal();
+        $this->viewDetail($this->convocatoria->id);
+    }
+
     public function closeCdpModal()
     {
         $this->showCdpModal = false;
-        $this->cdpDistributionId       = '';
-        $this->cdpBudgetItemId         = '';
-        $this->cdpFundingSources       = [];
-        $this->availableFundingSources = [];
-        $this->availableDistributions  = [];
-        $this->resetValidation();
+        $this->resetCdpForm();
     }
 
     public function cancelCdp($cdpId)

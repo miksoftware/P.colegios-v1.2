@@ -305,6 +305,9 @@
                         @if($convocatoria->cdps->count() > 0)
                             <div class="space-y-4">
                                 @foreach($convocatoria->cdps as $cdp)
+                                    @php
+                                        $isCdpEditable = $cdp->status === 'active' && $convocatoria->status === 'draft' && !$cdp->contractRp;
+                                    @endphp
                                     <div class="border rounded-xl overflow-hidden {{ $cdp->status === 'cancelled' ? 'opacity-50' : '' }}">
                                         <div class="bg-gray-50 px-4 py-3 flex justify-between items-center">
                                             <div class="flex items-center gap-3 flex-wrap">
@@ -319,11 +322,17 @@
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $cdp->status_color }}">
                                                     {{ $cdp->status_name }}
                                                 </span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $isCdpEditable ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }}">
+                                                    {{ $isCdpEditable ? 'Editable' : 'Bloqueado por RP/Contrato' }}
+                                                </span>
                                             </div>
                                             <div class="flex items-center gap-3">
                                                 <span class="font-semibold text-gray-900">${{ number_format($cdp->total_amount, 2, ',', '.') }}</span>
                                                 @if($cdp->status === 'active' && $convocatoria->status === 'draft')
                                                     @can('precontractual.edit')
+                                                        <button wire:click="openEditCdpModal({{ $cdp->id }})" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Editar CDP">
+                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                                        </button>
                                                         <button wire:click="cancelCdp({{ $cdp->id }})" wire:confirm="¿Está seguro de anular este CDP?" class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Anular CDP">
                                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                                         </button>
@@ -560,13 +569,18 @@
                         {{-- Selección de Códigos de Gasto (múltiple) --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Códigos de Gasto <span class="text-red-500">*</span></label>
-                            <p class="text-xs text-gray-500 mb-2">Seleccione uno o varios códigos de gasto para esta convocatoria</p>
+                            <p class="text-xs text-gray-500 mb-2">
+                                {{ $showEditModal ? 'Puede quitar un código para reemplazarlo por otro, siempre que ese código no tenga CDPs asociados.' : 'Seleccione uno o varios códigos de gasto para esta convocatoria' }}
+                            </p>
                             @if(count($groupedDistributions) === 0)
                                 <p class="text-sm text-gray-400 italic">No hay distribuciones de gasto disponibles para el año {{ $filterYear }}.</p>
                             @else
                                 <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-3">
                                     @foreach($groupedDistributions as $group)
-                                        @php $isCodeSelected = !empty($selectedExpenseCodeIds[$group['expense_code_id']]); @endphp
+                                        @php
+                                            $isCodeSelected = !empty($selectedExpenseCodeIds[$group['expense_code_id']]);
+                                            $isLockedCode = $showEditModal && in_array((int) $group['expense_code_id'], $lockedExpenseCodeIds ?? [], true);
+                                        @endphp
                                         <button type="button" wire:click="toggleExpenseCode({{ $group['expense_code_id'] }})"
                                             class="w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all {{ $isCodeSelected ? 'border-indigo-300 bg-indigo-50 ring-1 ring-indigo-200' : 'border-gray-200 hover:border-indigo-200 hover:bg-gray-50' }}">
                                             <span class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors {{ $isCodeSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300' }}">
@@ -575,6 +589,11 @@
                                                 @endif
                                             </span>
                                             <span class="flex-1 text-sm font-medium text-gray-900">{{ $group['expense_code'] }}</span>
+                                            @if($isCodeSelected)
+                                                <span class="text-[11px] px-2 py-0.5 rounded-full {{ $isLockedCode ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700' }}">
+                                                    {{ $isLockedCode ? 'No se puede quitar' : 'Clic para quitar' }}
+                                                </span>
+                                            @endif
                                             <span class="text-xs text-gray-500">Disp: <span class="font-bold text-blue-700">${{ number_format($group['total_available'], 2, ',', '.') }}</span></span>
                                         </button>
                                     @endforeach
@@ -594,7 +613,10 @@
                                     </p>
                                     <div class="space-y-3">
                                         @foreach($group['distributions'] as $dist)
-                                            @php $isSelected = !empty($selectedDistributionIds[$dist['id']]); @endphp
+                                            @php
+                                                $isSelected = !empty($selectedDistributionIds[$dist['id']]);
+                                                $isLockedDistribution = $showEditModal && in_array((int) $dist['id'], $lockedDistributionIds ?? [], true);
+                                            @endphp
                                             <div class="bg-white rounded-lg p-3 border {{ $isSelected ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-blue-100' }} transition-all">
                                                 <div class="flex items-center gap-3 mb-2">
                                                     @if($group['count'] > 1)
@@ -612,6 +634,11 @@
                                                     <div class="text-right shrink-0">
                                                         <p class="text-xs text-gray-400">Disponible</p>
                                                         <p class="text-sm font-bold text-blue-700">${{ number_format($dist['available'], 2, ',', '.') }}</p>
+                                                        @if($isSelected && $showEditModal)
+                                                            <p class="text-[11px] mt-1 {{ $isLockedDistribution ? 'text-red-600 font-semibold' : 'text-amber-600' }}">
+                                                                {{ $isLockedDistribution ? 'No se puede quitar: tiene CDP' : 'Se puede quitar en edición' }}
+                                                            </p>
+                                                        @endif
                                                     </div>
                                                 </div>
                                                 @if($isSelected)
@@ -750,13 +777,21 @@
         <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
             <div class="fixed inset-0 bg-gray-500/75" wire:click="closeCdpModal"></div>
             <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-2xl">
-                <form wire:submit="saveCdp">
+                <form wire:submit="{{ $editingCdpId ? 'saveCdpEdit' : 'saveCdp' }}">
                     <div class="px-6 py-4 border-b border-gray-200 bg-blue-50">
-                        <h3 class="text-lg font-bold text-blue-900">Registrar CDP</h3>
-                        <p class="text-sm text-blue-700">Certificado de Disponibilidad Presupuestal</p>
+                        <h3 class="text-lg font-bold text-blue-900">{{ $editingCdpId ? 'Editar CDP' : 'Registrar CDP' }}</h3>
+                        <p class="text-sm text-blue-700">
+                            {{ $editingCdpId ? 'Corrija la distribución o el valor del CDP sin afectar contratos ni RPs.' : 'Certificado de Disponibilidad Presupuestal' }}
+                        </p>
                     </div>
                     
                     <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                        @if($editingCdpId)
+                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                                Solo se permite editar CDPs activos en convocatorias borrador y que no estén vinculados a un RP o contrato.
+                            </div>
+                        @endif
+
                         {{-- Resumen de CDPs requeridos por distribución --}}
                         @if($convocatoria)
                             @php
@@ -858,7 +893,13 @@
                                                 <span class="text-xs text-gray-500">Monto:</span>
                                                 <div class="flex flex-1">
                                                     <span class="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
-                                                    <input type="number" wire:model="cdpFundingSources.{{ $index }}.amount" step="0.01" min="0.01" max="{{ $fs['available'] }}" class="flex-1 rounded-r-lg border-gray-300 text-sm bg-gray-50 font-semibold" readonly>
+                                                    <input type="number"
+                                                        wire:model="cdpFundingSources.{{ $index }}.amount"
+                                                        step="0.01"
+                                                        min="0.01"
+                                                        max="{{ $fs['available'] }}"
+                                                        class="flex-1 rounded-r-lg border-gray-300 text-sm font-semibold {{ $editingCdpId ? 'bg-white' : 'bg-gray-50' }}"
+                                                        {{ $editingCdpId ? '' : 'readonly' }}>
                                                 </div>
                                                 <span class="text-xs text-gray-400">/ ${{ number_format($fs['available'], 2, ',', '.') }}</span>
                                             </div>
@@ -878,7 +919,9 @@
                     
                     <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
                         <button type="button" wire:click="closeCdpModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700" {{ count($cdpFundingSources) === 0 ? 'disabled' : '' }}>Registrar CDP</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700" {{ count($cdpFundingSources) === 0 ? 'disabled' : '' }}>
+                            {{ $editingCdpId ? 'Guardar Cambios' : 'Registrar CDP' }}
+                        </button>
                     </div>
                 </form>
             </div>

@@ -58,6 +58,7 @@ class PrecontractualManagement extends Component
     public $convContractingModality = 'especial';
     public $convRequesterName = '';
     public $convRequesterPosition = '';
+    public $contractLockedEdit = false;
 
     // Modal CDP
     public $showCdpModal = false;
@@ -261,6 +262,11 @@ class PrecontractualManagement extends Component
         return $user && $user->can('precontractual.edit') && $user->hasRole('Admin');
     }
 
+    protected function canEditOnlyNonSensitiveFields(?Convocatoria $convocatoria = null): bool
+    {
+        return $this->canAdminEditConvocatoria() && (bool) ($convocatoria?->contract);
+    }
+
     protected function loadDistributionOptions(int $year, ?Convocatoria $currentConvocatoria = null): void
     {
         $currentAmounts = [];
@@ -401,14 +407,13 @@ class PrecontractualManagement extends Component
             'contract',
         ])->forSchool($this->schoolId)->findOrFail($this->convocatoriaId);
 
-        if ($convocatoria->contract) {
-            $this->dispatch('toast', message: 'No se puede editar la convocatoria porque ya tiene un contrato asociado.', type: 'error');
-            return;
-        }
-
         $this->resetValidation();
         $this->resetConvocatoriaForm();
-        $this->loadDistributionOptions((int) $convocatoria->fiscal_year, $convocatoria);
+        $this->contractLockedEdit = $this->canEditOnlyNonSensitiveFields($convocatoria);
+
+        if (!$this->contractLockedEdit) {
+            $this->loadDistributionOptions((int) $convocatoria->fiscal_year, $convocatoria);
+        }
 
         $this->convObject = $convocatoria->object ?? '';
         $this->convJustification = $convocatoria->justification ?? '';
@@ -421,31 +426,36 @@ class PrecontractualManagement extends Component
         $this->convRequesterName = $convocatoria->requester_name ?? '';
         $this->convRequesterPosition = $convocatoria->requester_position ?? '';
 
-        $selectedDetails = $convocatoria->distributionDetails
-            ->groupBy('expense_distribution_id')
-            ->map(fn($group) => (float) $group->sum('amount'));
+        if (!$this->contractLockedEdit) {
+            $selectedDetails = $convocatoria->distributionDetails
+                ->groupBy('expense_distribution_id')
+                ->map(fn($group) => (float) $group->sum('amount'));
 
-        foreach ($selectedDetails as $distId => $amount) {
-            $dist = collect($this->distributions)->firstWhere('id', (int) $distId);
-            if (!$dist) {
-                continue;
-            }
+            foreach ($selectedDetails as $distId => $amount) {
+                $dist = collect($this->distributions)->firstWhere('id', (int) $distId);
+                if (!$dist) {
+                    continue;
+                }
 
-            $this->selectedDistributionIds[(int) $distId] = true;
-            $this->selectedExpenseCodeIds[$dist['expense_code_id']] = true;
-            $this->distributionAmounts[(int) $distId] = $amount;
-        }
-
-        if ($selectedDetails->isEmpty() && $convocatoria->expense_distribution_id) {
-            $dist = collect($this->distributions)->firstWhere('id', (int) $convocatoria->expense_distribution_id);
-            if ($dist) {
-                $this->selectedDistributionIds[$dist['id']] = true;
+                $this->selectedDistributionIds[(int) $distId] = true;
                 $this->selectedExpenseCodeIds[$dist['expense_code_id']] = true;
-                $this->distributionAmounts[$dist['id']] = (float) $convocatoria->assigned_budget;
+                $this->distributionAmounts[(int) $distId] = $amount;
             }
+
+            if ($selectedDetails->isEmpty() && $convocatoria->expense_distribution_id) {
+                $dist = collect($this->distributions)->firstWhere('id', (int) $convocatoria->expense_distribution_id);
+                if ($dist) {
+                    $this->selectedDistributionIds[$dist['id']] = true;
+                    $this->selectedExpenseCodeIds[$dist['expense_code_id']] = true;
+                    $this->distributionAmounts[$dist['id']] = (float) $convocatoria->assigned_budget;
+                }
+            }
+
+            $this->recalculateBudget();
+        } else {
+            $this->convAssignedBudget = (float) $convocatoria->assigned_budget;
         }
 
-        $this->recalculateBudget();
         $this->showEditModal = true;
     }
 
@@ -658,8 +668,32 @@ class PrecontractualManagement extends Component
             ->forSchool($this->schoolId)
             ->findOrFail($this->convocatoriaId);
 
-        if ($convocatoria->contract) {
-            $this->dispatch('toast', message: 'No se puede editar la convocatoria porque ya tiene un contrato asociado.', type: 'error');
+        $this->contractLockedEdit = $this->canEditOnlyNonSensitiveFields($convocatoria);
+
+        if ($this->contractLockedEdit) {
+            $this->validate([
+                'convObject' => 'required|min:10|max:500',
+                'convJustification' => 'required|min:10|max:1000',
+            ], [
+                'convObject.required' => 'El objeto es obligatorio.',
+                'convObject.min' => 'El objeto debe tener al menos 10 caracteres.',
+                'convJustification.required' => 'La justificación es obligatoria.',
+                'convJustification.min' => 'La justificación debe tener al menos 10 caracteres.',
+            ]);
+
+            try {
+                $convocatoria->update([
+                    'object' => $this->convObject,
+                    'justification' => $this->convJustification,
+                ]);
+
+                $this->dispatch('toast', message: 'Se actualizaron únicamente los campos permitidos de la convocatoria.', type: 'success');
+                $this->closeEditModal();
+                $this->viewDetail($convocatoria->id);
+            } catch (\Exception $e) {
+                $this->dispatch('toast', message: 'Error: ' . $e->getMessage(), type: 'error');
+            }
+
             return;
         }
 
@@ -805,6 +839,7 @@ class PrecontractualManagement extends Component
 
     protected function resetConvocatoriaForm(): void
     {
+        $this->contractLockedEdit = false;
         $this->distributionDetailMap = [];
         $this->lockedDistributionIds = [];
         $this->lockedExpenseCodeIds = [];

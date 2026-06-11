@@ -3,11 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\AccountingAccount;
-use App\Models\Budget;
 use App\Models\Income;
 use App\Models\School;
+use App\Support\MonthlyIncomeReceiptBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
@@ -18,53 +17,7 @@ class IncomePdfController extends Controller
      */
     public function single(Request $request, int $id)
     {
-        $schoolId = (int) session('selected_school_id');
-        abort_if(!$schoolId, 403);
-        abort_if(!auth()->user()->can('incomes.view'), 403);
-
-        $income = Income::where('school_id', $schoolId)
-            ->with([
-                'fundingSource.budgetItem.accountingAccount',
-                'creator',
-                'bankAccounts.bank',
-                'bankAccounts.bankAccount',
-            ])
-            ->findOrFail($id);
-
-        $school = School::findOrFail($schoolId);
-
-        // Monto en letras
-        $amountInWords = self::amountToWords($income->amount);
-
-        // Construir imputación contable
-        // Débito: cuentas bancarias (Caja/Bancos)
-        $debitAccounts = $this->buildDebitEntries($income);
-
-        // Crédito: cuenta contable del rubro presupuestal
-        $creditHierarchy = $this->buildAccountHierarchy(
-            $income->fundingSource->budgetItem->accountingAccount ?? null
-        );
-
-        // Número secuencial del comprobante por colegio y año fiscal
-        $incomeYear = $income->date->year;
-        $receiptNumber = Income::where('school_id', $schoolId)
-            ->whereYear('date', $incomeYear)
-            ->where('id', '<=', $income->id)
-            ->count();
-
-        $pdf = Pdf::loadView('pdf.income-receipt', [
-            'income' => $income,
-            'school' => $school,
-            'user' => auth()->user(),
-            'amountInWords' => $amountInWords,
-            'debitAccounts' => $debitAccounts,
-            'creditHierarchy' => $creditHierarchy,
-            'receiptNumber' => $receiptNumber,
-        ]);
-
-        $pdf->setPaper('letter');
-
-        return $pdf->stream("ingreso-{$income->id}.pdf");
+        abort(404);
     }
 
     /**
@@ -72,68 +25,21 @@ class IncomePdfController extends Controller
      */
     public function byBudget(Request $request, int $budgetId)
     {
-        $schoolId = (int) session('selected_school_id');
-        abort_if(!$schoolId, 403);
-        abort_if(!auth()->user()->can('incomes.view'), 403);
-
-        $budget = Budget::where('school_id', $schoolId)
-            ->with(['budgetItem.accountingAccount', 'fundingSource'])
-            ->findOrFail($budgetId);
-
-        $incomes = Income::where('school_id', $schoolId)
-            ->where('funding_source_id', $budget->funding_source_id)
-            ->with([
-                'fundingSource.budgetItem.accountingAccount',
-                'creator',
-                'bankAccounts.bank',
-                'bankAccounts.bankAccount',
-            ])
-            ->orderBy('date', 'asc')
-            ->get();
-
-        $totalCollected = $incomes->sum('amount');
-
-        $school = School::findOrFail($schoolId);
-
-        // Crédito: cuenta contable del rubro
-        $creditHierarchy = $this->buildAccountHierarchy(
-            $budget->budgetItem->accountingAccount ?? null
-        );
-
-        $pdf = Pdf::loadView('pdf.income-report', [
-            'budget' => $budget,
-            'incomes' => $incomes,
-            'totalCollected' => $totalCollected,
-            'school' => $school,
-            'user' => auth()->user(),
-            'creditHierarchy' => $creditHierarchy,
-        ]);
-
-        $pdf->setPaper('letter');
-
-        return $pdf->stream("ingresos-rubro-{$budget->budgetItem->code}.pdf");
+        abort(404);
     }
 
-    public function byBudgetMonth(Request $request, int $budgetId, int $month)
+    public function monthly(Request $request, int $year, int $month)
     {
         $schoolId = (int) session('selected_school_id');
         abort_if(!$schoolId, 403);
         abort_if(!auth()->user()->can('incomes.view'), 403);
         abort_if($month < 1 || $month > 12, 404);
 
-        $budget = Budget::where('school_id', $schoolId)
-            ->with(['budgetItem.accountingAccount', 'fundingSource'])
-            ->findOrFail($budgetId);
-
-        $year = (int) ($budget->fiscal_year ?? now()->year);
-        $periodStart = Carbon::create($year, $month, 1)->startOfDay();
-        $periodEnd = (clone $periodStart)->endOfMonth()->endOfDay();
-
         $incomes = Income::where('school_id', $schoolId)
-            ->where('funding_source_id', $budget->funding_source_id)
-            ->whereBetween('date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->whereYear('date', $year)
+            ->whereMonth('date', $month)
             ->with([
-                'fundingSource.budgetItem.accountingAccount',
+                'fundingSource.budgetItem',
                 'creator',
                 'bankAccounts.bank',
                 'bankAccounts.bankAccount',
@@ -141,42 +47,30 @@ class IncomePdfController extends Controller
             ->orderBy('date', 'asc')
             ->get();
 
-        $totalCollected = (float) $incomes->sum('amount');
+        abort_if($incomes->isEmpty(), 404);
+
         $school = School::findOrFail($schoolId);
+        $accountingAccounts = MonthlyIncomeReceiptBuilder::collectRelevantAccountingAccounts($incomes);
 
-        $creditHierarchy = $this->buildAccountHierarchy(
-            $budget->budgetItem->accountingAccount ?? null
-        );
+        $builder = new MonthlyIncomeReceiptBuilder();
+        $receipt = $builder->build($incomes, $accountingAccounts, $year, $month);
 
-        $debitAccounts = $this->buildDebitEntriesFromIncomes($incomes);
-        $amountInWords = self::amountToWords($totalCollected);
-
-        $months = [
-            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
-            7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
-        ];
-        $periodLabel = ($months[$month] ?? (string) $month) . ' ' . $year;
-
-        $receiptNumber = sprintf('%d%02d-%s-%s', $year, $month, $budget->budgetItem->code ?? 'RUBRO', $budget->fundingSource->code ?? 'FUENTE');
+        abort_if($receipt['has_errors'], 422, implode("\n", $receipt['validation_errors']));
 
         $pdf = Pdf::loadView('pdf.income-monthly-receipt', [
-            'budget' => $budget,
-            'incomes' => $incomes,
-            'totalCollected' => $totalCollected,
             'school' => $school,
             'user' => auth()->user(),
-            'amountInWords' => $amountInWords,
-            'debitAccounts' => $debitAccounts,
-            'creditHierarchy' => $creditHierarchy,
-            'receiptNumber' => $receiptNumber,
-            'periodStart' => $periodStart,
-            'periodEnd' => $periodEnd,
-            'periodLabel' => $periodLabel,
+            'receipt' => $receipt,
         ]);
 
         $pdf->setPaper('letter');
 
-        return $pdf->stream("comprobante-ingreso-{$year}-" . str_pad((string) $month, 2, '0', STR_PAD_LEFT) . "-{$budgetId}.pdf");
+        return $pdf->stream("comprobante-ingresos-{$year}-" . str_pad((string) $month, 2, '0', STR_PAD_LEFT) . ".pdf");
+    }
+
+    public function byBudgetMonth(Request $request, int $budgetId, int $month)
+    {
+        abort(404);
     }
 
     /**

@@ -5,7 +5,22 @@
                 <h1 class="text-3xl font-bold text-gray-900">Ingresos Reales</h1>
                 <p class="text-gray-500 mt-1">Gestión del recaudo y seguimiento presupuestal</p>
             </div>
-            {{-- Botón Registrar Ingreso eliminado por requerimiento --}}
+            <div class="flex items-center gap-3">
+                <button wire:click="openMonthlyReceiptModal" type="button" class="inline-flex items-center px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium shadow-sm">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M5 11h14M5 7h14a2 2 0 012 2v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2z"/>
+                    </svg>
+                    Comprobante mensual
+                </button>
+                @can('incomes.create')
+                <button wire:click="openCreateModal" type="button" class="inline-flex items-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium shadow-sm">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Registrar ingresos
+                </button>
+                @endcan
+            </div>
         </div>
 
         <!-- Summary Cards -->
@@ -228,12 +243,6 @@
                                     @endif
                                 @endif
 
-                                <button wire:click="openMonthlyReceiptModal({{ $budget['id'] }})" type="button" class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-all" title="Imprimir comprobante mensual">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M5 11h14M5 7h14a2 2 0 012 2v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2z"/></svg>
-                                </button>
-                                <a href="{{ route('incomes.budget.pdf', $budget['id']) }}" target="_blank" class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all" title="Imprimir reporte de ingresos">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                                </a>
                             </div>
                         </td>
                     </tr>
@@ -302,9 +311,6 @@
                         </td>
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end gap-1">
-                                <a href="{{ route('incomes.pdf', $income->id) }}" target="_blank" class="p-2 text-green-600 hover:bg-green-50 rounded-lg" title="Imprimir PDF">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                                </a>
                                 @can('incomes.edit')
                                 <button wire:click="edit({{ $income->id }})" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Editar">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -328,6 +334,193 @@
     </div>
 
 
+    <!-- Modal Registro Múltiple de Ingresos -->
+    @if($showBatchModal)
+    <div class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
+            <div class="fixed inset-0 bg-gray-500/75" wire:click="closeBatchModal"></div>
+            <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-6xl">
+                <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-white">Registrar Ingresos</h3>
+                            <p class="text-blue-100 text-sm mt-1">Seleccione uno o varios conceptos, registre el valor y asigne la cuenta bancaria.</p>
+                        </div>
+                        <button type="button" wire:click="closeBatchModal" class="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <form wire:submit="saveBatchIncomes">
+                    <div class="px-6 py-5 space-y-5 max-h-[78vh] overflow-y-auto">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Rubro Presupuestal *</label>
+                                <select wire:model.live="budget_item_id" class="w-full rounded-xl border-gray-300">
+                                    <option value="">-- Seleccione un rubro --</option>
+                                    @foreach($budgetItems as $item)
+                                        <option value="{{ $item['id'] }}">{{ $item['name'] }}</option>
+                                    @endforeach
+                                </select>
+                                @error('budget_item_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Fuente de Financiación *</label>
+                                @if(empty($budget_item_id))
+                                    <div class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">
+                                        Primero seleccione un rubro para ver sus fuentes
+                                    </div>
+                                @elseif(count($fundingSources) === 0)
+                                    <div class="w-full px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-700">
+                                        Este rubro no tiene fuentes de financiación asociadas.
+                                    </div>
+                                @else
+                                    <select wire:model.live="funding_source_id" class="w-full rounded-xl border-gray-300">
+                                        <option value="">-- Seleccione una fuente --</option>
+                                        @foreach($fundingSources as $source)
+                                            <option value="{{ $source['id'] }}">
+                                                {{ $source['name'] }} (Pend: ${{ number_format($source['pending'], 2, ',', '.') }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                @endif
+                                @error('funding_source_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+
+                        @if($selectedBudgetInfo)
+                        <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                            <h4 class="text-sm font-semibold text-blue-800 mb-2">Información del Presupuesto</h4>
+                            <div class="grid grid-cols-3 gap-2 text-sm">
+                                <div>
+                                    <p class="text-xs text-blue-600">Presupuestado</p>
+                                    <p class="font-bold text-blue-900">${{ number_format($selectedBudgetInfo['budgeted'], 2, ',', '.') }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-green-600">Ya Recaudado</p>
+                                    <p class="font-bold text-green-700">${{ number_format($selectedBudgetInfo['collected'], 2, ',', '.') }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-orange-600">Pendiente</p>
+                                    <p class="font-bold {{ $selectedBudgetInfo['pending'] > 0 ? 'text-orange-700' : 'text-purple-700' }}">
+                                        ${{ number_format(abs($selectedBudgetInfo['pending']), 2, ',', '.') }}
+                                        @if($selectedBudgetInfo['pending'] < 0) <span class="text-xs">(exceso)</span> @endif
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        @endif
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Fecha *</label>
+                                <input type="date" wire:model="batchDate" class="w-full rounded-xl border-gray-300">
+                                @error('batchDate') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Descripción General</label>
+                                <input type="text" wire:model="batchDescription" class="w-full rounded-xl border-gray-300" placeholder="Observación opcional para los ingresos seleccionados">
+                                @error('batchDescription') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+
+                        <div class="p-4 rounded-xl border border-blue-100 bg-blue-50">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <div>
+                                    <p class="text-sm font-semibold text-blue-800">Listado de conceptos</p>
+                                    <p class="text-xs text-blue-700 mt-1">Aquí solo selecciona el código contable, registra el valor y define la cuenta bancaria de destino.</p>
+                                </div>
+                                <div class="text-sm text-blue-900">
+                                    Seleccionados: <span class="font-bold">{{ $this->batchSelectedCount }}</span>
+                                    <span class="mx-2 text-blue-300">|</span>
+                                    Total: <span class="font-bold">${{ number_format($this->batchSelectedTotal, 2, ',', '.') }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-2xl overflow-hidden">
+                            <div class="hidden lg:grid grid-cols-12 gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <div class="col-span-5">Concepto</div>
+                                <div class="col-span-2">Valor</div>
+                                <div class="col-span-2">Banco</div>
+                                <div class="col-span-3">Cuenta</div>
+                            </div>
+
+                            <div class="divide-y divide-gray-200">
+                                @forelse($batchIncomeLines as $index => $line)
+                                @php
+                                    $rowSelected = !empty($line['selected']);
+                                @endphp
+                                <div class="px-4 py-4 {{ $rowSelected ? 'bg-blue-50/40' : 'bg-white' }}">
+                                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+                                        <div class="lg:col-span-5">
+                                            <div class="flex items-start gap-3">
+                                                <input type="checkbox" wire:model.live="batchIncomeLines.{{ $index }}.selected" class="mt-1 rounded border-gray-300 text-blue-600">
+                                                <div>
+                                                    <p class="text-sm font-semibold text-gray-900">{{ $line['display_name'] }}</p>
+                                                    @error('batchIncomeLines.'.$index.'.selected') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="lg:col-span-2">
+                                            <label class="block text-xs font-medium text-gray-500 mb-1 lg:hidden">Valor</label>
+                                            <div class="flex">
+                                                <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
+                                                <input type="number" wire:model.live.debounce.500ms="batchIncomeLines.{{ $index }}.amount" step="0.01" min="0" class="flex-1 rounded-r-xl border-gray-300 text-sm" placeholder="0.00" {{ !$rowSelected ? 'disabled' : '' }}>
+                                            </div>
+                                            @error('batchIncomeLines.'.$index.'.amount') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        </div>
+
+                                        <div class="lg:col-span-2">
+                                            <label class="block text-xs font-medium text-gray-500 mb-1 lg:hidden">Banco</label>
+                                            <select wire:model.live="batchIncomeLines.{{ $index }}.bank_id" class="w-full rounded-xl border-gray-300 text-sm" {{ !$rowSelected ? 'disabled' : '' }}>
+                                                <option value="">Seleccione banco...</option>
+                                                @foreach($availableBanks as $bank)
+                                                    <option value="{{ $bank['id'] }}">{{ $bank['name'] }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error('batchIncomeLines.'.$index.'.bank_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        </div>
+
+                                        <div class="lg:col-span-3">
+                                            <label class="block text-xs font-medium text-gray-500 mb-1 lg:hidden">Cuenta</label>
+                                            <select wire:model="batchIncomeLines.{{ $index }}.bank_account_id" class="w-full rounded-xl border-gray-300 text-sm" {{ !$rowSelected || empty($line['bank_id']) ? 'disabled' : '' }}>
+                                                <option value="">Seleccione cuenta...</option>
+                                                @foreach($batchLineAccounts[$index] ?? [] as $account)
+                                                    <option value="{{ $account['id'] }}">{{ ucfirst($account['account_type']) }} - {{ $account['account_number'] }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error('batchIncomeLines.'.$index.'.bank_account_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        </div>
+                                    </div>
+                                </div>
+                                @empty
+                                <div class="px-6 py-10 text-center text-sm text-gray-500">
+                                    No hay conceptos configurados para registrar ingresos en esta vigencia.
+                                </div>
+                                @endforelse
+                            </div>
+                        </div>
+
+                        @error('batchIncomeLines') <span class="text-red-500 text-sm block">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t border-gray-200">
+                        <button type="button" wire:click="closeBatchModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium">
+                            Guardar ingresos
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <!-- Modal Crear/Editar Ingreso -->
     @if($showModal)
     <div class="fixed inset-0 z-50 overflow-y-auto">
@@ -337,8 +530,8 @@
                 <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h3 class="text-xl font-bold text-white">{{ $isEditing ? 'Editar Ingreso' : 'Registrar Ingreso' }}</h3>
-                            <p class="text-blue-100 text-sm mt-1">Registro de recaudo real</p>
+                            <h3 class="text-xl font-bold text-white">Editar Ingreso</h3>
+                            <p class="text-blue-100 text-sm mt-1">Actualización de recaudo ya registrado</p>
                         </div>
                         <button type="button" wire:click="closeModal" class="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -688,13 +881,13 @@
             <div class="fixed inset-0 bg-gray-500/75" wire:click="closeMonthlyReceiptModal"></div>
             <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-md">
                 <div class="bg-gradient-to-r from-purple-600 to-purple-500 px-6 py-4">
-                    <h3 class="text-xl font-bold text-white">Imprimir Comprobante Mensual</h3>
-                    <p class="text-purple-100 text-sm">Un solo comprobante con todos los movimientos del mes</p>
+                    <h3 class="text-xl font-bold text-white">Generar Comprobante Mensual</h3>
+                    <p class="text-purple-100 text-sm">Se consolida un unico comprobante por mes calendario</p>
                 </div>
                 <div class="px-6 py-5 space-y-4">
                     <div>
-                        <p class="text-sm text-gray-500">Rubro / Fuente</p>
-                        <p class="font-semibold text-gray-900">{{ $monthlyReceiptBudgetText }}</p>
+                        <p class="text-sm text-gray-500">Vigencia</p>
+                        <p class="font-semibold text-gray-900">{{ $filterYear }}</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Mes *</label>
@@ -717,7 +910,7 @@
                     <button type="button" wire:click="closeMonthlyReceiptModal" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl font-medium">Cancelar</button>
                     <button type="button" wire:click="printMonthlyReceipt" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium inline-flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                        Imprimir
+                        Generar PDF
                     </button>
                 </div>
             </div>

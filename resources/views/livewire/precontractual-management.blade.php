@@ -218,10 +218,10 @@
                                     Imprimir
                                 </button>
 
-                                @if(auth()->user() && auth()->user()->hasRole('Admin') && !$convocatoria->contract)
+                                @if(auth()->user() && auth()->user()->hasRole('Admin'))
                                     <button wire:click="openEditModal" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 inline-flex items-center gap-1">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                        Editar Convocatoria
+                                        {{ $convocatoria->contract ? 'Editar Datos Permitidos' : 'Editar Convocatoria' }}
                                     </button>
                                 @endif
 
@@ -561,13 +561,19 @@
                     <div class="px-6 py-4 border-b border-gray-200 bg-indigo-50">
                         <h3 class="text-lg font-bold text-indigo-900">{{ $showEditModal ? 'Editar Convocatoria' : 'Nueva Convocatoria' }}</h3>
                         <p class="text-sm text-indigo-700">
-                            {{ $showEditModal ? 'Actualizar proceso precontractual sin contrato asociado' : 'Crear proceso precontractual desde distribuciones de gasto' }}
+                            {{ $showEditModal ? ($contractLockedEdit ? 'La convocatoria ya tiene contrato: solo se permite editar objeto y justificación.' : 'Actualizar proceso precontractual sin contrato asociado') : 'Crear proceso precontractual desde distribuciones de gasto' }}
                         </p>
                     </div>
                     
                     <div class="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+                        @if($showEditModal && $contractLockedEdit)
+                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                                Esta convocatoria ya tiene un contrato asociado. Solo el administrador puede modificar el objeto y la justificación. Los demás datos quedan bloqueados para proteger la trazabilidad.
+                            </div>
+                        @endif
+
                         {{-- Selección de Códigos de Gasto (múltiple) --}}
-                        <div>
+                        <div class="{{ $contractLockedEdit ? 'opacity-60 pointer-events-none' : '' }}">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Códigos de Gasto <span class="text-red-500">*</span></label>
                             <p class="text-xs text-gray-500 mb-2">
                                 {{ $showEditModal ? 'Puede quitar un código para reemplazarlo por otro, siempre que ese código no tenga CDPs asociados.' : 'Seleccione uno o varios códigos de gasto para esta convocatoria' }}
@@ -604,7 +610,7 @@
                         {{-- Detalle de rubros para cada código de gasto seleccionado --}}
                         @foreach($groupedDistributions as $group)
                             @if(!empty($selectedExpenseCodeIds[$group['expense_code_id']]))
-                                <div class="bg-blue-50 rounded-xl p-4">
+                                <div class="bg-blue-50 rounded-xl p-4 {{ $contractLockedEdit ? 'opacity-60 pointer-events-none' : '' }}">
                                     <p class="text-xs font-medium text-blue-700 uppercase mb-3">
                                         {{ $group['expense_code'] }}
                                         @if($group['count'] > 1)
@@ -673,7 +679,7 @@
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
-                            <div x-data="{
+                            <div class="{{ $contractLockedEdit ? 'opacity-60 pointer-events-none' : '' }}" x-data="{
                                 init() {
                                     flatpickr(this.$refs.convStartInput, {
                                         dateFormat: 'Y-m-d',
@@ -687,7 +693,7 @@
                                 <input type="text" x-ref="convStartInput" value="{{ $convStartDate }}" class="w-full rounded-xl border-gray-300 bg-white" placeholder="Seleccionar fecha..." readonly>
                                 @error('convStartDate') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>
-                            <div x-data="{
+                            <div class="{{ $contractLockedEdit ? 'opacity-60 pointer-events-none' : '' }}" x-data="{
                                 init() {
                                     flatpickr(this.$refs.convEndInput, {
                                         dateFormat: 'Y-m-d',
@@ -704,7 +710,7 @@
                         </div>
 
                         {{-- Hora de apertura y cierre --}}
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 {{ $contractLockedEdit ? 'opacity-60 pointer-events-none' : '' }}">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Hora de Apertura</label>
                                 <input type="time" wire:model="convStartTime" class="w-full rounded-xl border-gray-300">
@@ -715,7 +721,7 @@
                             </div>
                         </div>
 
-                        <div>
+                        <div class="{{ $contractLockedEdit ? 'opacity-60 pointer-events-none' : '' }}">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Presupuesto Total Asignado <span class="text-red-500">*</span></label>
                             <div class="flex">
                                 <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500">$</span>
@@ -727,7 +733,7 @@
                     </div>
 
                     {{-- Duración, Modalidad, Solicitante --}}
-                    <div class="px-6 pb-4 space-y-4">
+                    <div class="px-6 pb-4 space-y-4 {{ $contractLockedEdit ? 'opacity-60 pointer-events-none' : '' }}">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Duración Probable del Contrato (días) <span class="text-red-500">*</span></label>

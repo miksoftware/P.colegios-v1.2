@@ -9,6 +9,9 @@ use App\Models\BudgetModification;
 use App\Models\FundingSource;
 use App\Models\Income;
 use App\Models\IncomeBankAccount;
+use App\Models\School;
+use App\Support\IncomeRegistrationCatalog;
+use App\Support\MonthlyIncomeReceiptBuilder;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\WithPagination;
@@ -30,6 +33,7 @@ class IncomeManagement extends Component
 
     // Modal Crear/Editar Ingreso
     public $showModal = false;
+    public $showBatchModal = false;
     public $isEditing = false;
     public $incomeId = null;
 
@@ -45,6 +49,12 @@ class IncomeManagement extends Component
     public $bankAccountLines = [];
     public $availableBanks = [];
     public $lineAccounts = []; // Cuentas por línea
+
+    // Registro múltiple de ingresos
+    public $batchDate = '';
+    public $batchDescription = '';
+    public $batchIncomeLines = [];
+    public $batchLineAccounts = [];
 
     // Info del presupuesto seleccionado
     public $selectedBudgetInfo = null;
@@ -65,8 +75,6 @@ class IncomeManagement extends Component
     public $additionReason = '';
 
     public $showMonthlyReceiptModal = false;
-    public $monthlyReceiptBudgetId = null;
-    public $monthlyReceiptBudgetText = '';
     public $monthlyReceiptMonth = '';
 
     // Listas para selects
@@ -135,6 +143,7 @@ class IncomeManagement extends Component
 
         $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->date = date('Y-m-d');
+        $this->batchDate = date('Y-m-d');
         $this->loadBudgetItems();
         $this->loadAvailableBanks();
     }
@@ -192,6 +201,44 @@ class IncomeManagement extends Component
         }
     }
 
+    public function updatedBatchIncomeLines($value, $key)
+    {
+        $parts = explode('.', $key);
+
+        if (count($parts) !== 2) {
+            return;
+        }
+
+        $index = (int) $parts[0];
+        $field = $parts[1];
+
+        if (!isset($this->batchIncomeLines[$index])) {
+            return;
+        }
+
+        if ($field === 'selected' && !$value) {
+            $this->batchIncomeLines[$index]['amount'] = '';
+            $this->batchIncomeLines[$index]['bank_id'] = '';
+            $this->batchIncomeLines[$index]['bank_account_id'] = '';
+            $this->batchLineAccounts[$index] = [];
+            return;
+        }
+
+        if ($field === 'bank_id') {
+            $this->batchIncomeLines[$index]['bank_account_id'] = '';
+
+            if ($value) {
+                $this->batchLineAccounts[$index] = \App\Models\BankAccount::where('bank_id', $value)
+                    ->active()
+                    ->orderBy('account_number')
+                    ->get()
+                    ->toArray();
+            } else {
+                $this->batchLineAccounts[$index] = [];
+            }
+        }
+    }
+
     public function recalculateAmountFromLines()
     {
         $total = 0;
@@ -205,10 +252,6 @@ class IncomeManagement extends Component
     public function loadBudgetItems()
     {
         $this->budgetItems = BudgetItem::active()
-            ->whereHas('budgets', function($q) {
-                $q->where('type', 'income')
-                  ->where('fiscal_year', $this->filterYear);
-            })
             ->orderBy('code')
             ->get()
             ->map(fn($item) => [
@@ -235,14 +278,11 @@ class IncomeManagement extends Component
 
         $this->fundingSources = FundingSource::forBudgetItem($budgetItemId)
             ->active()
-            ->whereHas('budgets', function($q) {
-                $q->where('type', 'income')
-                  ->where('fiscal_year', $this->filterYear);
-            })
             ->orderBy('code')
             ->get()
             ->map(function($source) {
                 $budget = $source->budgets()
+                    ->where('school_id', $this->schoolId)
                     ->where('type', 'income')
                     ->where('fiscal_year', $this->filterYear)
                     ->first();
@@ -339,6 +379,18 @@ class IncomeManagement extends Component
     public function updatingFilterYear() { 
         $this->resetPage(); 
         $this->loadBudgetItems();
+        if ($this->showBatchModal) {
+            $this->prepareBatchIncomeLines();
+            if (!empty($this->budget_item_id)) {
+                $this->loadFundingSourcesForItem($this->budget_item_id);
+                if (!empty($this->funding_source_id)) {
+                    $this->updatedFundingSourceId($this->funding_source_id);
+                }
+            } else {
+                $this->fundingSources = [];
+                $this->selectedBudgetInfo = null;
+            }
+        }
     }
 
     /**
@@ -413,15 +465,8 @@ class IncomeManagement extends Component
 
     public function getIncomesProperty()
     {
-        // Obtener funding_source_ids que tienen presupuesto en el año fiscal seleccionado
-        $fundingSourceIds = Budget::forSchool($this->schoolId)
-            ->forYear($this->filterYear)
-            ->byType('income')
-            ->pluck('funding_source_id');
-
         return Income::forSchool($this->schoolId)
             ->with(['fundingSource.budgetItem', 'creator', 'bankAccounts.bank', 'bankAccounts.bankAccount'])
-            ->whereIn('funding_source_id', $fundingSourceIds)
             ->whereYear('date', $this->filterYear)
             ->when($this->filterBudgetItem, fn($q) => $q->whereHas('fundingSource', fn($sub) => $sub->where('budget_item_id', $this->filterBudgetItem)))
             ->when($this->filterSource, fn($q) => $q->where('funding_source_id', $this->filterSource))
@@ -437,14 +482,7 @@ class IncomeManagement extends Component
             ->byType('income')
             ->sum('current_amount');
 
-        // Sumar ingresos de fuentes que tienen presupuesto en el año fiscal seleccionado
-        $fundingSourceIds = Budget::forSchool($this->schoolId)
-            ->forYear($this->filterYear)
-            ->byType('income')
-            ->pluck('funding_source_id');
-
         $totalExecuted = Income::forSchool($this->schoolId)
-            ->whereIn('funding_source_id', $fundingSourceIds)
             ->whereYear('date', $this->filterYear)
             ->sum('amount');
 
@@ -494,15 +532,7 @@ class IncomeManagement extends Component
             return;
         }
 
-        $budget = Budget::forSchool($this->schoolId)->with(['budgetItem', 'fundingSource'])->findOrFail($budgetId);
-        
-        $this->resetForm();
-        $this->budget_item_id = $budget->budget_item_id;
-        $this->loadFundingSourcesForItem($budget->budget_item_id);
-        $this->funding_source_id = $budget->funding_source_id;
-        $this->updatedFundingSourceId($budget->funding_source_id);
-        
-        $this->showModal = true;
+        $this->openBatchIncomeModal($budgetId);
     }
 
     public function openCreateModal()
@@ -511,9 +541,7 @@ class IncomeManagement extends Component
             $this->dispatch('toast', message: 'No tienes permisos para crear ingresos.', type: 'error');
             return;
         }
-        $this->resetForm();
-        $this->loadBudgetItems();
-        $this->showModal = true;
+        $this->openBatchIncomeModal();
     }
 
     public function edit($id)
@@ -619,6 +647,181 @@ class IncomeManagement extends Component
             $this->dispatch('toast', message: $message, type: 'success');
             $this->closeModal();
             
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error al guardar: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function openBatchIncomeModal(?int $preferredBudgetId = null)
+    {
+        $this->resetBatchForm();
+        $this->prepareBatchIncomeLines();
+
+        if ($preferredBudgetId) {
+            $budget = Budget::forSchool($this->schoolId)
+                ->with(['budgetItem', 'fundingSource'])
+                ->find($preferredBudgetId);
+
+            if ($budget) {
+                $this->budget_item_id = $budget->budget_item_id;
+                $this->loadFundingSourcesForItem($budget->budget_item_id);
+                $this->funding_source_id = $budget->funding_source_id;
+                $this->updatedFundingSourceId($budget->funding_source_id);
+            }
+        }
+
+        $this->showBatchModal = true;
+    }
+
+    public function closeBatchModal()
+    {
+        $this->showBatchModal = false;
+        $this->resetBatchForm();
+    }
+
+    public function prepareBatchIncomeLines(): void
+    {
+        $school = School::find($this->schoolId);
+
+        if (!$school) {
+            $this->batchIncomeLines = [];
+            return;
+        }
+
+        $this->batchIncomeLines = IncomeRegistrationCatalog::buildForSchool($school);
+        $this->batchLineAccounts = array_fill(0, count($this->batchIncomeLines), []);
+    }
+
+    public function saveBatchIncomes()
+    {
+        if (!auth()->user()->can('incomes.create')) {
+            $this->dispatch('toast', message: 'No tienes permisos para crear ingresos.', type: 'error');
+            return;
+        }
+
+        $this->resetValidation();
+        $this->validate([
+            'budget_item_id' => 'required|exists:budget_items,id',
+            'funding_source_id' => 'required|exists:funding_sources,id',
+            'batchDate' => 'required|date',
+            'batchDescription' => 'nullable|string',
+        ]);
+
+        $validGeneralSource = FundingSource::where('id', $this->funding_source_id)
+            ->where('budget_item_id', $this->budget_item_id)
+            ->exists();
+
+        if (!$validGeneralSource) {
+            $this->addError('funding_source_id', 'La fuente seleccionada no pertenece al rubro elegido.');
+            return;
+        }
+
+        $selectedLines = collect($this->batchIncomeLines)
+            ->filter(fn (array $line) => !empty($line['selected']))
+            ->values();
+
+        if ($selectedLines->isEmpty()) {
+            $this->addError('batchIncomeLines', 'Debe seleccionar al menos un ingreso.');
+            return;
+        }
+
+        foreach ($this->batchIncomeLines as $index => $line) {
+            if (empty($line['selected'])) {
+                continue;
+            }
+
+            if (!is_numeric($line['amount'] ?? null) || (float) $line['amount'] <= 0) {
+                $this->addError("batchIncomeLines.{$index}.amount", 'Debe ingresar un valor mayor a 0.');
+            }
+
+            if (empty($line['bank_id'])) {
+                $this->addError("batchIncomeLines.{$index}.bank_id", 'Debe seleccionar un banco.');
+            }
+
+            if (empty($line['bank_account_id'])) {
+                $this->addError("batchIncomeLines.{$index}.bank_account_id", 'Debe seleccionar una cuenta.');
+            }
+
+            if (!empty($line['bank_id']) && !empty($line['bank_account_id'])) {
+                $validAccount = \App\Models\BankAccount::where('id', $line['bank_account_id'])
+                    ->where('bank_id', $line['bank_id'])
+                    ->exists();
+
+                if (!$validAccount) {
+                    $this->addError("batchIncomeLines.{$index}.bank_account_id", 'La cuenta seleccionada no pertenece al banco elegido.');
+                }
+            }
+        }
+
+        if ($this->getErrorBag()->isNotEmpty()) {
+            return;
+        }
+
+        $warningMessages = [];
+
+        $budget = Budget::forSchool($this->schoolId)
+            ->forYear((int) $this->filterYear)
+            ->byType('income')
+            ->with(['budgetItem', 'fundingSource'])
+            ->where('funding_source_id', $this->funding_source_id)
+            ->first();
+
+        if ($budget) {
+            $selectedAmount = (float) $selectedLines->sum(fn ($line) => (float) $line['amount']);
+            $collected = Income::forSchool($this->schoolId)
+                ->where('funding_source_id', $this->funding_source_id)
+                ->whereYear('date', $this->filterYear)
+                ->sum('amount');
+
+            $pending = (float) $budget->current_amount - (float) $collected;
+
+            if ($selectedAmount > $pending && $pending >= 0) {
+                $warningMessages[] = ($budget->fundingSource?->name ?? 'la fuente seleccionada')
+                    . ' excede el presupuesto en $'
+                    . number_format($selectedAmount - $pending, 2, ',', '.');
+            } elseif ($pending < 0) {
+                $warningMessages[] = ($budget->fundingSource?->name ?? 'la fuente seleccionada')
+                    . ' ya tenía un exceso previo y seguirá pendiente una adición.';
+            }
+        }
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($selectedLines as $line) {
+                $income = Income::create([
+                    'school_id' => $this->schoolId,
+                    'funding_source_id' => $this->funding_source_id,
+                    'name' => $line['accounting_code'] . ' - ' . $line['label'],
+                    'description' => $this->batchDescription ?: null,
+                    'amount' => $line['amount'],
+                    'date' => $this->batchDate,
+                    'created_by' => auth()->id(),
+                ]);
+
+                IncomeBankAccount::create([
+                    'income_id' => $income->id,
+                    'bank_id' => $line['bank_id'],
+                    'bank_account_id' => $line['bank_account_id'],
+                    'amount' => $line['amount'],
+                ]);
+            }
+
+            DB::commit();
+
+            $message = 'Ingresos registrados exitosamente. Se crearon '
+                . $selectedLines->count()
+                . ' movimientos por $'
+                . number_format((float) $selectedLines->sum(fn ($line) => (float) $line['amount']), 2, ',', '.')
+                . '.';
+
+            if (!empty($warningMessages)) {
+                $message .= ' ⚠️ ' . implode(' ', $warningMessages);
+            }
+
+            $this->dispatch('toast', message: $message, type: 'success');
+            $this->closeBatchModal();
         } catch (\Exception $e) {
             DB::rollBack();
             $this->dispatch('toast', message: 'Error al guardar: ' . $e->getMessage(), type: 'error');
@@ -732,15 +935,8 @@ class IncomeManagement extends Component
         $this->additionReason = '';
     }
 
-    public function openMonthlyReceiptModal($budgetId)
+    public function openMonthlyReceiptModal()
     {
-        $budget = Budget::forSchool($this->schoolId)
-            ->with(['budgetItem', 'fundingSource'])
-            ->findOrFail($budgetId);
-
-        $this->monthlyReceiptBudgetId = $budgetId;
-        $this->monthlyReceiptBudgetText = trim(($budget->budgetItem->code ?? '') . ' - ' . ($budget->budgetItem->name ?? '')) .
-            ' / ' . trim(($budget->fundingSource->code ?? '') . ' - ' . ($budget->fundingSource->name ?? ''));
         $this->monthlyReceiptMonth = (string) now()->month;
         $this->showMonthlyReceiptModal = true;
     }
@@ -748,17 +944,11 @@ class IncomeManagement extends Component
     public function closeMonthlyReceiptModal()
     {
         $this->showMonthlyReceiptModal = false;
-        $this->monthlyReceiptBudgetId = null;
-        $this->monthlyReceiptBudgetText = '';
         $this->monthlyReceiptMonth = '';
     }
 
     public function printMonthlyReceipt()
     {
-        if (!$this->monthlyReceiptBudgetId) {
-            return;
-        }
-
         $this->validate([
             'monthlyReceiptMonth' => 'required|integer|min:1|max:12',
         ], [
@@ -768,23 +958,45 @@ class IncomeManagement extends Component
             'monthlyReceiptMonth.max' => 'Mes inválido.',
         ]);
 
-        $budget = Budget::forSchool($this->schoolId)->findOrFail($this->monthlyReceiptBudgetId);
-        $year = (int) ($budget->fiscal_year ?? $this->filterYear);
+        $year = (int) $this->filterYear;
+        $month = (int) $this->monthlyReceiptMonth;
 
-        $exists = Income::forSchool($this->schoolId)
-            ->where('funding_source_id', $budget->funding_source_id)
+        $incomes = Income::forSchool($this->schoolId)
             ->whereYear('date', $year)
-            ->whereMonth('date', (int) $this->monthlyReceiptMonth)
-            ->exists();
+            ->with([
+                'fundingSource.budgetItem',
+                'bankAccounts.bank',
+                'bankAccounts.bankAccount',
+            ])
+            ->orderBy('date')
+            ->get();
+
+        $exists = $incomes
+            ->filter(fn ($income) => (int) $income->date?->format('n') === $month)
+            ->isNotEmpty();
 
         if (!$exists) {
-            $this->dispatch('toast', message: 'No hay ingresos registrados para ese mes en este rubro.', type: 'info');
+            $this->dispatch('toast', message: 'No hay ingresos registrados para ese mes en la vigencia seleccionada.', type: 'info');
             return;
         }
 
-        $url = route('incomes.budget.month.pdf', [
-            'budgetId' => $this->monthlyReceiptBudgetId,
-            'month' => (int) $this->monthlyReceiptMonth,
+        $accountingAccounts = MonthlyIncomeReceiptBuilder::collectRelevantAccountingAccounts($incomes);
+
+        $builder = new MonthlyIncomeReceiptBuilder();
+        $errors = $builder->validate($incomes, $accountingAccounts, $year, $month);
+
+        if (!empty($errors)) {
+            $this->dispatch(
+                'toast',
+                message: implode(' | ', array_slice($errors, 0, 3)),
+                type: 'error'
+            );
+            return;
+        }
+
+        $url = route('incomes.monthly.pdf', [
+            'year' => $year,
+            'month' => $month,
         ]);
 
         $this->dispatch('openPdfWindow', url: $url);
@@ -939,12 +1151,41 @@ class IncomeManagement extends Component
         $this->resetValidation();
     }
 
+    public function resetBatchForm()
+    {
+        $this->budget_item_id = '';
+        $this->funding_source_id = '';
+        $this->fundingSources = [];
+        $this->selectedBudgetInfo = null;
+        $this->resetExceedsInfo();
+        $this->batchDate = date('Y-m-d');
+        $this->batchDescription = '';
+        $this->batchIncomeLines = [];
+        $this->batchLineAccounts = [];
+        $this->resetValidation();
+    }
+
     public function resetFilters()
     {
         $this->reset(['search', 'filterSource', 'filterBudgetItem', 'filterStatus']);
         $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
         $this->resetPage();
         $this->loadBudgetItems();
+        if ($this->showBatchModal) {
+            $this->prepareBatchIncomeLines();
+        }
+    }
+
+    public function getBatchSelectedCountProperty()
+    {
+        return collect($this->batchIncomeLines)->where('selected', true)->count();
+    }
+
+    public function getBatchSelectedTotalProperty()
+    {
+        return (float) collect($this->batchIncomeLines)
+            ->where('selected', true)
+            ->sum(fn ($line) => (float) ($line['amount'] ?? 0));
     }
 
     #[Layout('layouts.app')]

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Comprobante de Ingreso No. {{ $receiptNumber }}</title>
+    <title>Comprobante de Ingreso No. {{ $receipt['receipt_number'] }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 10px; color: #222; }
@@ -30,6 +30,7 @@
         .data-table tfoot td { font-weight: bold; background: #f0f0f0; border: 1px solid #999; font-size: 10px; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
+        .muted { color: #666; font-size: 8px; }
         .acct-table { width: 100%; border-collapse: collapse; }
         .acct-table th { background: #f0f0f0; font-size: 9px; text-transform: uppercase; padding: 5px 8px; border: 1px solid #999; text-align: center; font-weight: bold; }
         .acct-table td { padding: 4px 8px; border: 1px solid #ccc; font-size: 10px; }
@@ -71,7 +72,7 @@
             </div>
             <div class="header-right">
                 <div class="receipt-title">Comprobante de Ingreso No.</div>
-                <div class="receipt-number">{{ $receiptNumber }}</div>
+                <div class="receipt-number">{{ $receipt['receipt_number'] }}</div>
             </div>
         </div>
 
@@ -80,10 +81,10 @@
                 <span class="info-label">Ciudad y Fecha:</span>
             </div>
             <div class="info-cell" style="width: 50%;">
-                <span class="info-value">{{ $school->municipality ?? 'N/A' }} &nbsp;&nbsp; {{ $periodEnd->format('d/m/Y') }}</span>
+                <span class="info-value">{{ $school->municipality ?? 'N/A' }} &nbsp;&nbsp; {{ $receipt['period_end']->format('d/m/Y') }}</span>
             </div>
             <div class="info-cell info-cell-border amount-big" style="width: 35%;">
-                ${{ number_format($totalCollected, 2, ',', '.') }}
+                ${{ number_format($receipt['total_collected'], 2, ',', '.') }}
             </div>
         </div>
 
@@ -91,26 +92,14 @@
             <div class="info-cell" style="width: 15%;">
                 <span class="info-label">Mes:</span>
             </div>
-            <div class="info-cell" style="width: 85%;">
-                <span class="info-value">{{ $periodLabel }}</span>
+            <div class="info-cell" style="width: 35%;">
+                <span class="info-value">{{ $receipt['period_label'] }}</span>
             </div>
-        </div>
-
-        <div class="info-row">
-            <div class="info-cell" style="width: 15%;">
-                <span class="info-label">Rubro:</span>
+            <div class="info-cell info-cell-border" style="width: 15%;">
+                <span class="info-label">Vigencia:</span>
             </div>
-            <div class="info-cell" style="width: 85%;">
-                <span class="info-value">{{ $budget->budgetItem->code ?? '' }} — {{ $budget->budgetItem->name ?? '' }}</span>
-            </div>
-        </div>
-
-        <div class="info-row">
-            <div class="info-cell" style="width: 15%;">
-                <span class="info-label">Fuente:</span>
-            </div>
-            <div class="info-cell" style="width: 85%;">
-                <span class="info-value">{{ $budget->fundingSource->code ?? '' }} — {{ $budget->fundingSource->name ?? '' }}</span>
+            <div class="info-cell" style="width: 35%;">
+                <span class="info-value">{{ $receipt['year'] }}</span>
             </div>
         </div>
 
@@ -119,7 +108,7 @@
                 <span class="info-label">Recibido de:</span>
             </div>
             <div class="info-cell" style="width: 85%;">
-                <span class="info-value">{{ $budget->fundingSource->name ?? 'N/A' }}</span>
+                <span class="info-value">Consolidado mensual de ingresos del mes {{ $receipt['period_label'] }}</span>
             </div>
         </div>
 
@@ -128,16 +117,16 @@
                 <span class="info-label">Por concepto de:</span>
             </div>
             <div class="info-cell" style="width: 82%;">
-                <span class="info-value">Recaudo mensual ({{ $periodLabel }})</span>
+                <span class="info-value">Recaudo consolidado de {{ $receipt['movement_count'] }} movimientos del periodo, agrupado por rubro, fuente y codigo contable.</span>
             </div>
         </div>
 
-        @foreach($debitAccounts as $entry)
+        @foreach($receipt['debit_entries'] as $entry)
         <div class="info-row">
             <div class="info-cell" style="width: 100%; padding-left: 30px;">
                 <span class="info-value" style="font-size: 9px;">
-                    {{ $entry['bank_name'] ?? '' }} - {{ $entry['account_type_name'] ?? '' }} {{ $entry['account_number'] ?? '' }}
-                    &nbsp; ${{ number_format((float)($entry['amount'] ?? 0), 2, ',', '.') }}
+                    {{ $entry['bank_name'] ?: 'Cuenta bancaria' }} - {{ $entry['account_type_name'] ?: 'Tipo no definido' }} {{ $entry['account_number'] }}
+                    &nbsp; ${{ number_format((float) ($entry['amount'] ?? 0), 2, ',', '.') }}
                 </span>
             </div>
         </div>
@@ -148,80 +137,114 @@
                 <span class="info-label">La suma de (en letras):</span>
             </div>
             <div class="info-cell" style="width: 78%;">
-                <span class="info-value" style="text-transform: uppercase;">{{ $amountInWords }}</span>
+                <span class="info-value" style="text-transform: uppercase;">{{ $receipt['amount_in_words'] }}</span>
             </div>
         </div>
 
-        <div class="section-title">Detalle de Movimientos ({{ $incomes->count() }})</div>
+        <div class="section-title">Detalle Consolidado por Rubro, Fuente y Codigo</div>
 
-        @if($incomes->count() > 0)
         <table class="data-table">
             <thead>
                 <tr>
-                    <th style="width: 4%;">#</th>
-                    <th style="width: 10%;">Fecha</th>
-                    <th style="width: 38%;">Concepto</th>
-                    <th style="width: 30%;">Banco / Cuenta</th>
-                    <th style="width: 18%;" class="text-right">Monto</th>
+                    <th style="width: 18%;">Rubro</th>
+                    <th style="width: 20%;">Fuente</th>
+                    <th style="width: 10%;">Codigo</th>
+                    <th style="width: 32%;">Conceptos</th>
+                    <th style="width: 8%;" class="text-center">Mov.</th>
+                    <th style="width: 12%;" class="text-right">Monto</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach($incomes as $i => $income)
+                @foreach($receipt['detail_groups'] as $group)
                 <tr>
-                    <td class="text-center">{{ $i + 1 }}</td>
-                    <td>{{ $income->date->format('d/m/Y') }}</td>
                     <td>
-                        {{ $income->name }}
-                        @if($income->description)
-                            <br><span style="color: #888; font-size: 7px;">{{ \Illuminate\Support\Str::limit($income->description, 60) }}</span>
-                        @endif
+                        {{ $group['budget_item_code'] ?? 'N/A' }}<br>
+                        <span class="muted">{{ $group['budget_item_name'] ?? 'Sin rubro' }}</span>
                     </td>
                     <td>
-                        @foreach($income->bankAccounts as $ba)
-                            <div {{ !$loop->first ? 'style=margin-top:2px;border-top:1px solid #eee;padding-top:2px;' : '' }}>
-                                {{ $ba->bank->name ?? '' }}<br>
-                                <span style="color: #666; font-size: 8px;">{{ $ba->bankAccount->account_type_name ?? '' }} {{ $ba->bankAccount->account_number ?? '' }}</span>
-                                @if($income->bankAccounts->count() > 1)
-                                    <span style="color: #16a34a; font-weight: bold;"> ${{ number_format($ba->amount, 0, ',', '.') }}</span>
-                                @endif
-                            </div>
-                        @endforeach
+                        {{ $group['funding_source_code'] ?? 'N/A' }}<br>
+                        <span class="muted">{{ $group['funding_source_name'] ?? 'Sin fuente' }}</span>
                     </td>
-                    <td class="text-right" style="font-weight: bold; color: #16a34a;">
-                        ${{ number_format((float) $income->amount, 2, ',', '.') }}
+                    <td class="text-center">{{ $group['accounting_code'] ?? 'N/A' }}</td>
+                    <td>
+                        {{ implode(', ', $group['concepts']) }}
                     </td>
+                    <td class="text-center">{{ $group['movement_count'] }}</td>
+                    <td class="text-right">${{ number_format((float) $group['amount'], 2, ',', '.') }}</td>
                 </tr>
                 @endforeach
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="4" class="text-right">TOTAL RECAUDADO:</td>
-                    <td class="text-right" style="font-size: 11px; color: #16a34a;">${{ number_format($totalCollected, 2, ',', '.') }}</td>
+                    <td colspan="5" class="text-right">TOTAL CONSOLIDADO:</td>
+                    <td class="text-right">${{ number_format($receipt['total_collected'], 2, ',', '.') }}</td>
                 </tr>
             </tfoot>
         </table>
-        @else
-            <div style="text-align: center; padding: 18px; color: #999;">No se han registrado ingresos para este mes.</div>
-        @endif
 
-        <div class="section-title">Imputación Contable</div>
+        <div class="section-title">Detalle de Movimientos ({{ $receipt['movement_count'] }})</div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 4%;">#</th>
+                    <th style="width: 10%;">Fecha</th>
+                    <th style="width: 18%;">Rubro / Fuente</th>
+                    <th style="width: 28%;">Concepto</th>
+                    <th style="width: 24%;">Banco / Cuenta</th>
+                    <th style="width: 16%;" class="text-right">Monto</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($receipt['incomes'] as $i => $income)
+                <tr>
+                    <td class="text-center">{{ $i + 1 }}</td>
+                    <td>{{ $income->date->format('d/m/Y') }}</td>
+                    <td>
+                        {{ $income->fundingSource->budgetItem->code ?? 'N/A' }} / {{ $income->fundingSource->code ?? 'N/A' }}<br>
+                        <span class="muted">{{ $income->fundingSource->name ?? 'Sin fuente' }}</span>
+                    </td>
+                    <td>
+                        {{ $income->name }}
+                        @if($income->description)
+                            <br><span class="muted">{{ \Illuminate\Support\Str::limit($income->description, 60) }}</span>
+                        @endif
+                    </td>
+                    <td>
+                        @foreach($income->bankAccounts as $bankAccount)
+                            <div {!! !$loop->first ? 'style="margin-top:2px;border-top:1px solid #eee;padding-top:2px;"' : '' !!}>
+                                {{ $bankAccount->bank->name ?? '' }}<br>
+                                <span class="muted">{{ $bankAccount->bankAccount->account_type_name ?? '' }} {{ $bankAccount->bankAccount->account_number ?? '' }}</span>
+                                @if($income->bankAccounts->count() > 1)
+                                    <span class="muted"> ${{ number_format((float) $bankAccount->amount, 2, ',', '.') }}</span>
+                                @endif
+                            </div>
+                        @endforeach
+                    </td>
+                    <td class="text-right">${{ number_format((float) $income->amount, 2, ',', '.') }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        <div class="section-title">Imputacion Contable</div>
 
         <table class="acct-table">
             <thead>
                 <tr>
-                    <th class="code-col">Código</th>
-                    <th class="name-col">Denominación</th>
-                    <th class="debit-col">Débitos</th>
-                    <th class="credit-col">Créditos</th>
+                    <th class="code-col">Codigo</th>
+                    <th class="name-col">Denominacion</th>
+                    <th class="debit-col">Debitos</th>
+                    <th class="credit-col">Creditos</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach($debitAccounts as $entry)
-                    @foreach($entry['hierarchy'] as $acct)
+                @foreach($receipt['debit_entries'] as $entry)
+                    @foreach($entry['hierarchy'] as $account)
                     <tr>
-                        <td class="code-col">{{ $acct['code'] }}</td>
-                        <td class="name-col level-{{ $acct['level'] }}">{{ $acct['name'] }}</td>
-                        <td class="debit-col">@if($acct['show_amount'])${{ number_format((float) $entry['amount'], 2, ',', '.') }}@endif</td>
+                        <td class="code-col">{{ $account['code'] }}</td>
+                        <td class="name-col level-{{ $account['level'] }}">{{ $account['name'] }}</td>
+                        <td class="debit-col">@if($account['show_amount'])${{ number_format((float) $entry['amount'], 2, ',', '.') }}@endif</td>
                         <td class="credit-col"></td>
                     </tr>
                     @endforeach
@@ -231,20 +254,22 @@
                     <td colspan="4" style="padding: 2px;">&nbsp;</td>
                 </tr>
 
-                @foreach($creditHierarchy as $acct)
-                <tr>
-                    <td class="code-col">{{ $acct['code'] }}</td>
-                    <td class="name-col level-{{ $acct['level'] }}">{{ $acct['name'] }}</td>
-                    <td class="debit-col"></td>
-                    <td class="credit-col">@if($acct['show_amount'])${{ number_format($totalCollected, 2, ',', '.') }}@endif</td>
-                </tr>
+                @foreach($receipt['credit_entries'] as $entry)
+                    @foreach($entry['hierarchy'] as $account)
+                    <tr>
+                        <td class="code-col">{{ $account['code'] }}</td>
+                        <td class="name-col level-{{ $account['level'] }}">{{ $account['name'] }}</td>
+                        <td class="debit-col"></td>
+                        <td class="credit-col">@if($account['show_amount'])${{ number_format((float) $entry['amount'], 2, ',', '.') }}@endif</td>
+                    </tr>
+                    @endforeach
                 @endforeach
             </tbody>
             <tfoot>
                 <tr>
                     <td colspan="2" style="text-align: right; padding-right: 15px;">TOTALES:</td>
-                    <td class="debit-col">${{ number_format($totalCollected, 2, ',', '.') }}</td>
-                    <td class="credit-col">${{ number_format($totalCollected, 2, ',', '.') }}</td>
+                    <td class="debit-col">${{ number_format($receipt['total_collected'], 2, ',', '.') }}</td>
+                    <td class="credit-col">${{ number_format($receipt['total_collected'], 2, ',', '.') }}</td>
                 </tr>
             </tfoot>
         </table>

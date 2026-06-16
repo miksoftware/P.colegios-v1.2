@@ -214,7 +214,11 @@ class PaymentReportManagement extends Component
             $bankAccountInfo = $bankAccountParts->unique()->implode(' / ');
 
             // Concepto de retención a nivel de orden de pago (fallback para casos sin expense lines)
-            $poRetentionName = PaymentOrder::RETENTION_CONCEPTS[$po->retention_concept] ?? ($po->retention_concept ?? '');
+            $poRetentionName = PaymentOrder::resolveRetentionConceptName(
+                $po->retention_concept,
+                $po->school_id,
+                $po->fiscal_year
+            );
 
             // Datos comunes a todas las filas que se generen para este PO
             $baseData = [
@@ -295,7 +299,11 @@ class PaymentReportManagement extends Component
                         'subtotal'               => (float) $line->subtotal,
                         'iva'                    => (float) $line->iva,
                         'total'                  => $lineTotal,
-                        'retention_concept_name' => PaymentOrder::RETENTION_CONCEPTS[$line->retention_concept] ?? ($line->retention_concept ?? ''),
+                        'retention_concept_name' => PaymentOrder::resolveRetentionConceptName(
+                            $line->retention_concept,
+                            $po->school_id,
+                            $po->fiscal_year
+                        ),
                         'retefuente'             => (float) $line->retefuente,
                         'reteiva'                => (float) $line->reteiva,
                         'estampillas'            => (float) $line->estampilla_produlto_mayor + (float) $line->estampilla_procultura,

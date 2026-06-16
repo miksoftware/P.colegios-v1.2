@@ -27,6 +27,8 @@ class RetentionConfigManagement extends Component
     public $configId = null;
     public $fiscal_year;
     public $concept = '';
+    public $createCustomConcept = false;
+    public $customConceptName = '';
     public $display_name = '';
     public $category = 'retefuente';
     public $rate_not_declares = 0;
@@ -69,7 +71,8 @@ class RetentionConfigManagement extends Component
 
         $rules = [
             'fiscal_year'     => 'required|integer|min:2020|max:2100',
-            'concept'         => ['required', 'string', 'max:50', $uniqueRule],
+            'concept'         => ['required', 'string', 'max:50', 'regex:/^[a-z0-9_]+$/', $uniqueRule],
+            'customConceptName' => $this->createCustomConcept ? 'required|string|max:150' : 'nullable|string|max:150',
             'display_name'    => 'required|string|max:150',
             'category'        => 'required|in:retefuente,reteiva,estampilla,ica',
             'min_base'        => 'required|numeric|min:0',
@@ -94,7 +97,9 @@ class RetentionConfigManagement extends Component
     protected $messages = [
         'fiscal_year.required'       => 'La vigencia es obligatoria.',
         'concept.required'           => 'El concepto es obligatorio.',
+        'concept.regex'              => 'El código del concepto solo puede contener letras minúsculas, números y guiones bajos.',
         'concept.unique'             => 'Ya existe una configuración con este concepto para el colegio y vigencia.',
+        'customConceptName.required' => 'Debes indicar el nombre del nuevo concepto.',
         'display_name.required'      => 'El nombre para mostrar es obligatorio.',
         'category.required'          => 'La categoría es obligatoria.',
         'rate_not_declares.required' => 'La tarifa (no declara) es obligatoria para retefuente.',
@@ -127,10 +132,46 @@ class RetentionConfigManagement extends Component
 
     public function updatedConcept($value)
     {
-        if (isset(RetentionConfig::CONCEPTS[$value])) {
-            $def = RetentionConfig::CONCEPTS[$value];
+        $definition = RetentionConfig::getConceptDefinition(
+            $value,
+            (int) $this->schoolId,
+            $this->fiscal_year ? (int) $this->fiscal_year : null
+        );
+
+        if ($definition) {
+            $def = $definition;
             $this->display_name = $def['display_name'];
             $this->category     = $def['category'];
+        }
+    }
+
+    public function updatedCreateCustomConcept($value)
+    {
+        if ($this->isEditing) {
+            $this->createCustomConcept = false;
+            return;
+        }
+
+        if ($value) {
+            $this->concept = '';
+            $this->customConceptName = '';
+        } else {
+            $this->concept = '';
+        }
+
+        $this->resetValidation(['concept', 'customConceptName']);
+    }
+
+    public function updatedCustomConceptName($value)
+    {
+        if (!$this->createCustomConcept || $this->isEditing) {
+            return;
+        }
+
+        $this->concept = RetentionConfig::normalizeConceptKey($value);
+
+        if (trim((string) $this->display_name) === '') {
+            $this->display_name = trim((string) $value);
         }
     }
 
@@ -184,15 +225,17 @@ class RetentionConfigManagement extends Component
         }
 
         $options = [];
-        foreach (RetentionConfig::CONCEPTS as $key => $def) {
-            if (in_array($key, $taken)) {
+        foreach (RetentionConfig::getConceptCatalog((int) $this->schoolId) as $definition) {
+            if (in_array($definition['concept'], $taken, true)) {
                 continue;
             }
             $options[] = [
-                'id'   => $key,
-                'name' => $def['display_name'] . ' (' . RetentionConfig::CATEGORIES[$def['category']] . ')',
+                'id' => $definition['concept'],
+                'name' => $definition['display_name'] . ' (' . RetentionConfig::CATEGORIES[$definition['category']] . ')',
+                'is_predefined' => (bool) ($definition['is_predefined'] ?? false),
             ];
         }
+
         return $options;
     }
 
@@ -247,6 +290,12 @@ class RetentionConfigManagement extends Component
             return;
         }
 
+        if ($this->createCustomConcept && !$this->isEditing) {
+            $this->customConceptName = trim((string) $this->customConceptName);
+            $this->display_name = trim((string) ($this->display_name ?: $this->customConceptName));
+            $this->concept = RetentionConfig::normalizeConceptKey($this->customConceptName);
+        }
+
         $this->validate();
 
         $data = [
@@ -273,6 +322,7 @@ class RetentionConfigManagement extends Component
             $this->dispatch('toast', message: 'Configuración creada exitosamente.', type: 'success');
         }
 
+        RetentionConfig::flushConceptCatalogCache();
         $this->closeModal();
     }
 
@@ -297,6 +347,7 @@ class RetentionConfigManagement extends Component
             $name = $this->configToDelete->display_name;
             $year = $this->configToDelete->fiscal_year;
             $this->configToDelete->delete();
+            RetentionConfig::flushConceptCatalogCache();
             $this->dispatch('toast', message: "Configuración '{$name}' ({$year}) eliminada.", type: 'success');
         }
 
@@ -383,6 +434,7 @@ class RetentionConfigManagement extends Component
             $copied++;
         }
 
+        RetentionConfig::flushConceptCatalogCache();
         $this->dispatch(
             'toast',
             message: "Copiadas {$copied} configuración(es) a la vigencia {$this->copyToYear}." . ($skipped > 0 ? " ({$skipped} ya existían y se omitieron)" : ''),
@@ -490,6 +542,7 @@ class RetentionConfigManagement extends Component
             }
         }
 
+        RetentionConfig::flushConceptCatalogCache();
         $this->dispatch(
             'toast',
             message: "Copiadas {$copied} configuración(es) a " . count($this->copySchoolIds) . " colegio(s)." . ($skipped > 0 ? " ({$skipped} ya existían y se omitieron)" : ''),
@@ -524,6 +577,8 @@ class RetentionConfigManagement extends Component
         $this->configId          = null;
         $this->fiscal_year       = (int) now()->year;
         $this->concept           = '';
+        $this->createCustomConcept = false;
+        $this->customConceptName = '';
         $this->display_name      = '';
         $this->category          = 'retefuente';
         $this->rate_not_declares = 0;

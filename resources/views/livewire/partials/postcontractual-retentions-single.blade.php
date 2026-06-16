@@ -11,9 +11,9 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">Concepto de Retención</label>
             <select wire:model.live="retentionConcept" class="w-full rounded-xl border-gray-300 focus:border-emerald-500 focus:ring-emerald-500">
                 <option value="">-- Sin retención --</option>
-                @foreach(\App\Models\RetentionConfig::CONCEPTS as $key => $def)
-                    @if($def['category'] === 'retefuente')
-                        <option value="{{ $key }}">{{ $def['display_name'] }}</option>
+                @foreach($this->retefuenteConceptOptions as $config)
+                    @if($config->is_active)
+                        <option value="{{ $config->concept }}">{{ $config->display_name }}</option>
                     @endif
                 @endforeach
             </select>

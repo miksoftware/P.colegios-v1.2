@@ -86,7 +86,11 @@ class ContraloriaSuppliersPaymentsReport extends Component
             // ── Tipo de Pago ────────────────────────────────────────
             // Basado en el concepto de retención (uppercased)
             $tipoPago = $po->retention_concept
-                ? strtoupper(PaymentOrder::RETENTION_CONCEPTS[$po->retention_concept] ?? $po->retention_concept)
+                ? strtoupper(PaymentOrder::resolveRetentionConceptName(
+                    $po->retention_concept,
+                    $po->school_id,
+                    $po->fiscal_year
+                ))
                 : 'N/D';
 
             // ── Beneficiario y NIT ──────────────────────────────────

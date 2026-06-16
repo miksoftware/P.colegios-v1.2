@@ -237,7 +237,11 @@ class PaymentOrder extends Model
 
     public function getRetentionConceptNameAttribute(): string
     {
-        return self::RETENTION_CONCEPTS[$this->retention_concept] ?? $this->retention_concept ?? 'Sin retención';
+        return static::resolveRetentionConceptName(
+            $this->retention_concept,
+            $this->school_id,
+            $this->fiscal_year
+        );
     }
 
     public function getPaymentTypeNameAttribute(): string
@@ -320,6 +324,16 @@ class PaymentOrder extends Model
         $next = ($max ?? 0) + 1;
 
         return 'FAC-' . str_pad($next, 3, '0', STR_PAD_LEFT);
+    }
+
+    public static function resolveRetentionConceptName(?string $concept, ?int $schoolId = null, ?int $fiscalYear = null): string
+    {
+        return RetentionConfig::getConceptDisplayName(
+            $concept,
+            $schoolId,
+            $fiscalYear,
+            self::RETENTION_CONCEPTS[$concept] ?? $concept ?? 'Sin retencion'
+        );
     }
 
     /**

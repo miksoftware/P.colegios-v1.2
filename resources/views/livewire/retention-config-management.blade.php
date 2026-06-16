@@ -255,19 +255,39 @@
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    Concepto <span class="text-red-500">*</span>
-                                </label>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-sm font-medium text-gray-700">
+                                        Concepto <span class="text-red-500">*</span>
+                                    </label>
+                                    @if(!$isEditing)
+                                        <button type="button"
+                                            wire:click="$toggle('createCustomConcept')"
+                                            class="text-xs font-medium {{ $createCustomConcept ? 'text-blue-700' : 'text-gray-500 hover:text-blue-700' }}">
+                                            {{ $createCustomConcept ? 'Usar concepto sugerido' : 'Crear concepto nuevo' }}
+                                        </button>
+                                    @endif
+                                </div>
                                 @if($isEditing)
                                     <input type="text" value="{{ $concept }}" readonly
                                         class="w-full rounded-xl border-gray-300 bg-gray-100 font-mono text-sm">
                                 @else
-                                    <select wire:model.live="concept" class="w-full rounded-xl border-gray-300">
-                                        <option value="">Seleccionar concepto...</option>
-                                        @foreach($this->availableConcepts as $opt)
-                                            <option value="{{ $opt['id'] }}">{{ $opt['name'] }}</option>
-                                        @endforeach
-                                    </select>
+                                    @if($createCustomConcept)
+                                        <input type="text" wire:model.live.debounce.300ms="customConceptName"
+                                            class="w-full rounded-xl border-gray-300"
+                                            placeholder="Ej: Retefuente Comisiones">
+                                        <p class="mt-1 text-xs text-gray-500">
+                                            Código interno: <span class="font-mono">{{ $concept ?: 'se generará automáticamente' }}</span>
+                                        </p>
+                                        @error('customConceptName') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                                    @else
+                                        <select wire:model.live="concept" class="w-full rounded-xl border-gray-300">
+                                            <option value="">Seleccionar concepto...</option>
+                                            @foreach($this->availableConcepts as $opt)
+                                                <option value="{{ $opt['id'] }}">{{ $opt['name'] }}</option>
+                                            @endforeach
+                                        </select>
+                                        <p class="mt-1 text-xs text-gray-500">Incluye los conceptos base del sistema y los que ya se hayan configurado previamente.</p>
+                                    @endif
                                 @endif
                                 @error('concept') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>

@@ -5,10 +5,14 @@ namespace App\Models;
 use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class RetentionConfig extends Model
 {
     use LogsActivity;
+
+    protected static array $conceptCatalogCache = [];
 
     protected $fillable = [
         'school_id',
@@ -37,7 +41,7 @@ class RetentionConfig extends Model
     // ── Constants ─────────────────────────────────────────────
 
     /**
-     * Conceptos soportados por el sistema.
+     * Conceptos base sugeridos por el sistema.
      * [concept => ['display_name', 'category']]
      */
     const CONCEPTS = [
@@ -132,7 +136,12 @@ class RetentionConfig extends Model
 
     public function getConceptNameAttribute(): string
     {
-        return self::CONCEPTS[$this->concept]['display_name'] ?? $this->display_name ?? $this->concept;
+        return static::getConceptDisplayName(
+            $this->concept,
+            $this->school_id,
+            $this->fiscal_year,
+            $this->display_name
+        );
     }
 
     public function getCategoryNameAttribute(): string
@@ -243,5 +252,98 @@ class RetentionConfig extends Model
     public static function meetsThreshold(int $schoolId, int $fiscalYear, string $concept, float $subtotal): bool
     {
         return $subtotal >= static::getMinBase($schoolId, $fiscalYear, $concept);
+    }
+
+    public static function flushConceptCatalogCache(): void
+    {
+        static::$conceptCatalogCache = [];
+    }
+
+    public static function normalizeConceptKey(?string $value): string
+    {
+        $normalized = Str::of((string) $value)
+            ->trim()
+            ->lower()
+            ->ascii()
+            ->replaceMatches('/[^a-z0-9]+/', '_')
+            ->trim('_')
+            ->value();
+
+        return substr($normalized, 0, 50);
+    }
+
+    public static function getConceptCatalog(?int $schoolId = null, ?int $fiscalYear = null): Collection
+    {
+        $cacheKey = implode(':', [$schoolId ?? 'all', $fiscalYear ?? 'all']);
+
+        if (isset(static::$conceptCatalogCache[$cacheKey])) {
+            return collect(static::$conceptCatalogCache[$cacheKey]);
+        }
+
+        $defaults = collect(static::CONCEPTS)
+            ->map(fn(array $definition, string $concept) => [
+                'concept' => $concept,
+                'display_name' => $definition['display_name'],
+                'category' => $definition['category'],
+                'is_predefined' => true,
+            ])
+            ->keyBy('concept');
+
+        $databaseConcepts = static::query()
+            ->select('concept', 'display_name', 'category', 'fiscal_year', 'id')
+            ->when($schoolId, fn($query) => $query->where('school_id', $schoolId))
+            ->when($fiscalYear, fn($query) => $query->where('fiscal_year', $fiscalYear))
+            ->orderByDesc('fiscal_year')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('concept')
+            ->map(fn(self $config) => [
+                'concept' => $config->concept,
+                'display_name' => $config->display_name,
+                'category' => $config->category,
+                'is_predefined' => isset(static::CONCEPTS[$config->concept]),
+            ])
+            ->keyBy('concept');
+
+        $catalog = $defaults
+            ->merge($databaseConcepts)
+            ->sortBy(fn(array $item) => ($item['category'] ?? '') . '|' . ($item['display_name'] ?? '') . '|' . ($item['concept'] ?? ''))
+            ->values();
+
+        static::$conceptCatalogCache[$cacheKey] = $catalog->all();
+
+        return $catalog;
+    }
+
+    public static function getConceptDefinition(string $concept, ?int $schoolId = null, ?int $fiscalYear = null): ?array
+    {
+        $scopes = [
+            [$schoolId, $fiscalYear],
+            [$schoolId, null],
+            [null, $fiscalYear],
+            [null, null],
+        ];
+
+        foreach ($scopes as [$scopeSchoolId, $scopeFiscalYear]) {
+            $definition = static::getConceptCatalog($scopeSchoolId, $scopeFiscalYear)
+                ->firstWhere('concept', $concept);
+
+            if ($definition) {
+                return $definition;
+            }
+        }
+
+        return null;
+    }
+
+    public static function getConceptDisplayName(?string $concept, ?int $schoolId = null, ?int $fiscalYear = null, ?string $fallback = null): string
+    {
+        if (!$concept) {
+            return $fallback ?: 'Sin retencion';
+        }
+
+        $definition = static::getConceptDefinition($concept, $schoolId, $fiscalYear);
+
+        return $definition['display_name'] ?? $fallback ?? $concept;
     }
 }

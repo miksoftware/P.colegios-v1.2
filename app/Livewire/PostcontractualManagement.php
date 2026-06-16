@@ -203,6 +203,14 @@ class PostcontractualManagement extends Component
             ->keyBy('concept');
     }
 
+    public function getRetefuenteConceptOptionsProperty()
+    {
+        return $this->retentionConfigs
+            ->filter(fn($config) => $config->category === 'retefuente')
+            ->sortBy('display_name')
+            ->values();
+    }
+
     public function getPaymentOrdersProperty()
     {
         return PaymentOrder::with(['contract.supplier', 'supplier', 'creator'])

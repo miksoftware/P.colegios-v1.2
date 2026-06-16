@@ -17,6 +17,7 @@ class Contract extends Model
         'contract_number',
         'fiscal_year',
         'contracting_modality',
+        'is_service_contract',
         'execution_place',
         'start_date',
         'end_date',
@@ -57,6 +58,7 @@ class Contract extends Model
         'total' => 'decimal:2',
         'original_total' => 'decimal:2',
         'addition_amount' => 'decimal:2',
+        'is_service_contract' => 'boolean',
     ];
 
     // ── Constants ─────────────────────────────────────────────

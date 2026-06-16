@@ -27,6 +27,7 @@ class RetentionConfig extends Model
         'accounting_code',
         'is_active',
         'notes',
+        'applicability_rules',
     ];
 
     protected $casts = [
@@ -36,6 +37,7 @@ class RetentionConfig extends Model
         'rate' => 'decimal:2',
         'min_base' => 'decimal:2',
         'is_active' => 'boolean',
+        'applicability_rules' => 'array',
     ];
 
     // ── Constants ─────────────────────────────────────────────
@@ -113,6 +115,23 @@ class RetentionConfig extends Model
         'ica'        => 'bg-purple-100 text-purple-700',
     ];
 
+    const APPLICABILITY_PERSON_TYPES = [
+        'natural' => 'Persona Natural',
+        'juridica' => 'Persona Juridica',
+    ];
+
+    const APPLICABILITY_PAYMENT_TYPES = [
+        'contract' => 'Con Contrato',
+        'direct' => 'Pago Directo',
+        'accounts_payable' => 'Cuentas por Pagar',
+    ];
+
+    const SERVICE_CONTRACT_MODES = [
+        'any' => 'Cualquier contrato',
+        'only_service' => 'Solo prestacion de servicios',
+        'except_service' => 'Excepto prestacion de servicios',
+    ];
+
     // ── Activity Log ──────────────────────────────────────────
 
     protected static function getActivityModule(): string
@@ -157,6 +176,11 @@ class RetentionConfig extends Model
     public function getIsRetefuenteAttribute(): bool
     {
         return $this->category === 'retefuente';
+    }
+
+    public function getNormalizedApplicabilityRulesAttribute(): array
+    {
+        return static::normalizeApplicabilityRules($this->applicability_rules);
     }
 
     // ── Scopes ────────────────────────────────────────────────
@@ -345,5 +369,77 @@ class RetentionConfig extends Model
         $definition = static::getConceptDefinition($concept, $schoolId, $fiscalYear);
 
         return $definition['display_name'] ?? $fallback ?? $concept;
+    }
+
+    public static function normalizeApplicabilityRules($rules): array
+    {
+        $rules = is_array($rules) ? $rules : [];
+        $excludeRules = is_array($rules['exclude_rules'] ?? null) ? $rules['exclude_rules'] : [];
+
+        $normalized = [];
+
+        foreach ($excludeRules as $rule) {
+            if (!is_array($rule)) {
+                continue;
+            }
+
+            $personTypes = array_values(array_intersect(
+                array_keys(static::APPLICABILITY_PERSON_TYPES),
+                array_filter((array) ($rule['person_types'] ?? []))
+            ));
+
+            $paymentTypes = array_values(array_intersect(
+                array_keys(static::APPLICABILITY_PAYMENT_TYPES),
+                array_filter((array) ($rule['payment_types'] ?? []))
+            ));
+
+            $serviceContractMode = $rule['service_contract_mode'] ?? 'any';
+            if (!array_key_exists($serviceContractMode, static::SERVICE_CONTRACT_MODES)) {
+                $serviceContractMode = 'any';
+            }
+
+            if (empty($personTypes) && empty($paymentTypes) && $serviceContractMode === 'any') {
+                continue;
+            }
+
+            $normalized[] = [
+                'person_types' => $personTypes,
+                'payment_types' => $paymentTypes,
+                'service_contract_mode' => $serviceContractMode,
+            ];
+        }
+
+        return ['exclude_rules' => $normalized];
+    }
+
+    public function appliesToContext(array $context = []): bool
+    {
+        foreach (($this->normalized_applicability_rules['exclude_rules'] ?? []) as $rule) {
+            if ($this->ruleMatchesContext($rule, $context)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    protected function ruleMatchesContext(array $rule, array $context): bool
+    {
+        $personType = $context['person_type'] ?? null;
+        if (!empty($rule['person_types']) && !in_array($personType, $rule['person_types'], true)) {
+            return false;
+        }
+
+        $paymentType = $context['payment_type'] ?? null;
+        if (!empty($rule['payment_types']) && !in_array($paymentType, $rule['payment_types'], true)) {
+            return false;
+        }
+
+        $isServiceContract = (bool) ($context['is_service_contract'] ?? false);
+        return match ($rule['service_contract_mode'] ?? 'any') {
+            'only_service' => $isServiceContract,
+            'except_service' => !$isServiceContract,
+            default => true,
+        };
     }
 }

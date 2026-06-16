@@ -38,6 +38,7 @@ class RetentionConfigManagement extends Component
     public $accounting_code = '';
     public $is_active = true;
     public $notes = '';
+    public $applicabilityRules = [];
 
     // Eliminación
     public $showDeleteModal = false;
@@ -79,6 +80,10 @@ class RetentionConfigManagement extends Component
             'accounting_code' => 'nullable|string|max:150',
             'is_active'       => 'boolean',
             'notes'           => 'nullable|string',
+            'applicabilityRules' => 'array',
+            'applicabilityRules.*.person_types' => 'array',
+            'applicabilityRules.*.payment_types' => 'array',
+            'applicabilityRules.*.service_contract_mode' => 'required|in:any,only_service,except_service',
         ];
 
         if ($this->category === 'retefuente') {
@@ -244,6 +249,21 @@ class RetentionConfigManagement extends Component
         return School::orderBy('name')->get();
     }
 
+    public function addApplicabilityRule()
+    {
+        $this->applicabilityRules[] = $this->makeEmptyApplicabilityRule();
+    }
+
+    public function removeApplicabilityRule($index)
+    {
+        if (!isset($this->applicabilityRules[$index])) {
+            return;
+        }
+
+        unset($this->applicabilityRules[$index]);
+        $this->applicabilityRules = array_values($this->applicabilityRules);
+    }
+
     // ── CRUD ──────────────────────────────────────────────
 
     public function openCreateModal()
@@ -278,6 +298,7 @@ class RetentionConfigManagement extends Component
         $this->accounting_code   = $config->accounting_code ?? '';
         $this->is_active         = $config->is_active;
         $this->notes             = $config->notes ?? '';
+        $this->applicabilityRules = $config->normalized_applicability_rules['exclude_rules'] ?? [];
         $this->isEditing         = true;
         $this->showModal         = true;
     }
@@ -308,6 +329,9 @@ class RetentionConfigManagement extends Component
             'accounting_code'   => $this->accounting_code ?: null,
             'is_active'         => (bool) $this->is_active,
             'notes'             => $this->notes ?: null,
+            'applicability_rules' => RetentionConfig::normalizeApplicabilityRules([
+                'exclude_rules' => $this->applicabilityRules,
+            ]),
             'rate_not_declares' => $this->category === 'retefuente' ? (float) $this->rate_not_declares : null,
             'rate_declares'     => $this->category === 'retefuente' ? (float) $this->rate_declares : null,
             'rate'              => $this->category !== 'retefuente' ? (float) $this->rate : null,
@@ -430,6 +454,7 @@ class RetentionConfigManagement extends Component
                 'accounting_code'   => $row->accounting_code,
                 'is_active'         => $row->is_active,
                 'notes'             => $row->notes,
+                'applicability_rules'=> $row->applicability_rules,
             ]);
             $copied++;
         }
@@ -537,6 +562,7 @@ class RetentionConfigManagement extends Component
                     'accounting_code'   => $row->accounting_code,
                     'is_active'         => $row->is_active,
                     'notes'             => $row->notes,
+                    'applicability_rules'=> $row->applicability_rules,
                 ]);
                 $copied++;
             }
@@ -588,8 +614,18 @@ class RetentionConfigManagement extends Component
         $this->accounting_code   = '';
         $this->is_active         = true;
         $this->notes             = '';
+        $this->applicabilityRules = [];
         $this->isEditing         = false;
         $this->resetValidation();
+    }
+
+    protected function makeEmptyApplicabilityRule(): array
+    {
+        return [
+            'person_types' => [],
+            'payment_types' => [],
+            'service_contract_mode' => 'any',
+        ];
     }
 
     public function clearFilters()

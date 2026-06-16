@@ -232,6 +232,13 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Lugar de Ejecución</label>
                             <input type="text" wire:model="executionPlace" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Ej: Sede principal del colegio">
                         </div>
+                        <div class="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-3 bg-gray-50">
+                            <input type="checkbox" wire:model="isServiceContract" id="is_service_contract"
+                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <label for="is_service_contract" class="text-sm text-gray-700">
+                                Este contrato es de prestacion de servicios
+                            </label>
+                        </div>
                         <div x-data="{
                             fp: null,
                             convEndDate: @entangle('convocatoriaEndDate'),
@@ -623,6 +630,7 @@
                             @endif
                             <div class="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
                                 <span><strong>Modalidad:</strong> {{ $contract->modality_name }}</span>
+                                <span><strong>Tipo:</strong> {{ $contract->is_service_contract ? 'Prestacion de servicios' : 'Otro contrato' }}</span>
                                 <span><strong>Lugar:</strong> {{ $contract->execution_place ?: 'N/D' }}</span>
                                 <span><strong>Inicio:</strong> {{ $contract->start_date?->format('d/m/Y') }}</span>
                                 <span><strong>Fin:</strong> {{ $contract->end_date?->format('d/m/Y') }}</span>
@@ -1076,6 +1084,14 @@
                                 @endforeach
                             </select>
                             @error('editContractingModality') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div class="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-3 bg-gray-50">
+                            <input type="checkbox" wire:model="editIsServiceContract" id="edit_is_service_contract"
+                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <label for="edit_is_service_contract" class="text-sm text-gray-700">
+                                Este contrato es de prestacion de servicios
+                            </label>
                         </div>
 
                         <div>

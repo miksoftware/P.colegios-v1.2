@@ -42,6 +42,7 @@ class ContractualManagement extends Component
     public $showEditModal = false;
     public $editSupplierId = '';
     public $editContractingModality = '';
+    public $editIsServiceContract = false;
     public $editStartDate = '';
     public $editEndDate = '';
     public $editDurationDays = 0;
@@ -57,6 +58,7 @@ class ContractualManagement extends Component
     public $selectedConvocatoriaId = '';
     public $contractNumber = '';
     public $contractingModality = '';
+    public $isServiceContract = false;
     public $executionPlace = '';
     public $startDate = '';
     public $endDate = '';
@@ -555,6 +557,7 @@ class ContractualManagement extends Component
         $this->validate([
             'selectedConvocatoriaId' => 'required|exists:convocatorias,id',
             'contractingModality'    => 'required|in:' . implode(',', array_keys(Contract::MODALITIES)),
+            'isServiceContract'      => 'boolean',
             'executionPlace'         => 'nullable|string|max:255',
             'startDate'              => 'required|date|after:convocatoriaEndDate',
             'endDate'                => 'required|date|after_or_equal:startDate',
@@ -619,6 +622,7 @@ class ContractualManagement extends Component
                 'contract_number'      => Contract::getNextContractNumber($this->schoolId, $year),
                 'fiscal_year'          => $year,
                 'contracting_modality' => $this->contractingModality,
+                'is_service_contract'  => (bool) $this->isServiceContract,
                 'execution_place'      => $this->executionPlace ?? '',
                 'start_date'           => $this->startDate,
                 'end_date'             => $this->endDate,
@@ -727,6 +731,7 @@ class ContractualManagement extends Component
         $this->convocatoriaEndDate = $contract->convocatoria?->end_date?->format('Y-m-d') ?? '';
         $this->editSupplierId = (string) $contract->supplier_id;
         $this->editContractingModality = $contract->contracting_modality;
+        $this->editIsServiceContract = (bool) $contract->is_service_contract;
         $this->editStartDate = $contract->start_date?->format('Y-m-d') ?? '';
         $this->editEndDate = $contract->end_date?->format('Y-m-d') ?? '';
         $this->editSupervisorId = $contract->supervisor_id ? (string) $contract->supervisor_id : '';
@@ -816,6 +821,7 @@ class ContractualManagement extends Component
         $this->validate([
             'editSupplierId' => 'required|integer',
             'editContractingModality' => 'required|in:' . implode(',', array_keys(Contract::MODALITIES)),
+            'editIsServiceContract' => 'boolean',
             'editStartDate' => 'required|date|after:convocatoriaEndDate',
             'editEndDate' => 'required|date|after_or_equal:editStartDate',
             'editSupervisorId' => 'nullable|integer',
@@ -924,6 +930,7 @@ class ContractualManagement extends Component
                 'supplier_id' => $supplier->id,
                 'supervisor_id' => $supervisorId,
                 'contracting_modality' => $this->editContractingModality,
+                'is_service_contract' => (bool) $this->editIsServiceContract,
                 'start_date' => $this->editStartDate,
                 'end_date' => $this->editEndDate,
                 'duration_days' => $this->editDurationDays,
@@ -1762,6 +1769,7 @@ class ContractualManagement extends Component
         $this->selectedConvocatoriaId = '';
         $this->contractNumber = '';
         $this->contractingModality = '';
+        $this->isServiceContract = false;
         $this->executionPlace = '';
         $this->startDate = '';
         $this->endDate = '';
@@ -1788,6 +1796,7 @@ class ContractualManagement extends Component
     {
         $this->editSupplierId = '';
         $this->editContractingModality = '';
+        $this->editIsServiceContract = false;
         $this->editStartDate = '';
         $this->editEndDate = '';
         $this->editDurationDays = 0;

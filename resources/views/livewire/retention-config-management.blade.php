@@ -383,6 +383,76 @@
                                 placeholder="Observaciones o justificación del cambio..."></textarea>
                         </div>
 
+                        <div class="border border-gray-200 rounded-xl p-4 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">Reglas dinámicas de aplicabilidad</p>
+                                    <p class="text-xs text-gray-500">Excluye automáticamente la retención cuando el pago coincida con las condiciones configuradas.</p>
+                                </div>
+                                <button type="button" wire:click="addApplicabilityRule"
+                                    class="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100">
+                                    Agregar regla
+                                </button>
+                            </div>
+
+                            @forelse($applicabilityRules as $index => $rule)
+                                <div class="border border-gray-100 rounded-xl p-3 bg-gray-50 space-y-3" wire:key="applicability-rule-{{ $index }}">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">No aplicar cuando coincida con:</p>
+                                        <button type="button" wire:click="removeApplicabilityRule({{ $index }})"
+                                            class="text-xs text-red-600 hover:text-red-700">
+                                            Quitar
+                                        </button>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-2">Tipo de persona</label>
+                                            <div class="space-y-1">
+                                                @foreach(\App\Models\RetentionConfig::APPLICABILITY_PERSON_TYPES as $personKey => $personLabel)
+                                                    <label class="flex items-center gap-2 text-xs text-gray-700">
+                                                        <input type="checkbox" wire:model="applicabilityRules.{{ $index }}.person_types"
+                                                            value="{{ $personKey }}"
+                                                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                                        <span>{{ $personLabel }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-2">Tipo de pago</label>
+                                            <div class="space-y-1">
+                                                @foreach(\App\Models\RetentionConfig::APPLICABILITY_PAYMENT_TYPES as $paymentKey => $paymentLabel)
+                                                    <label class="flex items-center gap-2 text-xs text-gray-700">
+                                                        <input type="checkbox" wire:model="applicabilityRules.{{ $index }}.payment_types"
+                                                            value="{{ $paymentKey }}"
+                                                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                                        <span>{{ $paymentLabel }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-600 mb-1">Contrato</label>
+                                            <select wire:model="applicabilityRules.{{ $index }}.service_contract_mode"
+                                                class="w-full rounded-lg border-gray-300 text-sm">
+                                                @foreach(\App\Models\RetentionConfig::SERVICE_CONTRACT_MODES as $modeKey => $modeLabel)
+                                                    <option value="{{ $modeKey }}">{{ $modeLabel }}</option>
+                                                @endforeach
+                                            </select>
+                                            <p class="mt-1 text-[11px] text-gray-500">Solo aplica en pagos con contrato; para pagos directos o cuentas por pagar este filtro no influye.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+                                    Sin reglas configuradas. La retención aplicará según tarifa, base mínima y estado activo.
+                                </div>
+                            @endforelse
+                        </div>
+
                         <div class="flex items-center gap-2 pt-2">
                             <input type="checkbox" wire:model="is_active" id="is_active"
                                 class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">

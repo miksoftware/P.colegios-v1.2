@@ -211,6 +211,20 @@ class PostcontractualManagement extends Component
             ->values();
     }
 
+    public function getRetentionApplicabilityContextProperty(): array
+    {
+        return [
+            'person_type' => $this->supplierData['person_type'] ?? null,
+            'payment_type' => $this->paymentType,
+            'is_service_contract' => (bool) ($this->contractData['is_service_contract'] ?? false),
+        ];
+    }
+
+    protected function retentionApplies(?RetentionConfig $config, array $context = []): bool
+    {
+        return $config && $config->appliesToContext($context ?: $this->retentionApplicabilityContext);
+    }
+
     public function getPaymentOrdersProperty()
     {
         return PaymentOrder::with(['contract.supplier', 'supplier', 'creator'])
@@ -848,6 +862,7 @@ class PostcontractualManagement extends Component
             'id'          => $contract->id,
             'number'      => $contract->formatted_number,
             'object'      => $contract->object,
+            'is_service_contract' => (bool) $contract->is_service_contract,
             'subtotal'    => (float) $contract->subtotal,
             'iva'         => (float) $contract->iva,
             'total'       => (float) $contract->total,
@@ -1168,6 +1183,7 @@ class PostcontractualManagement extends Component
         $contractSubtotal = (float) ($this->contractData['subtotal'] ?? $subtotal);
         $concept = $line['retention_concept'] ?? '';
         $declaresRent = (bool) ($line['supplier_declares_rent'] ?? false);
+        $retentionContext = $this->retentionApplicabilityContext;
 
         $fiscalYear = (int) $this->filterYear;
 
@@ -1177,7 +1193,7 @@ class PostcontractualManagement extends Component
 
         if ($taxRegime !== 'simple' && $concept) {
             $config = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $concept);
-            if ($config && $contractSubtotal >= (float) $config->min_base) {
+            if ($this->retentionApplies($config, $retentionContext) && $contractSubtotal >= (float) $config->min_base) {
                 $rate = $declaresRent ? (float) $config->rate_declares : (float) $config->rate_not_declares;
                 $line['retention_percentage'] = $rate;
                 $line['retefuente'] = $this->roundRetention($subtotal * ($rate / 100));
@@ -1193,7 +1209,7 @@ class PostcontractualManagement extends Component
             $reteivaConfig = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'reteiva');
             if ($taxRegime === 'simple') {
                 // Para Régimen Simple: ReteIVA aplica directamente (no requiere concepto de retefuente)
-                if ($reteivaConfig && $iva >= (float) $reteivaConfig->min_base) {
+                if ($this->retentionApplies($reteivaConfig, $retentionContext) && $iva >= (float) $reteivaConfig->min_base) {
                     $rate = (float) $reteivaConfig->rate;
                     $line['reteiva'] = $this->roundRetention($iva * ($rate / 100));
                 }
@@ -1201,6 +1217,8 @@ class PostcontractualManagement extends Component
                 $retefuenteConfig = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $concept);
                 if ($retefuenteConfig
                     && $reteivaConfig
+                    && $this->retentionApplies($retefuenteConfig, $retentionContext)
+                    && $this->retentionApplies($reteivaConfig, $retentionContext)
                     && $contractSubtotal >= (float) $retefuenteConfig->min_base
                     && $iva >= (float) $reteivaConfig->min_base
                 ) {
@@ -1229,7 +1247,7 @@ class PostcontractualManagement extends Component
         if ($this->paymentType !== 'direct') {
             foreach ($localConcepts as $field => $conceptKey) {
                 $cfg = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, $conceptKey);
-                if ($cfg && $subtotal >= (float) $cfg->min_base && (float) $cfg->rate > 0) {
+                if ($this->retentionApplies($cfg, $retentionContext) && $subtotal >= (float) $cfg->min_base && (float) $cfg->rate > 0) {
                     $line[$field] = $this->roundRetention($subtotal * ((float) $cfg->rate / 100));
                 }
             }
@@ -1354,6 +1372,7 @@ class PostcontractualManagement extends Component
         $contractSubtotal = (float) ($this->contractData['subtotal'] ?? $subtotal);
 
         $fiscalYear = (int) $this->filterYear;
+        $retentionContext = $this->retentionApplicabilityContext;
 
         // ── RETEFUENTE ──
         // Proveedores en Régimen Simple de Tributación NO están sujetos a retención en la fuente de renta
@@ -1366,7 +1385,7 @@ class PostcontractualManagement extends Component
                 $this->schoolId, $fiscalYear, $this->retentionConcept
             );
 
-            if ($retefuenteConfig && $contractSubtotal >= (float) $retefuenteConfig->min_base) {
+            if ($this->retentionApplies($retefuenteConfig, $retentionContext) && $contractSubtotal >= (float) $retefuenteConfig->min_base) {
                 $rate = $this->supplierDeclaresRent
                     ? (float) $retefuenteConfig->rate_declares
                     : (float) $retefuenteConfig->rate_not_declares;
@@ -1388,11 +1407,13 @@ class PostcontractualManagement extends Component
 
             if ($taxRegime === 'simple') {
                 // Para Régimen Simple: ReteIVA aplica directamente (no requiere concepto de retefuente)
-                if ($reteivaConfig && $iva >= (float) $reteivaConfig->min_base) {
+                if ($this->retentionApplies($reteivaConfig, $retentionContext) && $iva >= (float) $reteivaConfig->min_base) {
                     $rate = (float) $reteivaConfig->rate;
                     $this->reteiva = $this->roundRetention($iva * ($rate / 100));
                 }
             } elseif ($this->retentionConcept && $retefuenteConfig && $reteivaConfig
+                && $this->retentionApplies($retefuenteConfig, $retentionContext)
+                && $this->retentionApplies($reteivaConfig, $retentionContext)
                 && $contractSubtotal >= (float) $retefuenteConfig->min_base
                 && $iva >= (float) $reteivaConfig->min_base
             ) {
@@ -1418,29 +1439,29 @@ class PostcontractualManagement extends Component
         $icaCfg           = RetentionConfig::getForSchoolYearConcept($this->schoolId, $fiscalYear, 'retencion_ica');
 
         if ($this->paymentType === 'accounts_payable') {
-            if ($this->applyEstampillaProdulto && $estProdultoCfg && $subtotal >= (float) $estProdultoCfg->min_base && (float) $estProdultoCfg->rate > 0) {
+            if ($this->applyEstampillaProdulto && $this->retentionApplies($estProdultoCfg, $retentionContext) && $subtotal >= (float) $estProdultoCfg->min_base && (float) $estProdultoCfg->rate > 0) {
                 $this->estampillaProdultoMayor = $this->roundRetention($subtotal * ((float) $estProdultoCfg->rate / 100));
             }
-            if ($this->applyEstampillaProcultura && $estProculturaCfg && $subtotal >= (float) $estProculturaCfg->min_base && (float) $estProculturaCfg->rate > 0) {
+            if ($this->applyEstampillaProcultura && $this->retentionApplies($estProculturaCfg, $retentionContext) && $subtotal >= (float) $estProculturaCfg->min_base && (float) $estProculturaCfg->rate > 0) {
                 $this->estampillaProcultura = $this->roundRetention($subtotal * ((float) $estProculturaCfg->rate / 100));
             }
-            if ($this->applyEstampillaProdeporte && $estProdeporteCfg && $subtotal >= (float) $estProdeporteCfg->min_base && (float) $estProdeporteCfg->rate > 0) {
+            if ($this->applyEstampillaProdeporte && $this->retentionApplies($estProdeporteCfg, $retentionContext) && $subtotal >= (float) $estProdeporteCfg->min_base && (float) $estProdeporteCfg->rate > 0) {
                 $this->estampillaProdeporte = $this->roundRetention($subtotal * ((float) $estProdeporteCfg->rate / 100));
             }
         } elseif ($this->paymentType === 'contract') {
             // Para pagos directos las estampillas no aplican; se quedan en 0.
-            if ($estProdultoCfg && $subtotal >= (float) $estProdultoCfg->min_base && (float) $estProdultoCfg->rate > 0) {
+            if ($this->retentionApplies($estProdultoCfg, $retentionContext) && $subtotal >= (float) $estProdultoCfg->min_base && (float) $estProdultoCfg->rate > 0) {
                 $this->estampillaProdultoMayor = $this->roundRetention($subtotal * ((float) $estProdultoCfg->rate / 100));
             }
-            if ($estProculturaCfg && $subtotal >= (float) $estProculturaCfg->min_base && (float) $estProculturaCfg->rate > 0) {
+            if ($this->retentionApplies($estProculturaCfg, $retentionContext) && $subtotal >= (float) $estProculturaCfg->min_base && (float) $estProculturaCfg->rate > 0) {
                 $this->estampillaProcultura = $this->roundRetention($subtotal * ((float) $estProculturaCfg->rate / 100));
             }
-            if ($estProdeporteCfg && $subtotal >= (float) $estProdeporteCfg->min_base && (float) $estProdeporteCfg->rate > 0) {
+            if ($this->retentionApplies($estProdeporteCfg, $retentionContext) && $subtotal >= (float) $estProdeporteCfg->min_base && (float) $estProdeporteCfg->rate > 0) {
                 $this->estampillaProdeporte = $this->roundRetention($subtotal * ((float) $estProdeporteCfg->rate / 100));
             }
         }
 
-        if ($icaCfg && $subtotal >= (float) $icaCfg->min_base && (float) $icaCfg->rate > 0) {
+        if ($this->retentionApplies($icaCfg, $retentionContext) && $subtotal >= (float) $icaCfg->min_base && (float) $icaCfg->rate > 0) {
             $this->retencionIca = $this->roundRetention($subtotal * ((float) $icaCfg->rate / 100));
         }
 

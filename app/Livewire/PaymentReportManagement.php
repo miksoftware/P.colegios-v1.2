@@ -306,8 +306,32 @@ class PaymentReportManagement extends Component
                         ),
                         'retefuente'             => (float) $line->retefuente,
                         'reteiva'                => (float) $line->reteiva,
-                        'estampillas'            => (float) $line->estampilla_produlto_mayor + (float) $line->estampilla_procultura,
-                        'otros_impuestos'        => (float) $line->retencion_ica,
+                        'estampillas'            => (function () use ($line) {
+                            $breakdown = is_array($line->other_taxes_breakdown ?? null) ? $line->other_taxes_breakdown : [];
+                            if (!empty($breakdown)) {
+                                $sum = 0.0;
+                                foreach ($breakdown as $k => $v) {
+                                    if (str_starts_with((string) $k, 'estampilla_')) {
+                                        $sum += (float) $v;
+                                    }
+                                }
+                                return $sum;
+                            }
+                            return (float) $line->estampilla_produlto_mayor + (float) $line->estampilla_procultura + (float) $line->estampilla_prodeporte;
+                        })(),
+                        'otros_impuestos'        => (function () use ($line) {
+                            $breakdown = is_array($line->other_taxes_breakdown ?? null) ? $line->other_taxes_breakdown : [];
+                            if (!empty($breakdown)) {
+                                $sum = 0.0;
+                                foreach ($breakdown as $k => $v) {
+                                    if (!str_starts_with((string) $k, 'estampilla_')) {
+                                        $sum += (float) $v;
+                                    }
+                                }
+                                return $sum;
+                            }
+                            return (float) $line->retencion_ica;
+                        })(),
                         'net_payment'            => $lineNet,
                     ]);
                 }
@@ -326,6 +350,21 @@ class PaymentReportManagement extends Component
                     $fs    = $rpFs->fundingSource;
                     $bi    = $rpFs->budget?->budgetItem;
                     $ratio = $totalRpAmount > 0 ? (float) $rpFs->amount / $totalRpAmount : 1;
+                    $poOtherBreakdown = is_array($po->other_taxes_breakdown ?? null) ? $po->other_taxes_breakdown : [];
+                    $poStampillas = 0.0;
+                    $poOtros = 0.0;
+                    if (!empty($poOtherBreakdown)) {
+                        foreach ($poOtherBreakdown as $k => $v) {
+                            if (str_starts_with((string) $k, 'estampilla_')) {
+                                $poStampillas += (float) $v;
+                            } else {
+                                $poOtros += (float) $v;
+                            }
+                        }
+                    } else {
+                        $poStampillas = (float) $po->estampilla_produlto_mayor + (float) $po->estampilla_procultura + (float) $po->estampilla_prodeporte;
+                        $poOtros = (float) $po->retencion_ica;
+                    }
                     $rows[] = array_merge($baseData, [
                         'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
                         'rubro_code'     => $bi?->code ?? '',
@@ -335,8 +374,8 @@ class PaymentReportManagement extends Component
                         'total'          => round($poTotal * $ratio, 2),
                         'retefuente'     => round((float) $po->retefuente * $ratio, 2),
                         'reteiva'        => round((float) $po->reteiva * $ratio, 2),
-                        'estampillas'    => round(((float) $po->estampilla_produlto_mayor + (float) $po->estampilla_procultura) * $ratio, 2),
-                        'otros_impuestos'=> round((float) $po->retencion_ica * $ratio, 2),
+                        'estampillas'    => round($poStampillas * $ratio, 2),
+                        'otros_impuestos'=> round($poOtros * $ratio, 2),
                         'net_payment'    => round($poNet * $ratio, 2),
                     ]);
                 }

@@ -120,19 +120,27 @@ class PostcontractualPdfController extends Controller
         if ((float) $po->reteiva > 0) {
             $retentionRows[] = ['code' => '243625', 'name' => 'Impuesto a las Ventas Retenido 15%', 'amount' => (float) $po->reteiva, 'is_parent' => false];
         }
-        if ((float) $po->estampilla_procultura > 0 || (float) $po->estampilla_produlto_mayor > 0 || (float) $po->estampilla_prodeporte > 0 || (float) $po->retencion_ica > 0) {
+        $otherTaxes = $po->other_taxes_breakdown_normalized ?? [];
+        if (!empty($otherTaxes)) {
             $retentionRows[] = ['code' => '2407', 'name' => 'IMPUESTOS TASAS, CONTRIBUCIONES', 'amount' => 0, 'is_parent' => true];
-            if ((float) $po->estampilla_procultura > 0) {
-                $retentionRows[] = ['code' => '24072202', 'name' => 'OTROS IMP. MUNICIPALES (2% Procultura)', 'amount' => (float) $po->estampilla_procultura, 'is_parent' => false];
-            }
-            if ((float) $po->estampilla_produlto_mayor > 0) {
-                $retentionRows[] = ['code' => '24072204', 'name' => 'OTROS IMP. MUNICIPALES (2% Produlto may)', 'amount' => (float) $po->estampilla_produlto_mayor, 'is_parent' => false];
-            }
-            if ((float) $po->estampilla_prodeporte > 0) {
-                $retentionRows[] = ['code' => '24072203', 'name' => 'OTROS IMP. MUNICIPALES (Estampilla Prodeporte)', 'amount' => (float) $po->estampilla_prodeporte, 'is_parent' => false];
-            }
-            if ((float) $po->retencion_ica > 0) {
-                $retentionRows[] = ['code' => '24072209', 'name' => 'OTROS IMPUESTOS MUNICIPALES (ReteICA)', 'amount' => (float) $po->retencion_ica, 'is_parent' => false];
+            foreach ($otherTaxes as $concept => $amount) {
+                $amount = (float) $amount;
+                if ($amount <= 0) {
+                    continue;
+                }
+
+                $cfg = \App\Models\RetentionConfig::getForSchoolYearConcept($po->school_id, $po->fiscal_year, (string) $concept);
+                $displayName = $cfg?->display_name
+                    ?? \App\Models\RetentionConfig::getConceptDisplayName((string) $concept, $po->school_id, $po->fiscal_year, (string) $concept);
+                $accountingCode = (string) ($cfg?->accounting_code ?? '');
+                $code = trim(explode(' - ', $accountingCode)[0] ?? '');
+
+                $retentionRows[] = [
+                    'code' => $code ?: (string) $concept,
+                    'name' => strtoupper((string) $displayName),
+                    'amount' => $amount,
+                    'is_parent' => false,
+                ];
             }
         }
 

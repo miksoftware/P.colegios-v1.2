@@ -23,6 +23,7 @@ class PaymentOrderExpenseLine extends Model
         'estampilla_procultura',
         'estampilla_prodeporte',
         'retencion_ica',
+        'other_taxes_breakdown',
         'total_retentions',
         'net_payment',
     ];
@@ -39,6 +40,7 @@ class PaymentOrderExpenseLine extends Model
         'estampilla_procultura' => 'decimal:2',
         'estampilla_prodeporte' => 'decimal:2',
         'retencion_ica' => 'decimal:2',
+        'other_taxes_breakdown' => 'array',
         'total_retentions' => 'decimal:2',
         'net_payment' => 'decimal:2',
     ];

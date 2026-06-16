@@ -40,6 +40,7 @@ class PaymentOrder extends Model
         'estampilla_prodeporte',
         'retencion_ica',
         'other_taxes_total',
+        'other_taxes_breakdown',
         'total_retentions',
         'net_payment',
         'observations',
@@ -67,6 +68,7 @@ class PaymentOrder extends Model
         'estampilla_prodeporte' => 'decimal:2',
         'retencion_ica' => 'decimal:2',
         'other_taxes_total' => 'decimal:2',
+        'other_taxes_breakdown' => 'array',
         'total_retentions' => 'decimal:2',
         'net_payment' => 'decimal:2',
     ];
@@ -242,6 +244,23 @@ class PaymentOrder extends Model
             $this->school_id,
             $this->fiscal_year
         );
+    }
+
+    public function getOtherTaxesBreakdownNormalizedAttribute(): array
+    {
+        $breakdown = is_array($this->other_taxes_breakdown) ? $this->other_taxes_breakdown : [];
+        if (!empty($breakdown)) {
+            return $breakdown;
+        }
+
+        $legacy = [
+            'estampilla_produlto_mayor' => (float) $this->estampilla_produlto_mayor,
+            'estampilla_procultura' => (float) $this->estampilla_procultura,
+            'estampilla_prodeporte' => (float) $this->estampilla_prodeporte,
+            'retencion_ica' => (float) $this->retencion_ica,
+        ];
+
+        return array_filter($legacy, fn($amount) => (float) $amount !== 0.0);
     }
 
     public function getPaymentTypeNameAttribute(): string

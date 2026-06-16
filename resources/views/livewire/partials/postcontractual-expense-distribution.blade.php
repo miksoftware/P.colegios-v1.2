@@ -116,8 +116,9 @@
                         <p class="text-sm font-bold text-red-600">${{ number_format($line['reteiva'] ?? 0, 2, ',', '.') }}</p>
                     </div>
                     <div class="bg-white rounded-lg p-2 text-center border border-gray-200">
-                        <p class="text-[10px] text-gray-500">Est. Produlto</p>
-                        <p class="text-sm font-bold {{ ($line['estampilla_produlto_mayor'] ?? 0) > 0 ? 'text-orange-600' : 'text-gray-400' }}">${{ number_format($line['estampilla_produlto_mayor'] ?? 0, 2, ',', '.') }}</p>
+                        @php $lineOtherTaxes = array_sum($line['other_taxes_breakdown'] ?? []); @endphp
+                        <p class="text-[10px] text-gray-500">Otros Imp.</p>
+                        <p class="text-sm font-bold {{ $lineOtherTaxes > 0 ? 'text-orange-600' : 'text-gray-400' }}">${{ number_format($lineOtherTaxes, 2, ',', '.') }}</p>
                     </div>
                     <div class="bg-white rounded-lg p-2 text-center border border-gray-200">
                         <p class="text-[10px] text-gray-500">Total Desc.</p>

@@ -69,13 +69,21 @@ class ContractRp extends Model
     // ── Static helpers ────────────────────────────────────────
     public static function getNextRpNumber(int $schoolId, int $year): int
     {
-        // Se filtra por school_id a través del CDP (común a RPs de contratos Y pagos directos).
-        // Antes se usaba whereHas('contract', ...) que excluía los RPs de pagos directos
-        // porque tienen contract_id = null, causando numeración duplicada.
-        $max = static::whereHas('cdp', function ($q) use ($schoolId) {
+        $usedNumbers = static::whereHas('cdp', function ($q) use ($schoolId) {
             $q->where('school_id', $schoolId);
-        })->where('fiscal_year', $year)->max('rp_number');
+        })->where('fiscal_year', $year)
+          ->orderBy('rp_number')
+          ->pluck('rp_number')
+          ->toArray();
 
-        return ($max ?? 0) + 1;
+        $next = 1;
+        foreach ($usedNumbers as $num) {
+            if ($num == $next) {
+                $next++;
+            } elseif ($num > $next) {
+                return $next;
+            }
+        }
+        return $next;
     }
 }

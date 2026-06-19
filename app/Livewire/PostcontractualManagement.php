@@ -117,6 +117,7 @@ class PostcontractualManagement extends Component
     ];
 
     // ── Pago Directo (sin contrato) ──────────────────────────
+    public $paymentOrderId = null;
     public $paymentType = 'contract'; // 'contract' o 'direct'
     public $selectedSupplierId = '';
     public $directDescription = '';
@@ -2131,6 +2132,512 @@ class PostcontractualManagement extends Component
     // CAMBIO DE ESTADO
     // ══════════════════════════════════════════════════════════
 
+    // ══════════════════════════════════════════════════════════
+    // EDICIÓN
+    // ══════════════════════════════════════════════════════════
+
+    public function editPaymentOrder($id)
+    {
+        if (!auth()->user()->isAdmin()) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden editar órdenes de pago.', type: 'error');
+            return;
+        }
+
+        $po = PaymentOrder::with([
+            'expenseLines.expenseDistribution.budget.fundingSource', 
+            'taxLines', 
+            'bankLines',
+            'contract'
+        ])->forSchool($this->schoolId)->findOrFail($id);
+
+        $this->paymentOrderId = $po->id;
+        $this->resetCreateForm();
+        
+        $this->paymentType = $po->payment_type;
+        $this->invoiceNumber = $po->invoice_number;
+        $this->invoiceDate = $po->invoice_date ? $po->invoice_date->format('Y-m-d') : '';
+        $this->paymentDate = $po->payment_date ? $po->payment_date->format('Y-m-d') : '';
+        $this->isFullPayment = $po->is_full_payment;
+        $this->paySubtotal = $po->subtotal;
+        $this->payIva = $po->iva;
+        $this->payTotal = $po->total;
+        $this->retentionConcept = $po->retention_concept;
+        $this->supplierDeclaresRent = $po->supplier_declares_rent;
+        $this->retentionPercentage = $po->retention_percentage;
+        $this->retefuente = $po->retefuente;
+        $this->reteiva = $po->reteiva;
+        $this->estampillaProdultoMayor = $po->estampilla_produlto_mayor;
+        $this->estampillaProcultura = $po->estampilla_procultura;
+        $this->estampillaProdeporte = $po->estampilla_prodeporte;
+        $this->retencionIca = $po->retencion_ica;
+        $this->otherTaxesTotal = $po->other_taxes_total;
+        $this->otherTaxesBreakdown = $po->other_taxes_breakdown ?: [];
+        $this->totalRetentions = $po->total_retentions;
+        $this->netPayment = $po->net_payment;
+        $this->observations = $po->observations;
+
+        if ($this->paymentType === 'contract') {
+            $this->loadContracts();
+            $this->selectedContractId = $po->contract_id;
+            $this->onContractSelected();
+
+            if ($po->expenseLines->count() == 1 && abs($po->expenseLines->first()->total - $po->total) < 0.01) {
+                $this->paymentMode = 'single';
+                $this->selectedExpenseDistributionId = $po->expenseLines->first()->expense_distribution_id;
+            } else {
+                $this->paymentMode = 'split';
+                $this->initializeExpenseLines();
+                foreach ($this->expenseLines as &$line) {
+                    $savedLine = $po->expenseLines->firstWhere('expense_distribution_id', $line['expense_distribution_id']);
+                    if ($savedLine) {
+                        $line['subtotal'] = $savedLine->subtotal;
+                        $line['iva'] = $savedLine->iva;
+                        $line['total'] = $savedLine->total;
+                    } else {
+                        $line['subtotal'] = 0;
+                        $line['iva'] = 0;
+                        $line['total'] = 0;
+                    }
+                }
+                foreach ($this->expenseLines as $i => $line) {
+                    $this->calculateLineRetentions($i);
+                }
+                $this->recalculateFromLines();
+            }
+        } else {
+            $this->loadSuppliers();
+            $this->selectedSupplierId = $po->supplier_id;
+            $this->directDescription = $po->description;
+            $this->onSupplierSelected();
+
+            if ($this->paymentType === 'accounts_payable') {
+                $this->skipBankLines = $po->bankLines->map(function ($bl) {
+                    return [
+                        'bank_id' => $bl->bankAccount->bank_id ?? '',
+                        'bank_account_id' => $bl->bank_account_id,
+                        'amount' => $bl->amount,
+                    ];
+                })->toArray();
+                $this->recalculateSkipTotals();
+            } elseif ($this->paymentType === 'direct') {
+                if (!$po->cdp_id && !$po->contract_rp_id && $po->taxLines->count() > 0) {
+                    $this->skipCdpRp = true;
+                    $this->skipTaxLines = $po->taxLines->map(function ($tl) {
+                        return [
+                            'tax_type' => $tl->tax_type,
+                            'amount' => $tl->amount,
+                        ];
+                    })->toArray();
+                    $this->skipBankLines = $po->bankLines->map(function ($bl) {
+                        return [
+                            'bank_id' => $bl->bankAccount->bank_id ?? '',
+                            'bank_account_id' => $bl->bank_account_id,
+                            'amount' => $bl->amount,
+                        ];
+                    })->toArray();
+                    $this->recalculateSkipTotals();
+                } else {
+                    $this->skipCdpRp = false;
+                    $this->directBudgetItemId = $po->budget_item_id;
+                    $this->updatedDirectBudgetItemId($po->budget_item_id);
+
+                    $allocations = [];
+                    foreach ($po->expenseLines as $line) {
+                        if ($line->expenseDistribution) {
+                            $bdg = $line->expenseDistribution->budget;
+                            // Intentar deducir banco desde RpFundingSource
+                            $rpSource = \App\Models\RpFundingSource::where('contract_rp_id', $po->contract_rp_id)
+                                ->where('funding_source_id', $bdg->funding_source_id)
+                                ->where('budget_id', $bdg->id)
+                                ->first();
+
+                            $allocations[] = [
+                                'expense_code_id' => $line->expense_code_id,
+                                'budget_item_id' => $bdg->budget_item_id,
+                                'funding_source_id' => $bdg->funding_source_id,
+                                'funding_source_name' => $bdg->fundingSource->code . ' - ' . $bdg->fundingSource->name,
+                                'budget_id' => $bdg->id,
+                                'available' => $line->total + max(0, $line->expenseDistribution->available_balance),
+                                'amount' => $line->total,
+                                'bank_id' => $rpSource ? $rpSource->bank_id : '',
+                                'bank_account_id' => $rpSource ? $rpSource->bank_account_id : '',
+                            ];
+                        }
+                    }
+                    $this->directExpenseAllocations = $allocations;
+                    $this->loadDirectExpenseCodes();
+                    
+                    // Asegurar que directSelectedExpenseCodes tenga los elementos
+                    foreach ($allocations as $alloc) {
+                        $exists = collect($this->directSelectedExpenseCodes)->contains('id', $alloc['expense_code_id']);
+                        if (!$exists) {
+                            $ec = collect($this->directExpenseCodes)->firstWhere('id', $alloc['expense_code_id']);
+                            if ($ec) {
+                                $this->directSelectedExpenseCodes[] = $ec;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($po->supplier_account_number) {
+            $matchingAcc = collect($this->supplierBankAccounts)->firstWhere('account_number', $po->supplier_account_number);
+            if ($matchingAcc) {
+                $this->selectedBankAccountId = $matchingAcc['id'];
+            }
+        }
+
+        $this->currentView = 'edit';
+    }
+
+    public function updatePaymentOrder()
+    {
+        if (!auth()->user()->isAdmin()) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden editar órdenes de pago.', type: 'error');
+            return;
+        }
+
+        $oldPo = PaymentOrder::findOrFail($this->paymentOrderId);
+        $supplierInvoices = $this->supplierData['electronic_invoicing'] ?? true;
+
+        $rules = [ 'paymentDate' => 'required|date' ];
+        $messages = [ 'paymentDate.required' => 'La fecha de pago es obligatoria.' ];
+
+        if (!$this->skipCdpRp) {
+            $rules['paySubtotal'] = 'required|numeric|min:0.01';
+            $rules['payIva']      = 'nullable|numeric|min:0';
+            $rules['payTotal']    = 'required|numeric|min:0.01';
+            $messages['paySubtotal.required'] = 'El subtotal es obligatorio.';
+            $messages['paySubtotal.min']      = 'El subtotal debe ser mayor a 0.';
+            $messages['payTotal.required']    = 'El total es obligatorio.';
+
+            if ($supplierInvoices) {
+                $rules['invoiceDate']   = 'required|date';
+                $rules['invoiceNumber'] = 'required|string|max:100';
+                $messages['invoiceDate.required']   = 'La fecha de la factura es obligatoria.';
+                $messages['invoiceNumber.required'] = 'El número de factura es obligatorio.';
+            }
+        }
+
+        if ($this->paymentType === 'contract') {
+            $rules['selectedContractId'] = 'required|exists:contracts,id';
+            $messages['selectedContractId.required'] = 'Debe seleccionar un contrato.';
+        } else {
+            $rules['selectedSupplierId']  = 'required|exists:suppliers,id';
+            $rules['directDescription']   = 'required|string|min:5|max:1000';
+            $messages['selectedSupplierId.required']  = 'Debe seleccionar un proveedor.';
+            $messages['directDescription.required']   = 'La descripción del pago es obligatoria.';
+        }
+
+        $this->validate($rules, $messages);
+
+        // Validaciones (abreviadas pero mantienen la esencia)
+        if ($this->paymentType === 'contract') {
+            $remaining = $this->contractData['remaining'] ?? 0;
+            // Al editar, el saldo remaining excluye el monto previo de esta misma orden, 
+            // así que le sumamos el total anterior para la validación si estamos editando el mismo contrato.
+            if ($oldPo->contract_id == $this->selectedContractId) {
+                $remaining += $oldPo->total;
+            }
+            if ((float) $this->payTotal > $remaining) {
+                $this->dispatch('toast', message: "El monto excede el saldo pendiente.", type: 'error');
+                return;
+            }
+        }
+
+        if ($this->paymentType === 'direct' && $this->skipCdpRp) {
+            $this->recalculateSkipTotals();
+            if (abs($this->skipTaxTotal - $this->skipBankTotal) > 0.01) {
+                $this->dispatch('toast', message: 'El total de impuestos debe ser igual al total de bancos.', type: 'error');
+                return;
+            }
+        }
+
+        if ($this->paymentType === 'accounts_payable') {
+            $this->recalculateSkipTotals();
+            if (abs($this->skipBankTotal - (float) $this->netPayment) > 0.01) {
+                $this->dispatch('toast', message: 'El total de bancos debe ser igual al Neto a Pagar.', type: 'error');
+                return;
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            $year = (int) $this->filterYear;
+            $skipTotal = $this->skipCdpRp ? $this->skipTaxTotal : 0;
+
+            // Manejo de CDP y RP antiguos
+            $oldCdpNumber = null;
+            $oldRpNumber = null;
+            if ($oldPo->payment_type === 'direct') {
+                if ($oldPo->cdp_id) {
+                    $oldCdp = Cdp::find($oldPo->cdp_id);
+                    if ($oldCdp) {
+                        $oldCdpNumber = $oldCdp->cdp_number;
+                        $oldCdp->delete();
+                    }
+                }
+                if ($oldPo->contract_rp_id) {
+                    $oldRp = ContractRp::find($oldPo->contract_rp_id);
+                    if ($oldRp) {
+                        $oldRpNumber = $oldRp->rp_number;
+                        $oldRp->delete();
+                    }
+                }
+            }
+
+            // Limpiar líneas antiguas
+            \App\Models\PaymentOrderExpenseLine::where('payment_order_id', $oldPo->id)->delete();
+            \App\Models\PaymentOrderTaxLine::where('payment_order_id', $oldPo->id)->delete();
+            \App\Models\PaymentOrderBankLine::where('payment_order_id', $oldPo->id)->delete();
+
+            $paymentData = [
+                'payment_type'               => $this->paymentType,
+                'invoice_number'             => $this->invoiceNumber ?: null,
+                'invoice_date'               => $this->invoiceDate ?: null,
+                'payment_date'               => $this->paymentDate,
+                'is_full_payment'            => in_array($this->paymentType, ['direct', 'accounts_payable']) ? true : $this->isFullPayment,
+                'subtotal'                   => $this->skipCdpRp ? $skipTotal : (float) $this->paySubtotal,
+                'iva'                        => $this->skipCdpRp ? 0 : (float) ($this->payIva ?? 0),
+                'total'                      => $this->skipCdpRp ? $skipTotal : (float) $this->payTotal,
+                'retention_concept'          => $this->skipCdpRp ? null : ($this->paymentMode === 'single' ? ($this->retentionConcept ?: null) : null),
+                'supplier_declares_rent'     => $this->skipCdpRp ? false : ($this->paymentMode === 'single' ? $this->supplierDeclaresRent : false),
+                'retention_percentage'       => $this->skipCdpRp ? 0 : ($this->paymentMode === 'single' ? $this->retentionPercentage : 0),
+                'retefuente'                 => $this->skipCdpRp ? 0 : $this->retefuente,
+                'reteiva'                    => $this->skipCdpRp ? 0 : $this->reteiva,
+                'estampilla_produlto_mayor'  => $this->skipCdpRp ? 0 : $this->estampillaProdultoMayor,
+                'estampilla_procultura'      => $this->skipCdpRp ? 0 : $this->estampillaProcultura,
+                'estampilla_prodeporte'      => $this->skipCdpRp ? 0 : $this->estampillaProdeporte,
+                'retencion_ica'              => $this->skipCdpRp ? 0 : $this->retencionIca,
+                'other_taxes_total'          => $this->skipCdpRp ? 0 : $this->otherTaxesTotal,
+                'other_taxes_breakdown'      => $this->skipCdpRp ? null : $this->otherTaxesBreakdown,
+                'total_retentions'           => $this->skipCdpRp ? 0 : $this->totalRetentions,
+                'net_payment'                => $this->skipCdpRp ? $skipTotal : $this->netPayment,
+                'observations'               => $this->observations ?: null,
+                'supplier_bank_name'         => null,
+                'supplier_account_type'      => null,
+                'supplier_account_number'    => null,
+                'status'                     => 'draft', // SIEMPRE BORRADOR AL EDITAR
+                'contract_id'                => null,
+                'supplier_id'                => null,
+                'cdp_id'                     => null,
+                'contract_rp_id'             => null,
+                'budget_item_id'             => null,
+                'description'                => null,
+            ];
+
+            if ($this->paymentType === 'contract') {
+                $paymentData['contract_id'] = $this->selectedContractId;
+            } elseif ($this->paymentType === 'accounts_payable') {
+                $paymentData['supplier_id'] = $this->selectedSupplierId;
+                $paymentData['description'] = $this->directDescription;
+            } elseif ($this->skipCdpRp) {
+                $paymentData['supplier_id'] = $this->selectedSupplierId;
+                $paymentData['description'] = $this->directDescription;
+            } else {
+                $allocations = !empty($this->directExpenseAllocations) ? $this->directExpenseAllocations : [];
+                if (empty($allocations)) throw new \Exception('Debe seleccionar al menos un código de gasto.');
+
+                $totalSources = 0;
+                foreach ($allocations as $alloc) {
+                    $totalSources += (float) ($alloc['amount'] ?? 0);
+                }
+
+                $firstBudgetItemId = $allocations[0]['budget_item_id'] ?? $this->directBudgetItemId;
+
+                // Reutilizamos el número si venía de un pago directo, o buscamos huecos
+                $cdpNumberToUse = $oldCdpNumber ?: Cdp::getNextCdpNumber($this->schoolId, $year);
+                $cdp = Cdp::create([
+                    'school_id'      => $this->schoolId,
+                    'cdp_number'     => $cdpNumberToUse,
+                    'fiscal_year'    => $year,
+                    'budget_item_id' => $firstBudgetItemId,
+                    'total_amount'   => $totalSources,
+                    'status'         => 'used',
+                    'created_by'     => auth()->id(),
+                ]);
+
+                foreach ($allocations as $alloc) {
+                    $balance = 0;
+                    if (!empty($alloc['budget_id']) && !empty($alloc['expense_code_id'])) {
+                        $dist = \App\Models\ExpenseDistribution::where('school_id', $this->schoolId)
+                            ->where('budget_id', $alloc['budget_id'])
+                            ->where('expense_code_id', $alloc['expense_code_id'])
+                            ->first();
+                        $balance = $dist ? (float) $dist->available_balance : 0;
+                    }
+                    CdpFundingSource::create([
+                        'cdp_id'                      => $cdp->id,
+                        'funding_source_id'           => $alloc['funding_source_id'],
+                        'budget_id'                   => $alloc['budget_id'],
+                        'amount'                      => (float) $alloc['amount'],
+                        'available_balance_at_creation'=> $balance,
+                    ]);
+                }
+
+                $rpNumberToUse = $oldRpNumber ?: ContractRp::getNextRpNumber($this->schoolId, $year);
+                $rp = ContractRp::create([
+                    'cdp_id'       => $cdp->id,
+                    'rp_number'    => $rpNumberToUse,
+                    'fiscal_year'  => $year,
+                    'total_amount' => $totalSources,
+                    'status'       => 'active',
+                    'created_by'   => auth()->id(),
+                ]);
+
+                foreach ($allocations as $alloc) {
+                    RpFundingSource::create([
+                        'contract_rp_id'    => $rp->id,
+                        'funding_source_id' => $alloc['funding_source_id'],
+                        'budget_id'         => $alloc['budget_id'],
+                        'amount'            => (float) $alloc['amount'],
+                        'bank_id'           => !empty($alloc['bank_id']) ? $alloc['bank_id'] : null,
+                        'bank_account_id'   => !empty($alloc['bank_account_id']) ? $alloc['bank_account_id'] : null,
+                    ]);
+                }
+
+                $paymentData['supplier_id'] = $this->selectedSupplierId;
+                $paymentData['description'] = $this->directDescription;
+                $paymentData['cdp_id'] = $cdp->id;
+                $paymentData['contract_rp_id'] = $rp->id;
+                $paymentData['budget_item_id'] = $firstBudgetItemId ?: null;
+            }
+
+            $oldPo->update($paymentData);
+
+            if ($this->paymentType === 'direct' && !empty($this->directExpenseAllocations)) {
+                foreach ($this->directExpenseAllocations as $alloc) {
+                    if (empty($alloc['expense_code_id']) || empty($alloc['budget_id'])) continue;
+                    $dist = \App\Models\ExpenseDistribution::where('school_id', $this->schoolId)
+                        ->where('budget_id', $alloc['budget_id'])
+                        ->whereHas('expenseCode', fn($q) => $q->where('id', $alloc['expense_code_id']))
+                        ->first();
+
+                    if ($dist) {
+                        $lineTotal = (float) ($alloc['amount'] ?? 0);
+                        PaymentOrderExpenseLine::create([
+                            'payment_order_id'        => $oldPo->id,
+                            'expense_distribution_id' => $dist->id,
+                            'expense_code_id'         => $alloc['expense_code_id'],
+                            'subtotal'                => $lineTotal,
+                            'iva'                     => 0,
+                            'total'                   => $lineTotal,
+                            'retefuente'              => 0,
+                            'reteiva'                 => 0,
+                            'estampilla_produlto_mayor' => 0,
+                            'estampilla_procultura'   => 0,
+                            'estampilla_prodeporte'   => 0,
+                            'retencion_ica'           => 0,
+                            'total_retentions'        => 0,
+                            'net_payment'             => $lineTotal,
+                        ]);
+                    }
+                }
+            }
+
+            if ($this->selectedBankAccountId) {
+                $bankAccount = SupplierBankAccount::find($this->selectedBankAccountId);
+                if ($bankAccount) {
+                    $oldPo->update([
+                        'supplier_bank_name'      => $bankAccount->bank_name,
+                        'supplier_account_type'   => $bankAccount->account_type_name,
+                        'supplier_account_number' => $bankAccount->account_number,
+                    ]);
+                }
+            }
+
+            if ($this->paymentType === 'direct' && $this->skipCdpRp) {
+                foreach ($this->skipTaxLines as $tl) {
+                    \App\Models\PaymentOrderTaxLine::create([
+                        'payment_order_id' => $oldPo->id,
+                        'tax_type'         => $tl['tax_type'],
+                        'amount'           => (float) $tl['amount'],
+                    ]);
+                }
+                foreach ($this->skipBankLines as $bl) {
+                    \App\Models\PaymentOrderBankLine::create([
+                        'payment_order_id' => $oldPo->id,
+                        'bank_account_id'  => (int) $bl['bank_account_id'],
+                        'amount'           => (float) $bl['amount'],
+                    ]);
+                }
+            }
+
+            if ($this->paymentType === 'accounts_payable') {
+                foreach ($this->skipBankLines as $bl) {
+                    \App\Models\PaymentOrderBankLine::create([
+                        'payment_order_id' => $oldPo->id,
+                        'bank_account_id'  => (int) $bl['bank_account_id'],
+                        'amount'           => (float) $bl['amount'],
+                    ]);
+                }
+            }
+
+            if ($this->paymentType === 'contract' && !empty($this->expenseDistributions)) {
+                if ($this->paymentMode === 'single' && $this->selectedExpenseDistributionId) {
+                    $dist = collect($this->expenseDistributions)->firstWhere('id', $this->selectedExpenseDistributionId);
+                    if ($dist) {
+                        PaymentOrderExpenseLine::create([
+                            'payment_order_id'        => $oldPo->id,
+                            'expense_distribution_id' => $dist['id'],
+                            'expense_code_id'         => $dist['expense_code_id'],
+                            'subtotal'                => (float) $this->paySubtotal,
+                            'iva'                     => (float) ($this->payIva ?? 0),
+                            'total'                   => (float) $this->payTotal,
+                            'retention_concept'       => $this->retentionConcept ?: null,
+                            'supplier_declares_rent'  => $this->supplierDeclaresRent,
+                            'retention_percentage'    => $this->retentionPercentage,
+                            'retefuente'              => $this->retefuente,
+                            'reteiva'                 => $this->reteiva,
+                            'estampilla_produlto_mayor' => $this->estampillaProdultoMayor,
+                            'estampilla_procultura'   => $this->estampillaProcultura,
+                            'estampilla_prodeporte'   => $this->estampillaProdeporte,
+                            'retencion_ica'           => $this->retencionIca,
+                            'other_taxes_breakdown'   => $this->otherTaxesBreakdown,
+                            'total_retentions'        => $this->totalRetentions,
+                            'net_payment'             => $this->netPayment,
+                        ]);
+                    }
+                } elseif ($this->paymentMode === 'split') {
+                    foreach ($this->expenseLines as $line) {
+                        $lineSubtotal = (float) ($line['subtotal'] ?? 0);
+                        if ($lineSubtotal <= 0 && (float) ($line['iva'] ?? 0) <= 0) continue;
+                        PaymentOrderExpenseLine::create([
+                            'payment_order_id'        => $oldPo->id,
+                            'expense_distribution_id' => $line['expense_distribution_id'],
+                            'expense_code_id'         => $line['expense_code_id'],
+                            'subtotal'                => $lineSubtotal,
+                            'iva'                     => (float) ($line['iva'] ?? 0),
+                            'total'                   => (float) ($line['total'] ?? 0),
+                            'retention_concept'       => $line['retention_concept'] ?: null,
+                            'supplier_declares_rent'  => (bool) ($line['supplier_declares_rent'] ?? false),
+                            'retention_percentage'    => (float) ($line['retention_percentage'] ?? 0),
+                            'retefuente'              => (float) ($line['retefuente'] ?? 0),
+                            'reteiva'                 => (float) ($line['reteiva'] ?? 0),
+                            'estampilla_produlto_mayor' => (float) ($line['estampilla_produlto_mayor'] ?? 0),
+                            'estampilla_procultura'   => (float) ($line['estampilla_procultura'] ?? 0),
+                            'estampilla_prodeporte'   => (float) ($line['estampilla_prodeporte'] ?? 0),
+                            'retencion_ica'           => (float) ($line['retencion_ica'] ?? 0),
+                            'other_taxes_breakdown'   => is_array($line['other_taxes_breakdown'] ?? null) ? $line['other_taxes_breakdown'] : null,
+                            'total_retentions'        => (float) ($line['total_retentions'] ?? 0),
+                            'net_payment'             => (float) ($line['net_payment'] ?? 0),
+                        ]);
+                    }
+                }
+            }
+
+            DB::commit();
+            $this->dispatch('toast', message: 'Orden de pago actualizada exitosamente y regresada a estado Borrador.', type: 'success');
+            $this->viewDetail($oldPo->id);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->dispatch('toast', message: 'Error al actualizar orden de pago: ' . $e->getMessage(), type: 'error');
+        }
+    }
+
+
     public function openStatusModal()
     {
         if (!auth()->user()->can('postcontractual.edit')) {
@@ -2372,3 +2879,4 @@ class PostcontractualManagement extends Component
         ]);
     }
 }
+

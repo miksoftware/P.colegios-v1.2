@@ -135,11 +135,21 @@ class Cdp extends Model
 
     public static function getNextCdpNumber(int $schoolId, int $fiscalYear): int
     {
-        $max = static::where('school_id', $schoolId)
+        $usedNumbers = static::where('school_id', $schoolId)
             ->where('fiscal_year', $fiscalYear)
-            ->max('cdp_number');
+            ->orderBy('cdp_number')
+            ->pluck('cdp_number')
+            ->toArray();
 
-        return ($max ?? 0) + 1;
+        $next = 1;
+        foreach ($usedNumbers as $num) {
+            if ($num == $next) {
+                $next++;
+            } elseif ($num > $next) {
+                return $next;
+            }
+        }
+        return $next;
     }
 
     /**

@@ -138,6 +138,11 @@
                                         <button wire:click="viewDetail({{ $po->id }})" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Ver detalle">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                         </button>
+                                        @if(auth()->user()->isAdmin())
+                                        <button wire:click="editPaymentOrder({{ $po->id }})" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Editar orden completa">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
@@ -156,8 +161,8 @@
                 @endif
             </div>
 
-        @elseif($currentView === 'create')
-            {{-- ==================== VISTA CREAR ==================== --}}
+        @elseif(in_array($currentView, ['create', 'edit']))
+            {{-- ==================== VISTA CREAR/EDITAR ==================== --}}
             <div class="mb-6">
                 <button wire:click="backToList" class="inline-flex items-center gap-2 text-sm text-emerald-600 hover:text-emerald-800 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
@@ -166,11 +171,13 @@
             </div>
 
             <div class="flex items-center gap-3 mb-6">
-                <h1 class="text-2xl font-bold text-gray-900">Nueva Orden de Pago</h1>
+                <h1 class="text-2xl font-bold text-gray-900">
+                    {{ $currentView === 'edit' ? 'Editar Orden de Pago' : 'Nueva Orden de Pago' }}
+                </h1>
                 <span class="text-sm text-gray-500">Etapa Postcontractual</span>
             </div>
 
-            <form wire:submit.prevent="savePaymentOrder" class="space-y-6">
+            <form wire:submit.prevent="{{ $currentView === 'edit' ? 'updatePaymentOrder' : 'savePaymentOrder' }}" class="space-y-6">
 
                 {{-- ─── TIPO DE PAGO ────────────────────────────────── --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -254,8 +261,8 @@
                 <div class="flex justify-end gap-3">
                     <button type="button" wire:click="backToList" class="px-6 py-2.5 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
                     <button type="submit" class="px-6 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2" wire:loading.attr="disabled">
-                        <svg wire:loading wire:target="savePaymentOrder" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                        Crear Orden de Pago
+                        <svg wire:loading wire:target="{{ $currentView === 'edit' ? 'updatePaymentOrder' : 'savePaymentOrder' }}" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {{ $currentView === 'edit' ? 'Actualizar Orden de Pago' : 'Crear Orden de Pago' }}
                     </button>
                 </div>
                 @endif {{-- end if contractData --}}
@@ -631,8 +638,8 @@
                 <div class="flex justify-end gap-3">
                     <button type="button" wire:click="backToList" class="px-6 py-2.5 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
                     <button type="submit" class="px-6 py-2.5 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors flex items-center gap-2" wire:loading.attr="disabled">
-                        <svg wire:loading wire:target="savePaymentOrder" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                        Crear Orden de Pago Directo
+                        <svg wire:loading wire:target="{{ $currentView === 'edit' ? 'updatePaymentOrder' : 'savePaymentOrder' }}" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {{ $currentView === 'edit' ? 'Actualizar Orden' : 'Crear Orden de Pago Directo' }}
                     </button>
                 </div>
                 @endif {{-- end if supplierData --}}
@@ -800,8 +807,8 @@
                 <div class="flex justify-end gap-3">
                     <button type="button" wire:click="backToList" class="px-6 py-2.5 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
                     <button type="submit" class="px-6 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors flex items-center gap-2" wire:loading.attr="disabled">
-                        <svg wire:loading wire:target="savePaymentOrder" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                        Crear Cuenta por Pagar
+                        <svg wire:loading wire:target="{{ $currentView === 'edit' ? 'updatePaymentOrder' : 'savePaymentOrder' }}" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {{ $currentView === 'edit' ? 'Actualizar Orden' : 'Crear Cuenta por Pagar' }}
                     </button>
                 </div>
                 @endif {{-- end if supplierData (accounts_payable) --}}

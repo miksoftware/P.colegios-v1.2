@@ -117,7 +117,7 @@ class PostcontractualManagement extends Component
     ];
 
     // ── Pago Directo (sin contrato) ──────────────────────────
-    public $paymentOrderId = null;
+
     public $paymentType = 'contract'; // 'contract' o 'direct'
     public $selectedSupplierId = '';
     public $directDescription = '';

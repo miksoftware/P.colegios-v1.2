@@ -85,7 +85,7 @@ class IncomeRegistrationCatalog
             ],
             [
                 'key' => 'intereses_gratuidad',
-                'accounting_code' => '480207',
+                'accounting_code' => '480201',
                 'label' => 'Intereses Gratuidad',
             ],
             [

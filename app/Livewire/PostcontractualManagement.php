@@ -1734,10 +1734,13 @@ class PostcontractualManagement extends Component
                         $paidViaLines = (float) \App\Models\PaymentOrderExpenseLine::whereHas('expenseDistribution', fn($q) => $q->where('budget_id', $budget->id))
                             ->whereHas('paymentOrder', fn($q) => $q->whereIn('status', ['approved', 'paid']))
                             ->sum('total');
+                        // Solo sumar pagos directos que NO tienen expense_lines (skipCdpRp sin distribución),
+                        // para evitar doble conteo con los que ya están sumados en $paidViaLines.
                         $paidDirect = (float) \App\Models\PaymentOrder::where('school_id', $this->schoolId)
                             ->where('payment_type', 'direct')
                             ->where('budget_item_id', $budget->budget_item_id)
                             ->whereIn('status', ['approved', 'paid'])
+                            ->whereDoesntHave('expenseLines')
                             ->sum('total');
                         $budgetPaymentCache[$budget->id] = $paidViaLines + $paidDirect;
                     }

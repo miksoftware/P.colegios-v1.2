@@ -123,9 +123,9 @@ class PostcontractualPdfController extends Controller
         $otherTaxes = $po->other_taxes_breakdown_normalized ?? [];
         if (!empty($otherTaxes)) {
             $retentionRows[] = ['code' => '2407', 'name' => 'IMPUESTOS TASAS, CONTRIBUCIONES', 'amount' => 0, 'is_parent' => true];
-            foreach ($otherTaxes as $concept => $amount) {
-                $amount = (float) $amount;
-                if ($amount <= 0) {
+            foreach ($otherTaxes as $concept => $taxAmount) {
+                $taxAmount = (float) $taxAmount;
+                if ($taxAmount <= 0) {
                     continue;
                 }
 
@@ -138,7 +138,7 @@ class PostcontractualPdfController extends Controller
                 $retentionRows[] = [
                     'code' => $code ?: (string) $concept,
                     'name' => strtoupper((string) $displayName),
-                    'amount' => $amount,
+                    'amount' => $taxAmount,
                     'is_parent' => false,
                 ];
             }

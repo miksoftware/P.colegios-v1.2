@@ -605,8 +605,8 @@
 
                 {{-- Header del Contrato --}}
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-                    <div class="flex flex-col lg:flex-row justify-between items-start gap-4">
-                        <div class="flex-1">
+                    <div class="flex flex-col xl:flex-row justify-between items-start gap-4 xl:gap-8">
+                        <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-3 mb-2">
                                 <h1 class="text-2xl font-bold text-gray-900">Contrato N° {{ $contract->formatted_number }}</h1>
                                 @php
@@ -624,7 +624,7 @@
                                     {{ $contract->status_name }}
                                 </span>
                             </div>
-                            <p class="text-gray-700 mb-2">{{ $contract->object }}</p>
+                            <p class="text-gray-700 mb-2 break-words leading-relaxed">{{ $contract->object }}</p>
                             @if($contract->justification)
                                 <p class="text-sm text-gray-500">{{ $contract->justification }}</p>
                             @endif
@@ -713,7 +713,7 @@
                                 <span><strong>Creado por:</strong> {{ $contract->creator?->name ?? 'N/D' }}</span>
                             </div>
                         </div>
-                        <div class="text-right">
+                        <div class="w-full xl:w-auto xl:max-w-md xl:shrink-0 xl:text-right">
                             <p class="text-sm text-gray-500">Valor total del contrato</p>
                             <p class="text-3xl font-bold text-indigo-600">${{ number_format($contract->total, 2, ',', '.') }}</p>
                             <p class="text-xs text-gray-400 mt-1">
@@ -722,7 +722,7 @@
                             </p>
 
                             {{-- Botones de acción según estado --}}
-                            <div class="mt-4 flex flex-wrap gap-2 justify-end">
+                            <div class="mt-4 flex flex-wrap gap-2 justify-start xl:justify-end">
                                 {{-- Botón Imprimir --}}
                                 <button wire:click="openPrintModal" class="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors inline-flex items-center gap-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>

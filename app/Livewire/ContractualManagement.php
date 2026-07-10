@@ -1025,6 +1025,23 @@ class ContractualManagement extends Component
             $this->dispatch('toast', message: 'Sin permisos.', type: 'error');
             return;
         }
+
+        if (!$this->contractId) {
+            return;
+        }
+
+        $contract = Contract::with('paymentOrders')->forSchool($this->schoolId)->findOrFail($this->contractId);
+
+        if ($contract->status === 'completed') {
+            $this->dispatch('toast', message: 'No se puede eliminar un contrato finalizado.', type: 'error');
+            return;
+        }
+
+        if ($contract->hasPaymentOrders()) {
+            $this->dispatch('toast', message: 'No se puede eliminar un contrato que tiene órdenes de pago asociadas.', type: 'error');
+            return;
+        }
+
         $this->showDeleteModal = true;
     }
 
@@ -1032,10 +1049,16 @@ class ContractualManagement extends Component
     {
         if (!$this->contractId) return;
 
-        $contract = Contract::with('rps')->forSchool($this->schoolId)->findOrFail($this->contractId);
+        $contract = Contract::with(['rps', 'paymentOrders'])->forSchool($this->schoolId)->findOrFail($this->contractId);
 
-        if ($contract->status !== 'draft') {
-            $this->dispatch('toast', message: 'Solo se pueden eliminar contratos en estado borrador.', type: 'error');
+        if ($contract->status === 'completed') {
+            $this->dispatch('toast', message: 'No se puede eliminar un contrato finalizado.', type: 'error');
+            $this->showDeleteModal = false;
+            return;
+        }
+
+        if ($contract->hasPaymentOrders()) {
+            $this->dispatch('toast', message: 'No se puede eliminar un contrato que tiene órdenes de pago asociadas.', type: 'error');
             $this->showDeleteModal = false;
             return;
         }

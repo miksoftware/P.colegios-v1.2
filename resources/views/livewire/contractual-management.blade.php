@@ -786,7 +786,7 @@
                                     @endif
                                 @endcan
                                 @can('contractual.delete')
-                                    @if($contract->status === 'draft')
+                                    @if($contract->status !== 'completed' && !$contract->hasPaymentOrders())
                                         <button wire:click="confirmDelete" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
                                             Eliminar
                                         </button>

@@ -48,6 +48,97 @@
             </div>
 
             @if($selectedAccount)
+            {{-- Gestión de extractos bancarios por mes --}}
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+                <div class="flex flex-col lg:flex-row lg:items-end gap-4">
+                    <div class="w-full lg:w-1/4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Mes del Extracto</label>
+                        <select wire:model.live="statementMonth" class="w-full rounded-xl border-gray-300">
+                            @foreach($this->monthOptions as $monthNumber => $monthName)
+                                <option value="{{ $monthNumber }}">{{ $monthName }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="w-full lg:w-2/4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Archivo PDF</label>
+                        <input
+                            type="file"
+                            wire:model="statementFile"
+                            accept="application/pdf,.pdf"
+                            class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-60"
+                            @disabled(!empty($selectedStatement))
+                        >
+                        @error('statementFile')
+                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div class="w-full lg:w-1/4">
+                        <button
+                            wire:click="uploadStatement"
+                            wire:loading.attr="disabled"
+                            wire:target="statementFile,uploadStatement"
+                            class="w-full inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl disabled:opacity-60 disabled:cursor-not-allowed"
+                            @disabled(!empty($selectedStatement))
+                        >
+                            Cargar Extracto
+                        </button>
+                    </div>
+                </div>
+
+                @if($selectedStatement)
+                <div class="mt-4 p-4 rounded-xl border border-emerald-200 bg-emerald-50 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                        <p class="text-sm font-semibold text-emerald-800">
+                            Mes {{ $this->monthOptions[$statementMonth] ?? $statementMonth }} bloqueado por extracto cargado
+                        </p>
+                        <p class="text-xs text-emerald-700">
+                            Archivo: {{ $selectedStatement['file_name'] }}
+                            ({{ number_format(($selectedStatement['file_size'] ?? 0) / 1024, 1, ',', '.') }} KB)
+                            @if(!empty($selectedStatement['uploaded_at']))
+                                - Cargado: {{ $selectedStatement['uploaded_at'] }}
+                            @endif
+                        </p>
+                    </div>
+
+                    @if($isAdmin)
+                    <div class="flex gap-2">
+                        <button
+                            wire:click="downloadStatement({{ $selectedStatement['id'] }})"
+                            class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                            Descargar PDF
+                        </button>
+                        <button
+                            wire:click="deleteStatement({{ $selectedStatement['id'] }})"
+                            onclick="if(!confirm('¿Eliminar este extracto? El mes quedará habilitado para una nueva carga.')){event.stopImmediatePropagation();return false;}"
+                            class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700"
+                        >
+                            Eliminar
+                        </button>
+                    </div>
+                    @else
+                    <p class="text-xs text-amber-700 font-medium">Solo los administradores pueden descargar o eliminar extractos.</p>
+                    @endif
+                </div>
+                @else
+                <p class="mt-4 text-sm text-blue-700">Este mes está habilitado para cargar extracto bancario (PDF).</p>
+                @endif
+
+                <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                    @foreach($this->monthOptions as $monthNumber => $monthName)
+                        @php $monthStatement = $statementByMonth[$monthNumber] ?? null; @endphp
+                        <div class="px-3 py-2 rounded-lg border text-xs {{ $monthStatement ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500' }}">
+                            <p class="font-semibold">{{ $monthName }}</p>
+                            <p>{{ $monthStatement ? 'Cargado' : 'Sin archivo' }}</p>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
+            @if($selectedAccount)
             {{-- Info de la Cuenta --}}
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">

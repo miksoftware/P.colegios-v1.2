@@ -699,7 +699,16 @@
                                 </div>
                             @endif
                             <div class="mt-2 flex flex-wrap gap-4 text-sm text-gray-500">
-                                <span><strong>Convocatoria:</strong> #{{ $contract->convocatoria?->formatted_number }}</span>
+                                @if($contract->convocatoria)
+                                    <span title="{{ $contract->convocatoria->object }}">
+                                        <strong>Convocatoria:</strong> 
+                                        <a href="{{ route('precontractual.index', ['search' => $contract->convocatoria->formatted_number]) }}" class="text-indigo-600 hover:text-indigo-800 hover:underline">
+                                            #{{ $contract->convocatoria->formatted_number }}
+                                        </a>
+                                    </span>
+                                @else
+                                    <span><strong>Convocatoria:</strong> N/D</span>
+                                @endif
                                 <span><strong>Forma de pago:</strong> {{ $contract->payment_method_name }}</span>
                                 <span><strong>Creado por:</strong> {{ $contract->creator?->name ?? 'N/D' }}</span>
                             </div>

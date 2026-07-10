@@ -687,7 +687,14 @@ class PrecontractualManagement extends Component
                     'justification' => $this->convJustification,
                 ]);
 
-                $this->dispatch('toast', message: 'Se actualizaron únicamente los campos permitidos de la convocatoria.', type: 'success');
+                if ($convocatoria->contract) {
+                    $convocatoria->contract->update([
+                        'object' => $this->convObject,
+                        'justification' => $this->convJustification,
+                    ]);
+                }
+
+                $this->dispatch('toast', message: 'Se actualizaron los campos permitidos de la convocatoria y su contrato asociado.', type: 'success');
                 $this->closeEditModal();
                 $this->viewDetail($convocatoria->id);
             } catch (\Exception $e) {

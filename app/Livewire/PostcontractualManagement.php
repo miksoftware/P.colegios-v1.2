@@ -78,6 +78,8 @@ class PostcontractualManagement extends Component
     public $applyEstampillaProcultura = false;
     public $applyEstampillaProdeporte = false;
     public $applyOtherTaxes = [];
+    public $applyRetencionIca = false;
+    public $retencionIcaPercentage = 0;
 
     // Totales
     public $totalRetentions = 0;
@@ -236,6 +238,22 @@ class PostcontractualManagement extends Component
             ->values();
     }
 
+    public function getRetencionIcaConfigProperty(): ?RetentionConfig
+    {
+        $config = $this->retentionConfigs['retencion_ica'] ?? null;
+
+        return $config instanceof RetentionConfig ? $config : null;
+    }
+
+    public function getCanApplyRetencionIcaProperty(): bool
+    {
+        $config = $this->retencionIcaConfig;
+
+        return $config
+            && (bool) ($config->is_active ?? false)
+            && $this->retentionApplies($config, $this->retentionApplicabilityContext);
+    }
+
     protected function syncApplyOtherTaxesDefaults(): void
     {
         foreach ($this->otherTaxConfigs as $cfg) {
@@ -261,6 +279,15 @@ class PostcontractualManagement extends Component
             }
 
             $amount = 0.0;
+
+            if ($concept === 'retencion_ica') {
+                if ($this->canApplyRetencionIca && $this->applyRetencionIca && (float) $this->retencionIcaPercentage > 0) {
+                    $amount = $this->roundRetention($subtotal * ((float) $this->retencionIcaPercentage / 100));
+                }
+
+                $breakdown[$concept] = $amount;
+                continue;
+            }
 
             if ($cfg->category === 'estampilla' && ($context['payment_type'] ?? '') === 'direct') {
                 $breakdown[$concept] = 0.0;
@@ -869,6 +896,8 @@ class PostcontractualManagement extends Component
         $this->estampillaProcultura = 0;
         $this->estampillaProdeporte = 0;
         $this->retencionIca = 0;
+        $this->applyRetencionIca = false;
+        $this->retencionIcaPercentage = 0;
         $this->otherTaxesTotal = 0;
         $this->otherTaxesBreakdown = [];
         $this->totalRetentions = 0;
@@ -1095,6 +1124,21 @@ class PostcontractualManagement extends Component
         $this->calculateRetentions();
     }
 
+    public function updatedApplyRetencionIca($value)
+    {
+        if (!(bool) $value) {
+            $this->retencionIcaPercentage = 0;
+        }
+
+        $this->calculateRetentions();
+    }
+
+    public function updatedRetencionIcaPercentage()
+    {
+        $this->retencionIcaPercentage = max(0, min(100, (float) $this->retencionIcaPercentage));
+        $this->calculateRetentions();
+    }
+
     // ══════════════════════════════════════════════════════════
     // DISTRIBUCIÓN POR CÓDIGO DE GASTO
     // ══════════════════════════════════════════════════════════
@@ -1178,6 +1222,8 @@ class PostcontractualManagement extends Component
             $this->estampillaProcultura = 0;
             $this->estampillaProdeporte = 0;
             $this->retencionIca = 0;
+            $this->applyRetencionIca = false;
+            $this->retencionIcaPercentage = 0;
             $this->otherTaxesTotal = 0;
             $this->otherTaxesBreakdown = [];
             $this->totalRetentions = 0;
@@ -1411,8 +1457,16 @@ class PostcontractualManagement extends Component
             return;
         }
 
+        if (!$this->canApplyRetencionIca) {
+            $this->applyRetencionIca = false;
+            $this->retencionIcaPercentage = 0;
+        }
+
         // In split mode, retentions are calculated per-line
         if ($this->paymentMode === 'split' && !empty($this->expenseLines)) {
+            foreach (array_keys($this->expenseLines) as $index) {
+                $this->calculateLineRetentions((int) $index);
+            }
             $this->recalculateFromLines();
             return;
         }
@@ -1606,6 +1660,13 @@ class PostcontractualManagement extends Component
                 $messages['invoiceDate.required']   = 'La fecha de la factura es obligatoria.';
                 $messages['invoiceNumber.required'] = 'El número de factura es obligatorio.';
             }
+        }
+
+        if ($this->canApplyRetencionIca && $this->applyRetencionIca) {
+            $rules['retencionIcaPercentage'] = 'required|numeric|min:0.01|max:100';
+            $messages['retencionIcaPercentage.required'] = 'Debe indicar el porcentaje de ReteICA.';
+            $messages['retencionIcaPercentage.min'] = 'El porcentaje de ReteICA debe ser mayor a 0.';
+            $messages['retencionIcaPercentage.max'] = 'El porcentaje de ReteICA no puede ser mayor a 100.';
         }
 
         if ($this->paymentType === 'contract') {
@@ -1850,6 +1911,8 @@ class PostcontractualManagement extends Component
                 'estampilla_procultura'      => $this->skipCdpRp ? 0 : $this->estampillaProcultura,
                 'estampilla_prodeporte'      => $this->skipCdpRp ? 0 : $this->estampillaProdeporte,
                 'retencion_ica'              => $this->skipCdpRp ? 0 : $this->retencionIca,
+                'apply_retencion_ica'        => $this->skipCdpRp ? false : ((bool) $this->applyRetencionIca),
+                'retencion_ica_percentage'   => $this->skipCdpRp ? 0 : ((float) $this->retencionIcaPercentage),
                 'other_taxes_total'          => $this->skipCdpRp ? 0 : $this->otherTaxesTotal,
                 'other_taxes_breakdown'      => $this->skipCdpRp ? null : $this->otherTaxesBreakdown,
                 'total_retentions'           => $this->skipCdpRp ? 0 : $this->totalRetentions,
@@ -2173,6 +2236,12 @@ class PostcontractualManagement extends Component
         $this->estampillaProcultura = $po->estampilla_procultura;
         $this->estampillaProdeporte = $po->estampilla_prodeporte;
         $this->retencionIca = $po->retencion_ica;
+        $this->applyRetencionIca = (bool) ($po->apply_retencion_ica ?? false);
+        $this->retencionIcaPercentage = (float) ($po->retencion_ica_percentage ?? 0);
+        if (!$this->applyRetencionIca && (float) $this->retencionIca > 0 && (float) $po->subtotal > 0) {
+            $this->applyRetencionIca = true;
+            $this->retencionIcaPercentage = ((float) $this->retencionIca / (float) $po->subtotal) * 100;
+        }
         $this->otherTaxesTotal = $po->other_taxes_total;
         $this->otherTaxesBreakdown = $po->other_taxes_breakdown ?: [];
         $this->totalRetentions = $po->total_retentions;
@@ -2323,6 +2392,13 @@ class PostcontractualManagement extends Component
             }
         }
 
+        if ($this->canApplyRetencionIca && $this->applyRetencionIca) {
+            $rules['retencionIcaPercentage'] = 'required|numeric|min:0.01|max:100';
+            $messages['retencionIcaPercentage.required'] = 'Debe indicar el porcentaje de ReteICA.';
+            $messages['retencionIcaPercentage.min'] = 'El porcentaje de ReteICA debe ser mayor a 0.';
+            $messages['retencionIcaPercentage.max'] = 'El porcentaje de ReteICA no puede ser mayor a 100.';
+        }
+
         if ($this->paymentType === 'contract') {
             $rules['selectedContractId'] = 'required|exists:contracts,id';
             $messages['selectedContractId.required'] = 'Debe seleccionar un contrato.';
@@ -2413,6 +2489,8 @@ class PostcontractualManagement extends Component
                 'estampilla_procultura'      => $this->skipCdpRp ? 0 : $this->estampillaProcultura,
                 'estampilla_prodeporte'      => $this->skipCdpRp ? 0 : $this->estampillaProdeporte,
                 'retencion_ica'              => $this->skipCdpRp ? 0 : $this->retencionIca,
+                'apply_retencion_ica'        => $this->skipCdpRp ? false : ((bool) $this->applyRetencionIca),
+                'retencion_ica_percentage'   => $this->skipCdpRp ? 0 : ((float) $this->retencionIcaPercentage),
                 'other_taxes_total'          => $this->skipCdpRp ? 0 : $this->otherTaxesTotal,
                 'other_taxes_breakdown'      => $this->skipCdpRp ? null : $this->otherTaxesBreakdown,
                 'total_retentions'           => $this->skipCdpRp ? 0 : $this->totalRetentions,
@@ -2732,6 +2810,8 @@ class PostcontractualManagement extends Component
         $this->estampillaProdultoMayor = 0;
         $this->estampillaProcultura = 0;
         $this->retencionIca = 0;
+        $this->applyRetencionIca = false;
+        $this->retencionIcaPercentage = 0;
         $this->otherTaxesTotal = 0;
         $this->totalRetentions = 0;
         $this->netPayment = 0;

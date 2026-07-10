@@ -76,7 +76,7 @@ class RetentionConfigManagement extends Component
             'customConceptName' => $this->createCustomConcept ? 'required|string|max:150' : 'nullable|string|max:150',
             'display_name'    => 'required|string|max:150',
             'category'        => 'required|in:retefuente,reteiva,estampilla,ica',
-            'min_base'        => 'required|numeric|min:0',
+            'min_base'        => 'nullable|numeric|min:0',
             'accounting_code' => 'nullable|string|max:150',
             'is_active'       => 'boolean',
             'notes'           => 'nullable|string',
@@ -87,10 +87,16 @@ class RetentionConfigManagement extends Component
         ];
 
         if ($this->category === 'retefuente') {
+            $rules['min_base']          = 'required|numeric|min:0';
             $rules['rate_not_declares'] = 'required|numeric|min:0|max:100';
             $rules['rate_declares']     = 'required|numeric|min:0|max:100';
             $rules['rate']              = 'nullable|numeric|min:0|max:100';
+        } elseif ($this->category === 'ica') {
+            $rules['rate']              = 'nullable|numeric|min:0|max:100';
+            $rules['rate_not_declares'] = 'nullable|numeric|min:0|max:100';
+            $rules['rate_declares']     = 'nullable|numeric|min:0|max:100';
         } else {
+            $rules['min_base']          = 'required|numeric|min:0';
             $rules['rate']              = 'required|numeric|min:0|max:100';
             $rules['rate_not_declares'] = 'nullable|numeric|min:0|max:100';
             $rules['rate_declares']     = 'nullable|numeric|min:0|max:100';
@@ -325,7 +331,7 @@ class RetentionConfigManagement extends Component
             'concept'           => $this->concept,
             'display_name'      => trim($this->display_name),
             'category'          => $this->category,
-            'min_base'          => (float) $this->min_base,
+            'min_base'          => $this->category === 'ica' ? 0 : (float) $this->min_base,
             'accounting_code'   => $this->accounting_code ?: null,
             'is_active'         => (bool) $this->is_active,
             'notes'             => $this->notes ?: null,
@@ -334,7 +340,7 @@ class RetentionConfigManagement extends Component
             ]),
             'rate_not_declares' => $this->category === 'retefuente' ? (float) $this->rate_not_declares : null,
             'rate_declares'     => $this->category === 'retefuente' ? (float) $this->rate_declares : null,
-            'rate'              => $this->category !== 'retefuente' ? (float) $this->rate : null,
+            'rate'              => ($this->category !== 'retefuente' && $this->category !== 'ica') ? (float) $this->rate : null,
         ];
 
         if ($this->isEditing) {

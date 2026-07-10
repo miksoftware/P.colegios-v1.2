@@ -115,11 +115,20 @@
                 $concept = $cfg->concept;
                 $amount = (float) ($otherTaxesBreakdown[$concept] ?? 0);
                 $disabled = !$cfg->is_active;
+                $isRetencionIca = $concept === 'retencion_ica';
+                $canApplyRetencionIca = $isRetencionIca ? $this->canApplyRetencionIca : false;
             @endphp
             <div class="bg-gray-50 rounded-xl p-3 {{ $disabled ? 'opacity-60' : '' }}">
                 <div class="flex items-center justify-between mb-2">
                     <p class="text-xs text-gray-500">{{ $cfg->display_name }}</p>
-                    @if($paymentType === 'accounts_payable')
+                    @if($isRetencionIca)
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" wire:model.live="applyRetencionIca"
+                                @if(!$canApplyRetencionIca) disabled @endif
+                                class="rounded border-gray-300 text-orange-500 focus:ring-orange-400">
+                            <span class="text-xs font-medium text-gray-600">Aplicar</span>
+                        </label>
+                    @elseif($paymentType === 'accounts_payable')
                         <label class="inline-flex items-center gap-1.5 cursor-pointer">
                             <input type="checkbox" wire:model.live="applyOtherTaxes.{{ $concept }}"
                                 @if($disabled) disabled @endif
@@ -128,9 +137,29 @@
                         </label>
                     @endif
                 </div>
+                @if($isRetencionIca)
+                    <div class="mb-2">
+                        <label class="block text-[10px] text-gray-600 mb-1">Porcentaje ReteICA para este pago</label>
+                        <div class="flex">
+                            <input type="number" wire:model.live.debounce.300ms="retencionIcaPercentage" step="0.01" min="0" max="100"
+                                @if(!$applyRetencionIca || !$canApplyRetencionIca) disabled @endif
+                                class="flex-1 rounded-l-lg border-gray-300 text-xs focus:border-orange-500 focus:ring-orange-500 disabled:bg-gray-100">
+                            <span class="inline-flex items-center px-2 rounded-r-lg border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-xs">%</span>
+                        </div>
+                        @error('retencionIcaPercentage') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                @endif
                 <p class="text-lg font-bold text-center {{ $amount > 0 ? 'text-orange-700' : 'text-gray-400' }}">${{ number_format($amount, 2, ',', '.') }}</p>
                 <p class="text-[10px] text-gray-400 text-center">
-                    @if($cfg->category === 'estampilla' && $paymentType === 'direct')
+                    @if($isRetencionIca)
+                        @if(!$canApplyRetencionIca)
+                            ReteICA no configurado para este tipo de pago
+                        @elseif($applyRetencionIca)
+                            {{ number_format((float) $retencionIcaPercentage, 2, ',', '.') }}% del subtotal
+                        @else
+                            ReteICA desactivado para este pago
+                        @endif
+                    @elseif($cfg->category === 'estampilla' && $paymentType === 'direct')
                         No aplica para pago directo
                     @elseif($cfg->is_active && (float) $cfg->rate > 0)
                         {{ number_format((float) $cfg->rate, 2, ',', '.') }}% del subtotal (base ≥ ${{ number_format((float) $cfg->min_base, 0, ',', '.') }})

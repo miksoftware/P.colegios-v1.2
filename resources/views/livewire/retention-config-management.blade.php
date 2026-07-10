@@ -4,7 +4,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900">Bases de Retenciones</h1>
-                <p class="text-gray-500 mt-1">Tarifas y bases mínimas por vigencia fiscal para el cálculo de retenciones en los pagos</p>
+                <p class="text-gray-500 mt-1">Tarifas y bases mínimas por vigencia fiscal para retenciones, con ReteICA parametrizado directamente en cada pago</p>
             </div>
             <div class="flex items-center gap-2">
                 @can('retention_configs.create')
@@ -156,13 +156,21 @@
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-700">
                                     @if($config->category !== 'retefuente')
-                                        {{ number_format((float) $config->rate, 2, ',', '.') }}%
+                                        @if($config->category === 'ica')
+                                            <span class="text-gray-500">Se define en pago</span>
+                                        @else
+                                            {{ number_format((float) $config->rate, 2, ',', '.') }}%
+                                        @endif
                                     @else
                                         <span class="text-gray-300">—</span>
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-700 font-mono">
-                                    ${{ number_format((float) $config->min_base, 0, ',', '.') }}
+                                    @if($config->category === 'ica')
+                                        <span class="text-gray-500">No aplica</span>
+                                    @else
+                                        ${{ number_format((float) $config->min_base, 0, ',', '.') }}
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 text-xs text-gray-600 font-mono">
                                     {{ $config->accounting_code ?? '—' }}
@@ -342,6 +350,13 @@
                                     </div>
                                 </div>
                             </div>
+                        @elseif($category === 'ica')
+                            <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                                <p class="text-sm font-medium text-indigo-900">Configuración de ReteICA</p>
+                                <p class="text-xs text-indigo-700 mt-1">
+                                    La activación y el porcentaje de ReteICA se definen en cada orden de pago (directo o contractual). Aquí solo configuras código contable, estado y reglas de aplicabilidad.
+                                </p>
+                            </div>
                         @else
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -356,18 +371,20 @@
                             </div>
                         @endif
 
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
-                                Base mínima para aplicar <span class="text-red-500">*</span>
-                            </label>
-                            <div class="flex">
-                                <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
-                                <input type="number" wire:model="min_base" step="0.01" min="0"
-                                    class="flex-1 rounded-r-xl border-gray-300">
+                        @if($category !== 'ica')
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Base mínima para aplicar <span class="text-red-500">*</span>
+                                </label>
+                                <div class="flex">
+                                    <span class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">$</span>
+                                    <input type="number" wire:model="min_base" step="0.01" min="0"
+                                        class="flex-1 rounded-r-xl border-gray-300">
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500">Usa 0 o 1 si la retención aplica sin base mínima.</p>
+                                @error('min_base') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                             </div>
-                            <p class="mt-1 text-xs text-gray-500">Usa 0 o 1 si la retención aplica sin base mínima.</p>
-                            @error('min_base') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                        </div>
+                        @endif
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Código contable</label>

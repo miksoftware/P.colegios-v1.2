@@ -70,8 +70,8 @@ class PrecontractualManagement extends Component
     public $budgetItems = [];
     public $availableDistributions = []; // distribuciones sin CDP activo
 
-    // Modal Propuesta
     public $showProposalModal = false;
+    public $editingProposalId = null;
     public $proposalSupplierId = '';
     public $proposalReceivedDate = '';
     public $proposalReceivedTime = '';
@@ -1195,7 +1195,7 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        if (!in_array($this->convocatoria->status, ['draft'])) {
+        if (!in_array($this->convocatoria->status, ['draft']) && !auth()->user()->is_system_admin && !auth()->user()->hasRole('Admin')) {
             $this->dispatch('toast', message: 'Solo se pueden editar CDPs cuando la convocatoria está en borrador.', type: 'error');
             return;
         }
@@ -1392,7 +1392,7 @@ class PrecontractualManagement extends Component
             return;
         }
 
-        if (!in_array($this->convocatoria->status, ['draft'])) {
+        if (!in_array($this->convocatoria->status, ['draft']) && !auth()->user()->is_system_admin && !auth()->user()->hasRole('Admin')) {
             $this->dispatch('toast', message: 'Solo se pueden editar CDPs cuando la convocatoria está en borrador.', type: 'error');
             return;
         }
@@ -1567,9 +1567,110 @@ class PrecontractualManagement extends Component
         $this->viewDetail($this->convocatoria->id);
     }
 
+    public function openEditProposalModal($id)
+    {
+        if (!auth()->user()->is_system_admin && !auth()->user()->hasRole('Admin')) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden editar propuestas.', type: 'error');
+            return;
+        }
+
+        $proposal = Proposal::where('convocatoria_id', $this->convocatoria->id)->findOrFail($id);
+
+        if ($this->convocatoria->contract && $this->convocatoria->contract->hasPaymentOrders()) {
+            $this->dispatch('toast', message: 'No se puede editar el valor porque el contrato ya tiene órdenes de pago.', type: 'error');
+            return;
+        }
+
+        $this->suppliers = Supplier::where('school_id', $this->schoolId)
+            ->where('is_active', true)
+            ->orderBy('first_name')
+            ->get()
+            ->map(fn($s) => ['id' => $s->id, 'name' => $s->full_name . ' (' . $s->full_document . ')'])
+            ->toArray();
+
+        $this->editingProposalId = $proposal->id;
+        $this->proposalSupplierId = $proposal->supplier_id;
+        $this->proposalReceivedDate = $proposal->received_date?->format('Y-m-d');
+        $this->proposalReceivedTime = $proposal->received_time;
+        $this->proposalSubtotal = $proposal->subtotal;
+        $this->proposalIva = $proposal->iva;
+        
+        $this->showProposalModal = true;
+    }
+
+    public function saveProposalEdit()
+    {
+        if (!auth()->user()->is_system_admin && !auth()->user()->hasRole('Admin')) {
+            $this->dispatch('toast', message: 'Solo los administradores pueden editar propuestas.', type: 'error');
+            return;
+        }
+
+        $this->validate([
+            'proposalSupplierId' => 'required|exists:suppliers,id',
+            'proposalReceivedDate' => 'required|date',
+            'proposalReceivedTime' => 'required',
+            'proposalSubtotal' => 'required|numeric|min:0.01',
+            'proposalIva' => 'nullable|numeric|min:0',
+        ], [
+            'proposalSupplierId.required' => 'Seleccione un proveedor.',
+            'proposalReceivedDate.required' => 'La fecha de recepción es obligatoria.',
+            'proposalReceivedTime.required' => 'La hora de recepción es obligatoria.',
+            'proposalSubtotal.required' => 'El subtotal es obligatorio.',
+            'proposalSubtotal.min' => 'El subtotal debe ser mayor a 0.',
+        ]);
+
+        $proposal = Proposal::where('convocatoria_id', $this->convocatoria->id)->findOrFail($this->editingProposalId);
+
+        // Verificar que el proveedor no tenga ya propuesta en esta convocatoria
+        $exists = Proposal::where('convocatoria_id', $this->convocatoria->id)
+            ->where('supplier_id', $this->proposalSupplierId)
+            ->where('id', '!=', $this->editingProposalId)
+            ->exists();
+
+        if ($exists) {
+            $this->dispatch('toast', message: 'Este proveedor ya tiene una propuesta registrada.', type: 'error');
+            return;
+        }
+
+        if ($this->convocatoria->contract && $this->convocatoria->contract->hasPaymentOrders()) {
+            $this->dispatch('toast', message: 'No se puede guardar porque el contrato ya tiene órdenes de pago.', type: 'error');
+            return;
+        }
+
+        $iva = $this->proposalIva ?: 0;
+        $total = $this->proposalSubtotal + $iva;
+
+        DB::transaction(function () use ($proposal, $iva, $total) {
+            $proposal->update([
+                'supplier_id' => $this->proposalSupplierId,
+                'received_date' => $this->proposalReceivedDate,
+                'received_time' => $this->proposalReceivedTime,
+                'subtotal' => $this->proposalSubtotal,
+                'iva' => $iva,
+                'total' => $total,
+            ]);
+
+            if ($proposal->is_selected && $this->convocatoria->contract) {
+                // Update contract if this is the winning proposal
+                $this->convocatoria->contract->update([
+                    'subtotal' => $this->proposalSubtotal,
+                    'iva' => $iva,
+                    'total' => $total,
+                    'original_total' => $total,
+                    'supplier_id' => $this->proposalSupplierId,
+                ]);
+            }
+        });
+
+        $this->dispatch('toast', message: 'Propuesta actualizada exitosamente.', type: 'success');
+        $this->closeProposalModal();
+        $this->viewDetail($this->convocatoria->id);
+    }
+
     public function closeProposalModal()
     {
         $this->showProposalModal = false;
+        $this->editingProposalId = null;
         $this->proposalSupplierId = '';
         $this->proposalReceivedDate = '';
         $this->proposalReceivedTime = '';

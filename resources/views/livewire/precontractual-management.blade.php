@@ -479,6 +479,13 @@
                                                     @endif
                                                 </td>
                                                 <td class="px-4 py-3 text-right">
+                                                    @if(auth()->user()->is_system_admin || auth()->user()->hasRole('Admin'))
+                                                        @if(!($convocatoria->contract && $convocatoria->contract->hasPaymentOrders()))
+                                                            <button wire:click="openEditProposalModal({{ $proposal->id }})" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Editar">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                                            </button>
+                                                        @endif
+                                                    @endif
                                                     @if(!in_array($convocatoria->status, ['awarded', 'cancelled']))
                                                         @can('precontractual.delete')
                                                             <button wire:click="confirmDeleteProposal({{ $proposal->id }})" class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Eliminar">
@@ -793,9 +800,15 @@
                     
                     <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                         @if($editingCdpId)
-                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
-                                Solo se permite editar CDPs activos en convocatorias borrador y que no estén vinculados a un RP o contrato.
-                            </div>
+                            @if(!in_array($convocatoria->status, ['draft']))
+                                <div class="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-800">
+                                    <strong>¡Atención Administrador!</strong> Está editando un CDP en una convocatoria que ya no está en borrador. Verifique cuidadosamente que los valores correspondan y no descuadren el presupuesto general.
+                                </div>
+                            @else
+                                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                                    Solo se permite editar CDPs activos en convocatorias borrador y que no estén vinculados a un RP o contrato.
+                                </div>
+                            @endif
                         @endif
 
                         {{-- Resumen de CDPs requeridos por distribución --}}
@@ -941,9 +954,9 @@
         <div class="flex items-start justify-center min-h-screen px-4 pt-4 pb-20 sm:p-0">
             <div class="fixed inset-0 bg-gray-500/75" wire:click="closeProposalModal"></div>
             <div class="relative bg-white rounded-2xl overflow-hidden shadow-xl sm:my-8 w-full max-w-lg">
-                <form wire:submit="saveProposal">
+                <form wire:submit="{{ $editingProposalId ? 'saveProposalEdit' : 'saveProposal' }}">
                     <div class="px-6 py-4 border-b border-gray-200 bg-purple-50">
-                        <h3 class="text-lg font-bold text-purple-900">Registrar Propuesta</h3>
+                        <h3 class="text-lg font-bold text-purple-900">{{ $editingProposalId ? 'Editar Propuesta' : 'Registrar Propuesta' }}</h3>
                         <p class="text-sm text-purple-700">Convocatoria #{{ $convocatoria?->formatted_number }}</p>
                     </div>
                     
@@ -1002,7 +1015,7 @@
                     
                     <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
                         <button type="button" wire:click="closeProposalModal" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl">Cancelar</button>
-                        <button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700">Registrar</button>
+                        <button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700">{{ $editingProposalId ? 'Guardar Cambios' : 'Registrar' }}</button>
                     </div>
                 </form>
             </div>
@@ -1158,8 +1171,31 @@
                         ¿Está seguro de cambiar el estado de la convocatoria a 
                         <strong>{{ \App\Models\Convocatoria::STATUSES[$newStatus] ?? $newStatus }}</strong>?
                     </p>
+                    @if($newStatus === 'open')
+                        <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p class="text-sm text-amber-800 text-center">
+                                <strong>¡Atención!</strong> Ya después de que se abra, no se puede editar los valores de los CDP. Revise bien antes de pasar al siguiente paso.
+                            </p>
+                        </div>
+                    @endif
+                    @if($newStatus === 'evaluation')
+                        <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p class="text-sm text-amber-800 text-center">
+                                <strong>¡Atención!</strong> Ya después de pasar a evaluación, no se pueden editar las propuestas. Revise bien si está seguro de pasar al siguiente paso.
+                            </p>
+                        </div>
+                    @endif
+                    @if($newStatus === 'awarded')
+                        <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p class="text-sm text-amber-800 text-center">
+                                <strong>¡Atención!</strong> Al adjudicar la convocatoria, la propuesta seleccionada será definitiva y quedará lista para generar su respectivo contrato. Revise bien si está seguro de pasar al siguiente paso.
+                            </p>
+                        </div>
+                    @endif
                     @if($newStatus === 'cancelled')
-                        <p class="mt-2 text-sm text-red-600 text-center">Esta acción no se puede deshacer.</p>
+                        <div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p class="text-sm text-red-600 text-center">Esta acción no se puede deshacer.</p>
+                        </div>
                     @endif
                 </div>
                 <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">

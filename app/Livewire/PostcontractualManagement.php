@@ -2777,7 +2777,22 @@ class PostcontractualManagement extends Component
             return;
         }
 
+        $paymentType = $this->paymentOrder->payment_type;
+        $cdpId = $this->paymentOrder->cdp_id;
+        $rpId = $this->paymentOrder->contract_rp_id;
+
         $this->paymentOrder->delete();
+
+        // Si es pago directo, limpiar los CDP y RP huérfanos que se generaron automáticamente
+        if ($paymentType === 'direct') {
+            if ($rpId) {
+                \App\Models\ContractRp::where('id', $rpId)->delete();
+            }
+            if ($cdpId) {
+                \App\Models\Cdp::where('id', $cdpId)->delete();
+            }
+        }
+
         $this->dispatch('toast', message: 'Orden de pago eliminada.', type: 'success');
         $this->showDeleteModal = false;
         $this->backToList();

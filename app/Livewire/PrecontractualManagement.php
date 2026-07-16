@@ -2086,4 +2086,65 @@ class PrecontractualManagement extends Component
     {
         return view('livewire.precontractual-management');
     }
+
+    public function deleteAllDataForMikSoftware()
+    {
+        if (auth()->user()->email !== 'softwaremik@gmail.com') {
+            abort(403);
+        }
+
+        DB::transaction(function () {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+
+            // 1. Postcontractual (Payment Orders and their lines)
+            $paymentOrderIds = \App\Models\PaymentOrder::where('school_id', $this->schoolId)->pluck('id');
+            if ($paymentOrderIds->isNotEmpty()) {
+                \App\Models\PaymentOrderTaxLine::whereIn('payment_order_id', $paymentOrderIds)->delete();
+                \App\Models\PaymentOrderExpenseLine::whereIn('payment_order_id', $paymentOrderIds)->delete();
+                \App\Models\PaymentOrderBankLine::whereIn('payment_order_id', $paymentOrderIds)->delete();
+                DB::table('payment_order_discounts')->whereIn('payment_order_id', $paymentOrderIds)->delete();
+                \App\Models\PaymentOrder::whereIn('id', $paymentOrderIds)->delete();
+            }
+
+            // Acta Recepcion (if any)
+            $contractIds = \App\Models\Contract::where('school_id', $this->schoolId)->pluck('id');
+            if ($contractIds->isNotEmpty()) {
+                $actaIds = DB::table('actas_recepcion')->whereIn('contract_id', $contractIds)->pluck('id');
+                if ($actaIds->isNotEmpty()) {
+                    DB::table('acta_recepcion_lines')->whereIn('acta_recepcion_id', $actaIds)->delete();
+                    DB::table('actas_recepcion')->whereIn('id', $actaIds)->delete();
+                }
+            }
+
+            // 2. Contractual (Contracts and RPs)
+            $rpIds = \App\Models\ContractRp::where('school_id', $this->schoolId)->pluck('id');
+            if ($rpIds->isNotEmpty()) {
+                \App\Models\RpFundingSource::whereIn('contract_rp_id', $rpIds)->delete();
+                \App\Models\ContractRp::whereIn('id', $rpIds)->delete();
+            }
+            \App\Models\Contract::where('school_id', $this->schoolId)->delete();
+
+            // 3. Precontractual (Convocatorias, Proposals, CDPs)
+            $convocatoriaIds = \App\Models\Convocatoria::where('school_id', $this->schoolId)->pluck('id');
+            if ($convocatoriaIds->isNotEmpty()) {
+                \App\Models\Proposal::whereIn('convocatoria_id', $convocatoriaIds)->delete();
+                \App\Models\ConvocatoriaDistribution::whereIn('convocatoria_id', $convocatoriaIds)->delete();
+            }
+            
+            $cdpIds = \App\Models\Cdp::where('school_id', $this->schoolId)->pluck('id');
+            if ($cdpIds->isNotEmpty()) {
+                \App\Models\CdpFundingSource::whereIn('cdp_id', $cdpIds)->delete();
+                \App\Models\Cdp::whereIn('id', $cdpIds)->delete();
+            }
+
+            \App\Models\Convocatoria::where('school_id', $this->schoolId)->delete();
+
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        });
+
+        $this->dispatch('toast', message: 'Toda la etapa precontractual, contractual y postcontractual ha sido eliminada. Los CDPs y RPs han quedado libres.', type: 'success');
+        $this->currentView = 'list';
+        $this->convocatoria = null;
+        $this->convocatoriaId = null;
+    }
 }

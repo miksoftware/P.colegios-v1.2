@@ -2102,25 +2102,31 @@ class PrecontractualManagement extends Component
                 \App\Models\PaymentOrderTaxLine::whereIn('payment_order_id', $paymentOrderIds)->delete();
                 \App\Models\PaymentOrderExpenseLine::whereIn('payment_order_id', $paymentOrderIds)->delete();
                 \App\Models\PaymentOrderBankLine::whereIn('payment_order_id', $paymentOrderIds)->delete();
-                DB::table('payment_order_discounts')->whereIn('payment_order_id', $paymentOrderIds)->delete();
+                if (\Illuminate\Support\Facades\Schema::hasTable('payment_order_discounts')) {
+                    DB::table('payment_order_discounts')->whereIn('payment_order_id', $paymentOrderIds)->delete();
+                }
                 \App\Models\PaymentOrder::whereIn('id', $paymentOrderIds)->delete();
             }
 
             // Acta Recepcion (if any)
             $contractIds = \App\Models\Contract::where('school_id', $this->schoolId)->pluck('id');
-            if ($contractIds->isNotEmpty()) {
+            if ($contractIds->isNotEmpty() && \Illuminate\Support\Facades\Schema::hasTable('actas_recepcion')) {
                 $actaIds = DB::table('actas_recepcion')->whereIn('contract_id', $contractIds)->pluck('id');
                 if ($actaIds->isNotEmpty()) {
-                    DB::table('acta_recepcion_lines')->whereIn('acta_recepcion_id', $actaIds)->delete();
+                    if (\Illuminate\Support\Facades\Schema::hasTable('acta_recepcion_lines')) {
+                        DB::table('acta_recepcion_lines')->whereIn('acta_recepcion_id', $actaIds)->delete();
+                    }
                     DB::table('actas_recepcion')->whereIn('id', $actaIds)->delete();
                 }
             }
 
             // 2. Contractual (Contracts and RPs)
-            $rpIds = \App\Models\ContractRp::where('school_id', $this->schoolId)->pluck('id');
-            if ($rpIds->isNotEmpty()) {
-                \App\Models\RpFundingSource::whereIn('contract_rp_id', $rpIds)->delete();
-                \App\Models\ContractRp::whereIn('id', $rpIds)->delete();
+            if ($contractIds->isNotEmpty()) {
+                $rpIds = \App\Models\ContractRp::whereIn('contract_id', $contractIds)->pluck('id');
+                if ($rpIds->isNotEmpty()) {
+                    \App\Models\RpFundingSource::whereIn('contract_rp_id', $rpIds)->delete();
+                    \App\Models\ContractRp::whereIn('id', $rpIds)->delete();
+                }
             }
             \App\Models\Contract::where('school_id', $this->schoolId)->delete();
 

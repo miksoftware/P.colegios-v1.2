@@ -1558,11 +1558,7 @@ class PostcontractualManagement extends Component
     {
         if ($value <= 0) return 0;
 
-        if ($value >= 1000) {
-            return (int) round($value / 1000) * 1000;
-        }
-
-        return (int) round($value / 100) * 100;
+        return (int) round($value / 1000) * 1000;
     }
 
     public function toggleNewBankAccountForm()

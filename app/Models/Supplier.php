@@ -138,7 +138,7 @@ class Supplier extends Model
      */
     public function getFullNameAttribute(): string
     {
-        if ($this->person_type === 'juridica' || $this->document_type === 'NIT') {
+        if ($this->person_type === 'juridica') {
             return $this->first_surname;
         }
 

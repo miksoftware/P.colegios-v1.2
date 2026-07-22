@@ -1,4 +1,4 @@
-﻿<div class="min-h-screen bg-gray-50 py-8">
+<div class="min-h-screen bg-gray-50 py-8">
     <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         {{-- Header --}}
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
@@ -273,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typeof XLSX==='undefined'){alert('Cargando...');return;}
         var d = getData(); if (!d) return;
         var wb = XLSX.utils.book_new();
-        var hdr = [['INFORME:','RELACION DE PAGOS'],['CODIGO DANE:',d.school.dane_code||'N/A'],['FONDO:',d.school.name||'N/A'],['MUNICIPIO:',d.school.municipality||'N/A'],['RECTOR:',d.school.rector_name||'N/A'],['EMAIL:',d.school.email||'N/A'],['PAGADOR:',d.school.pagador_name||'N/A'],['PERIODO:',d.period],[],['No. CE','Fecha CE','No. Factura','Fecha Factura','Proveedor','NIT/Cedula','Direccion','Fuente de Ingreso','Rubro Presupuestal','Nombre del Rubro','Detalle del Pago','Sede Destino','No. Contrato','No. CDP','No. RP','Subtotal','IVA','Valor Total','Tipo Retención','Retencion','ReteIVA','Estampillas','Otros Impuestos','Vr. Transferencia','Cuenta de Banco']];
+        var hdr = [['INFORME:','RELACION DE PAGOS'],['CODIGO DANE:',d.school.dane_code||'N/A'],['FONDO:',d.school.name||'N/A'],['MUNICIPIO:',d.school.municipality||'N/A'],['RECTOR:',d.school.rector_name||'N/A'],['EMAIL:',d.school.email||'N/A'],['PAGADOR:',d.school.pagador_name||'N/A'],['PERIODO:',d.period],[],[],['No. CE','Fecha CE','No. Factura','Fecha Factura','Proveedor','NIT/Cedula','Direccion','Fuente de Ingreso','Rubro Presupuestal','Nombre del Rubro','Detalle del Pago','Sede Destino','No. Contrato','No. CDP','No. RP','Subtotal','IVA','Valor Total','Tipo Retención','Retencion','ReteIVA','Estampillas','Otros Impuestos','Vr. Transferencia','Cuenta de Banco']];
         var data = d.payments.map(function(p){return [p.formatted_number,p.payment_date,p.invoice_number,p.invoice_date,p.supplier_name,p.supplier_document,p.supplier_address,p.funding_source,p.rubro_code,p.rubro_name,p.detail,p.sede,p.contract_number,p.cdp_number,p.rp_number,p.subtotal||0,p.iva||0,p.total,p.retention_concept_name||'',p.retefuente,p.reteiva,p.estampillas,p.otros_impuestos,p.net_payment,p.bank_account||''];});
         var tot = ['','','','','','','','','','','','','','','TOTALES:',d.payments.reduce(function(s,p){return s+(p.subtotal||0);},0),d.payments.reduce(function(s,p){return s+(p.iva||0);},0),d.summary.total_amount,'',d.payments.reduce(function(s,p){return s+p.retefuente;},0),d.payments.reduce(function(s,p){return s+p.reteiva;},0),d.payments.reduce(function(s,p){return s+p.estampillas;},0),d.payments.reduce(function(s,p){return s+p.otros_impuestos;},0),d.summary.total_net,''];
         var all = hdr.concat(data,[[],[tot]]);

@@ -576,7 +576,7 @@ class ContractualPdfController extends Controller
             foreach ($cdp->fundingSources as $cdpFs) {
                 $cdpRows[] = [
                     'cdp_number' => $cdp->formatted_number,
-                    'cdp_date'   => $cdp->created_at,
+                    'cdp_date'   => $contract->convocatoria?->start_date ?? now(),
                     'budget_item_code' => $ecFromDist?->code ?? $cdp->budgetItem?->code ?? '',
                     'budget_item_name' => $ecFromDist?->name ?? $cdp->budgetItem?->name ?? '',
                     'funding_source' => $cdpFs->fundingSource?->name ?? '',

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -77,7 +77,7 @@
             </tr>
             <tr>
                 <td class="info-label">Plazo:</td>
-                <td>{{ $contract->duration_days ?? 'N/A' }} DIAS</td>
+                <td>{{ $contract->duration_days ?? 'N/A' }} DÍAS HÁBILES</td>
             </tr>
             <tr>
                 <td class="info-label">Contratista:</td>

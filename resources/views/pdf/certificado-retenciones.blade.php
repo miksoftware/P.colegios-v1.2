@@ -125,7 +125,7 @@
                     <tr>
                         <td>{{ $po->payment_date?->format('d-M-y') ?? '' }}</td>
                         <td>{{ $po->invoice_number ?? '' }}</td>
-                        <td>{{ number_format($po->iva > 0 ? $po->iva / 0.15 : 0, 2, ',', '.') }}</td>
+                        <td>{{ number_format($po->iva, 2, ',', '.') }}</td>
                         <td>15</td>
                         <td>{{ number_format($po->reteiva, 2, ',', '.') }}</td>
                     </tr>

@@ -1382,13 +1382,8 @@ class ContractualManagement extends Component
 
             $budgetAmount = (float) $budget->current_amount;
 
-            // Total reservado por CDPs activos/utilizados que apuntan a este budget_id
-            $totalReserved = (float) CdpFundingSource::where('budget_id', $budget->id)
-                ->whereHas('cdp', function ($q) {
-                    $q->whereIn('status', ['active', 'used'])
-                      ->where('school_id', $this->schoolId);
-                })
-                ->sum('amount');
+            // Total reservado por CDPs activos y RPs (para CDPs utilizados) que apuntan a este budget_id
+            $totalReserved = \App\Models\Cdp::getTotalReservedForBudget($budget->id, (int) $this->filterYear, $this->schoolId);
 
             $sourceAvailable = max(0, $budgetAmount - $totalReserved);
 
@@ -1502,12 +1497,7 @@ class ContractualManagement extends Component
             }
 
             $budgetAmount = (float) $budget->current_amount;
-            $totalReserved = (float) CdpFundingSource::where('budget_id', $budget->id)
-                ->whereHas('cdp', function ($q) {
-                    $q->whereIn('status', ['active', 'used'])
-                      ->where('school_id', $this->schoolId);
-                })
-                ->sum('amount');
+            $totalReserved = \App\Models\Cdp::getTotalReservedForBudget($budget->id, (int) $this->filterYear, $this->schoolId);
 
             $realAvailable = max(0, $budgetAmount - $totalReserved);
 

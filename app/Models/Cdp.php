@@ -190,4 +190,42 @@ class Cdp extends Model
         return $activeReserved + $usedCommitted;
     }
 
+    /**
+     * Calcula el total reservado/comprometido para un presupuesto específico
+     * en un año fiscal dado.
+     *
+     * - CDPs activos: se cuenta el monto completo del CDP (reserva)
+     * - CDPs utilizados: se cuenta solo lo realmente comprometido en RPs (contratos)
+     * - CDPs anulados: se excluyen
+     */
+    public static function getTotalReservedForBudget(int $budgetId, int $fiscalYear, ?int $schoolId = null): float
+    {
+        // Monto reservado por CDPs activos (aún no tienen contrato)
+        $activeReserved = (float) CdpFundingSource::whereHas('cdp', function ($q) use ($fiscalYear, $schoolId) {
+            $q->where('fiscal_year', $fiscalYear)
+              ->where('status', 'active');
+            if ($schoolId) {
+                $q->where('school_id', $schoolId);
+            }
+        })
+        ->where('budget_id', $budgetId)
+        ->sum('amount');
+
+        // Monto comprometido por RPs de CDPs utilizados (ya tienen contrato)
+        $usedCommitted = (float) RpFundingSource::whereHas('contractRp', function ($q) use ($fiscalYear, $schoolId) {
+            $q->where('fiscal_year', $fiscalYear)
+              ->where('status', '!=', 'cancelled')
+              ->whereHas('cdp', function ($cdpQ) use ($schoolId) {
+                  $cdpQ->where('status', 'used');
+                  if ($schoolId) {
+                      $cdpQ->where('school_id', $schoolId);
+                  }
+              });
+        })
+        ->where('budget_id', $budgetId)
+        ->sum('amount');
+
+        return $activeReserved + $usedCommitted;
+    }
+
 }

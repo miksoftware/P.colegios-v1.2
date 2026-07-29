@@ -69,21 +69,11 @@ class ContractRp extends Model
     // ── Static helpers ────────────────────────────────────────
     public static function getNextRpNumber(int $schoolId, int $year): int
     {
-        $usedNumbers = static::whereHas('cdp', function ($q) use ($schoolId) {
+        $maxNumber = static::whereHas('cdp', function ($q) use ($schoolId) {
             $q->where('school_id', $schoolId);
         })->where('fiscal_year', $year)
-          ->orderBy('rp_number')
-          ->pluck('rp_number')
-          ->toArray();
+          ->max('rp_number');
 
-        $next = 1;
-        foreach ($usedNumbers as $num) {
-            if ($num == $next) {
-                $next++;
-            } elseif ($num > $next) {
-                return $next;
-            }
-        }
-        return $next;
+        return $maxNumber ? $maxNumber + 1 : 1;
     }
 }

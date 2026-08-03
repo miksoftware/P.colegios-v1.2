@@ -174,13 +174,33 @@ class PostcontractualPdfController extends Controller
             }
             $fundingSourceName = implode(' Y ', array_unique(array_filter($allSources)));
 
+            // Mapear cada RP activo del contrato según la distribución de gasto / código de gasto
+            // de origen de su CDP, para poder asociar cada línea de gasto con el RP que
+            // realmente la financia (antes se mostraba siempre $targetRp en todas las filas).
+            $rpByExpenseDistribution = [];
+            $rpByExpenseCode = [];
+            foreach ($po->contract->rps->where('status', 'active') as $rp) {
+                $ed = $rp->cdp?->convocatoriaDistribution?->expenseDistribution;
+                if ($ed) {
+                    $rpByExpenseDistribution[$ed->id] = $rp;
+                    if ($ed->expense_code_id) {
+                        $rpByExpenseCode[$ed->expense_code_id] = $rp;
+                    }
+                }
+            }
+
             // Una fila por cada línea de gasto del pago (valor BRUTO por rubro, tal cual se registró).
             // Si no hay expenseLines, caer al RP como antes.
             if ($po->expenseLines->isNotEmpty()) {
                 foreach ($po->expenseLines as $line) {
                     $ec = $line->expenseCode;
+                    $lineRp = $rpByExpenseDistribution[$line->expense_distribution_id] ?? null;
+                    if (!$lineRp && $ec) {
+                        $lineRp = $rpByExpenseCode[$ec->id] ?? null;
+                    }
+                    $lineRp = $lineRp ?? $targetRp;
                     $rpData[] = [
-                        'rp_number'    => $targetRp?->formatted_number ?? '',
+                        'rp_number'    => $lineRp?->formatted_number ?? '',
                         'expense_code' => $ec?->code ?? '',
                         'expense_name' => $ec?->name ?? '',
                         'total_amount' => (float) $line->total,

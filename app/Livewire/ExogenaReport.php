@@ -89,7 +89,7 @@ class ExogenaReport extends Component
             $supplier = $po->resolved_supplier;
             if (!$supplier) continue;
 
-            $concept = $po->retention_concept ?? 'servicios';
+            $concept = $po->resolved_retention_concept ?? 'servicios';
             $key = $supplier->id . '|' . $concept;
 
             if (!isset($grouped[$key])) {

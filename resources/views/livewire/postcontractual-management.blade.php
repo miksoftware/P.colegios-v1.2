@@ -1092,7 +1092,7 @@
                         </div>
                         <div class="bg-gray-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-gray-500">% Retención</p>
-                            <p class="text-lg font-bold text-gray-900">{{ number_format($paymentOrder->retention_percentage, 1) }}%</p>
+                            <p class="text-lg font-bold text-gray-900">{{ number_format($paymentOrder->effective_retention_percentage, 1) }}%</p>
                         </div>
                         <div class="bg-red-50 rounded-xl p-3 text-center">
                             <p class="text-xs text-red-500">Retefuente</p>

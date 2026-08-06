@@ -241,10 +241,49 @@ class PaymentOrder extends Model
         return self::STATUS_COLORS[$this->status] ?? 'bg-gray-100 text-gray-700';
     }
 
+    public function getResolvedRetentionConceptAttribute(): ?string
+    {
+        if (!empty($this->retention_concept)) {
+            return $this->retention_concept;
+        }
+
+        if ($this->relationLoaded('expenseLines') ? $this->expenseLines->isNotEmpty() : $this->expenseLines()->exists()) {
+            $firstWithConcept = $this->expenseLines->first(fn($line) => !empty($line->retention_concept));
+            if ($firstWithConcept) {
+                return $firstWithConcept->retention_concept;
+            }
+        }
+
+        return null;
+    }
+
+    public function getEffectiveRetentionPercentageAttribute(): float
+    {
+        $stored = (float) $this->retention_percentage;
+        if ($stored > 0) {
+            return $stored;
+        }
+
+        if ($this->relationLoaded('expenseLines') ? $this->expenseLines->isNotEmpty() : $this->expenseLines()->exists()) {
+            $firstWithRate = $this->expenseLines->first(fn($line) => (float) $line->retention_percentage > 0);
+            if ($firstWithRate) {
+                return (float) $firstWithRate->retention_percentage;
+            }
+        }
+
+        $retefuente = (float) $this->retefuente;
+        $subtotal = (float) $this->subtotal;
+        if ($retefuente > 0 && $subtotal > 0) {
+            return round(($retefuente / $subtotal) * 100, 2);
+        }
+
+        return 0.0;
+    }
+
     public function getRetentionConceptNameAttribute(): string
     {
         return static::resolveRetentionConceptName(
-            $this->retention_concept,
+            $this->resolved_retention_concept,
             $this->school_id,
             $this->fiscal_year
         );

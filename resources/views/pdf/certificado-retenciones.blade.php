@@ -101,7 +101,7 @@
                         <td>{{ number_format($servicios, 2) }}</td>
                         <td>{{ number_format($compras, 2) }}</td>
                         <td>{{ number_format($po->subtotal, 2, ',', '.') }}</td>
-                        <td>{{ number_format($po->retention_percentage, 2) }}</td>
+                        <td>{{ number_format($po->effective_retention_percentage, 2) }}</td>
                         <td>{{ number_format($po->retefuente, 2) }}</td>
                     </tr>
                 </tbody>

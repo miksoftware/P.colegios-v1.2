@@ -982,7 +982,7 @@
                                                 <p class="text-xs text-gray-500">
                                                     Factura: {{ $po->invoice_number ?? 'N/D' }}
                                                     · Fecha: {{ $po->payment_date?->format('d/m/Y') ?? 'N/D' }}
-                                                    @if($po->retention_concept)
+                                                    @if($po->resolved_retention_concept)
                                                         · Retención: {{ $po->retention_concept_name }}
                                                     @endif
                                                 </p>

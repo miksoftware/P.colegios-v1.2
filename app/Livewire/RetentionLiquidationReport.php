@@ -150,7 +150,7 @@ class RetentionLiquidationReport extends Component
                         continue;
                     }
                     $retentions[] = [
-                        'concept'    => $line->retention_concept ?? $po->retention_concept,
+                        'concept'    => $line->retention_concept ?? $po->resolved_retention_concept,
                         'base'       => (float) $line->subtotal,
                         'retefuente' => (float) $line->retefuente,
                         'reteiva'    => (float) $line->reteiva,
@@ -160,7 +160,7 @@ class RetentionLiquidationReport extends Component
 
             if (empty($retentions) && ((float) $po->retefuente > 0 || (float) $po->reteiva > 0)) {
                 $retentions[] = [
-                    'concept'    => $po->retention_concept,
+                    'concept'    => $po->resolved_retention_concept,
                     'base'       => (float) $po->subtotal,
                     'retefuente' => (float) $po->retefuente,
                     'reteiva'    => (float) $po->reteiva,

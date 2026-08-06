@@ -85,9 +85,9 @@ class ContraloriaSuppliersPaymentsReport extends Component
 
             // ── Tipo de Pago ────────────────────────────────────────
             // Basado en el concepto de retención (uppercased)
-            $tipoPago = $po->retention_concept
+            $tipoPago = $po->resolved_retention_concept
                 ? strtoupper(PaymentOrder::resolveRetentionConceptName(
-                    $po->retention_concept,
+                    $po->resolved_retention_concept,
                     $po->school_id,
                     $po->fiscal_year
                 ))

@@ -1898,9 +1898,9 @@ class PostcontractualManagement extends Component
                 'subtotal'                   => $this->skipCdpRp ? $skipTotal : (float) $this->paySubtotal,
                 'iva'                        => $this->skipCdpRp ? 0 : (float) ($this->payIva ?? 0),
                 'total'                      => $this->skipCdpRp ? $skipTotal : (float) $this->payTotal,
-                'retention_concept'          => $this->skipCdpRp ? null : ($this->paymentMode === 'single' ? ($this->retentionConcept ?: null) : null),
-                'supplier_declares_rent'     => $this->skipCdpRp ? false : ($this->paymentMode === 'single' ? $this->supplierDeclaresRent : false),
-                'retention_percentage'       => $this->skipCdpRp ? 0 : ($this->paymentMode === 'single' ? $this->retentionPercentage : 0),
+                'retention_concept'          => $this->skipCdpRp ? null : ($this->retentionConcept ?: (collect($this->expenseLines)->firstWhere('retention_concept', '!=', null)['retention_concept'] ?? null)),
+                'supplier_declares_rent'     => $this->skipCdpRp ? false : ($this->supplierDeclaresRent ?: (bool) (collect($this->expenseLines)->firstWhere('supplier_declares_rent', true)['supplier_declares_rent'] ?? false)),
+                'retention_percentage'       => $this->skipCdpRp ? 0 : ($this->retentionPercentage > 0 ? $this->retentionPercentage : ((float)(collect($this->expenseLines)->firstWhere('retention_percentage', '>', 0)['retention_percentage'] ?? ((float)$this->retefuente > 0 && (float)$this->paySubtotal > 0 ? round(((float)$this->retefuente / (float)$this->paySubtotal) * 100, 2) : 0)))),
                 'retefuente'                 => $this->skipCdpRp ? 0 : $this->retefuente,
                 'reteiva'                    => $this->skipCdpRp ? 0 : $this->reteiva,
                 'estampilla_produlto_mayor'  => $this->skipCdpRp ? 0 : $this->estampillaProdultoMayor,
@@ -2223,9 +2223,9 @@ class PostcontractualManagement extends Component
         $this->paySubtotal = $po->subtotal;
         $this->payIva = $po->iva;
         $this->payTotal = $po->total;
-        $this->retentionConcept = $po->retention_concept;
+        $this->retentionConcept = $po->resolved_retention_concept;
         $this->supplierDeclaresRent = $po->supplier_declares_rent;
-        $this->retentionPercentage = $po->retention_percentage;
+        $this->retentionPercentage = $po->effective_retention_percentage;
         $this->retefuente = $po->retefuente;
         $this->reteiva = $po->reteiva;
         $this->estampillaProdultoMayor = $po->estampilla_produlto_mayor;
@@ -2476,9 +2476,9 @@ class PostcontractualManagement extends Component
                 'subtotal'                   => $this->skipCdpRp ? $skipTotal : (float) $this->paySubtotal,
                 'iva'                        => $this->skipCdpRp ? 0 : (float) ($this->payIva ?? 0),
                 'total'                      => $this->skipCdpRp ? $skipTotal : (float) $this->payTotal,
-                'retention_concept'          => $this->skipCdpRp ? null : ($this->paymentMode === 'single' ? ($this->retentionConcept ?: null) : null),
-                'supplier_declares_rent'     => $this->skipCdpRp ? false : ($this->paymentMode === 'single' ? $this->supplierDeclaresRent : false),
-                'retention_percentage'       => $this->skipCdpRp ? 0 : ($this->paymentMode === 'single' ? $this->retentionPercentage : 0),
+                'retention_concept'          => $this->skipCdpRp ? null : ($this->retentionConcept ?: (collect($this->expenseLines)->firstWhere('retention_concept', '!=', null)['retention_concept'] ?? null)),
+                'supplier_declares_rent'     => $this->skipCdpRp ? false : ($this->supplierDeclaresRent ?: (bool) (collect($this->expenseLines)->firstWhere('supplier_declares_rent', true)['supplier_declares_rent'] ?? false)),
+                'retention_percentage'       => $this->skipCdpRp ? 0 : ($this->retentionPercentage > 0 ? $this->retentionPercentage : ((float)(collect($this->expenseLines)->firstWhere('retention_percentage', '>', 0)['retention_percentage'] ?? ((float)$this->retefuente > 0 && (float)$this->paySubtotal > 0 ? round(((float)$this->retefuente / (float)$this->paySubtotal) * 100, 2) : 0)))),
                 'retefuente'                 => $this->skipCdpRp ? 0 : $this->retefuente,
                 'reteiva'                    => $this->skipCdpRp ? 0 : $this->reteiva,
                 'estampilla_produlto_mayor'  => $this->skipCdpRp ? 0 : $this->estampillaProdultoMayor,

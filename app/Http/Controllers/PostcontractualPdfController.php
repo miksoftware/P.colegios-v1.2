@@ -384,7 +384,7 @@ class PostcontractualPdfController extends Controller
         abort_if(!auth()->user()->can('postcontractual.view'), 403);
 
         $po = PaymentOrder::forSchool($schoolId)
-            ->with(['contract.supplier', 'supplier'])
+            ->with(['contract.supplier', 'supplier', 'expenseLines'])
             ->findOrFail($paymentOrderId);
 
         $school = School::findOrFail($schoolId);
@@ -394,12 +394,24 @@ class PostcontractualPdfController extends Controller
         $honorarios = 0;
         $servicios = 0;
         $compras = 0;
-        $concept = $po->retention_concept ?? '';
+        $concept = $po->resolved_retention_concept ?? '';
         $retefuente = (float) $po->retefuente;
 
-        if ($concept === 'honorarios') $honorarios = $retefuente;
-        elseif ($concept === 'servicios') $servicios = $retefuente;
-        elseif ($concept === 'compras') $compras = $retefuente;
+        if ($po->expenseLines->isNotEmpty()) {
+            foreach ($po->expenseLines as $line) {
+                $lineConcept = $line->retention_concept ?: $concept;
+                $lineRetefuente = (float) $line->retefuente;
+                if ($lineConcept === 'honorarios') $honorarios += $lineRetefuente;
+                elseif ($lineConcept === 'servicios') $servicios += $lineRetefuente;
+                elseif ($lineConcept === 'compras') $compras += $lineRetefuente;
+                elseif ($lineRetefuente > 0) $compras += $lineRetefuente;
+            }
+        } else {
+            if ($concept === 'honorarios') $honorarios = $retefuente;
+            elseif ($concept === 'servicios') $servicios = $retefuente;
+            elseif ($concept === 'compras') $compras = $retefuente;
+            elseif ($retefuente > 0) $compras = $retefuente;
+        }
 
         $pdf = Pdf::loadView('pdf.certificado-retenciones', [
             'po' => $po,

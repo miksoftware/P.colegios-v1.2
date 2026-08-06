@@ -215,7 +215,7 @@ class PaymentReportManagement extends Component
 
             // Concepto de retención a nivel de orden de pago (fallback para casos sin expense lines)
             $poRetentionName = PaymentOrder::resolveRetentionConceptName(
-                $po->retention_concept,
+                $po->resolved_retention_concept,
                 $po->school_id,
                 $po->fiscal_year
             );

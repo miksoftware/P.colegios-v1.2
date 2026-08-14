@@ -1222,8 +1222,6 @@ class PostcontractualManagement extends Component
             $this->estampillaProcultura = 0;
             $this->estampillaProdeporte = 0;
             $this->retencionIca = 0;
-            $this->applyRetencionIca = false;
-            $this->retencionIcaPercentage = 0;
             $this->otherTaxesTotal = 0;
             $this->otherTaxesBreakdown = [];
             $this->totalRetentions = 0;

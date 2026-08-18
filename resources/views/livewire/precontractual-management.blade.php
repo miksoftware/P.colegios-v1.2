@@ -697,7 +697,6 @@
                                     flatpickr(this.$refs.convStartInput, {
                                         dateFormat: 'Y-m-d',
                                         defaultDate: $wire.convStartDate || null,
-                                        disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                                         onChange: (selectedDates, dateStr) => { $wire.set('convStartDate', dateStr); }
                                     });
                                 }
@@ -711,7 +710,6 @@
                                     flatpickr(this.$refs.convEndInput, {
                                         dateFormat: 'Y-m-d',
                                         defaultDate: $wire.convEndDate || null,
-                                        disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                                         onChange: (selectedDates, dateStr) => { $wire.set('convEndDate', dateStr); }
                                     });
                                 }
@@ -1113,7 +1111,6 @@
                                 flatpickr(this.$refs.changeDateStart, {
                                     dateFormat: 'Y-m-d',
                                     defaultDate: $wire.changeDatesStartDate || null,
-                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                                     onChange: (selectedDates, dateStr) => { $wire.set('changeDatesStartDate', dateStr); }
                                 });
                             }
@@ -1136,7 +1133,6 @@
                                 flatpickr(this.$refs.changeDateEnd, {
                                     dateFormat: 'Y-m-d',
                                     defaultDate: $wire.changeDatesEndDate || null,
-                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                                     onChange: (selectedDates, dateStr) => { $wire.set('changeDatesEndDate', dateStr); }
                                 });
                             }

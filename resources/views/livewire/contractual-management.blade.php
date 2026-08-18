@@ -251,18 +251,16 @@
                                 });
                             },
                             createPicker() {
-                                let minDate = this.convEndDate ? this.getNextWeekday(this.convEndDate) : undefined;
+                                let minDate = this.convEndDate ? this.getNextDay(this.convEndDate) : undefined;
                                 this.fp = flatpickr(this.$refs.startInput, {
                                     dateFormat: 'Y-m-d',
                                     minDate: minDate,
-                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                                     onChange: (selectedDates, dateStr) => { $wire.set('startDate', dateStr); }
                                 });
                             },
-                            getNextWeekday(dateStr) {
+                            getNextDay(dateStr) {
                                 let d = new Date(dateStr + 'T12:00:00');
                                 d.setDate(d.getDate() + 1);
-                                while (d.getDay() === 0 || d.getDay() === 6) { d.setDate(d.getDate() + 1); }
                                 return d.toISOString().split('T')[0];
                             }
                         }">
@@ -281,18 +279,16 @@
                                 });
                             },
                             createPicker() {
-                                let minDate = this.convEndDate ? this.getNextWeekday(this.convEndDate) : undefined;
+                                let minDate = this.convEndDate ? this.getNextDay(this.convEndDate) : undefined;
                                 this.fp = flatpickr(this.$refs.endInput, {
                                     dateFormat: 'Y-m-d',
                                     minDate: minDate,
-                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                                     onChange: (selectedDates, dateStr) => { $wire.set('endDate', dateStr); }
                                 });
                             },
-                            getNextWeekday(dateStr) {
+                            getNextDay(dateStr) {
                                 let d = new Date(dateStr + 'T12:00:00');
                                 d.setDate(d.getDate() + 1);
-                                while (d.getDay() === 0 || d.getDay() === 6) { d.setDate(d.getDate() + 1); }
                                 return d.toISOString().split('T')[0];
                             }
                         }">
@@ -313,7 +309,6 @@
                             <p class="text-sm text-amber-700">
                                 Las fechas del contrato deben ser <strong>posteriores</strong> a la fecha fin de la convocatoria
                                 (<strong>{{ \Carbon\Carbon::parse($convocatoriaEndDate)->format('d/m/Y') }}</strong>).
-                                Solo se habilitan días hábiles a partir de esa fecha.
                             </p>
                         </div>
                     @endif
@@ -1372,7 +1367,6 @@
                                 flatpickr(this.$refs.extDateInput, {
                                     dateFormat: 'Y-m-d',
                                     minDate: '{{ $contract->end_date->addDay()->format("Y-m-d") }}',
-                                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                                     onChange: (selectedDates, dateStr) => { $wire.set('extensionNewEndDate', dateStr); }
                                 });
                             }

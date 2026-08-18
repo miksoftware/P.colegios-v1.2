@@ -29,7 +29,6 @@
                 flatpickr(this.$refs.paymentDateInput, {
                     dateFormat: 'Y-m-d',
                     defaultDate: $wire.paymentDate || null,
-                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                     onChange: (selectedDates, dateStr) => { $wire.set('paymentDate', dateStr); }
                 });
             }
@@ -44,7 +43,6 @@
                 flatpickr(this.$refs.invoiceDateInput, {
                     dateFormat: 'Y-m-d',
                     defaultDate: $wire.invoiceDate || null,
-                    disable: [function(date) { return date.getDay() === 0 || date.getDay() === 6; }],
                     onChange: (selectedDates, dateStr) => { $wire.set('invoiceDate', dateStr); }
                 });
             }

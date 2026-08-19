@@ -243,7 +243,7 @@
                     </tr>
                     <tr>
                         <td class="bold" style="width: 10%;">DÍA:</td>
-                        <td colspan="3">{{ $convocatoria->start_date?->format('d/m/Y') ?? '' }}</td>
+                        <td colspan="3">A convenir</td>
                     </tr>
                 </tbody>
             </table>

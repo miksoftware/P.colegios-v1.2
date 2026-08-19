@@ -196,7 +196,7 @@ class PrecontractualManagement extends Component
             'distributionDetails.expenseDistribution.budget.budgetItem',
             'distributionDetails.expenseDistribution.budget.fundingSource',
             'cdps.budgetItem',
-            'cdps.contractRp',
+            'cdps.contractRp.contract',
             'cdps.fundingSources.fundingSource',
             'cdps.fundingSources.budget',
             'cdps.convocatoriaDistribution.expenseDistribution.expenseCode',

@@ -272,9 +272,10 @@
                                                 </a>
                                             @endcan
                                         @else
-                                            <a href="{{ route('contractual.index') }}" class="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 inline-flex items-center gap-1">
+                                            <a href="{{ route('contractual.index', ['contract_id' => $convocatoria->contract->id]) }}" target="_blank" class="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 inline-flex items-center gap-1" title="Abrir Contrato N° {{ $convocatoria->contract->formatted_number }} en nueva pestaña">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                                                 Ver Contrato
+                                                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                                             </a>
                                         @endif
                                     @endif
@@ -312,7 +313,10 @@
                             <div class="space-y-4">
                                 @foreach($convocatoria->cdps as $cdp)
                                     @php
-                                        $isCdpEditable = $cdp->status === 'active' && $convocatoria->status === 'draft' && !$cdp->contractRp;
+                                        $rp = $cdp->contractRp;
+                                        $contract = $rp?->contract ?? $convocatoria->contract;
+                                        $isCdpEditable = $cdp->status === 'active' && $convocatoria->status === 'draft' && !$rp;
+                                        $contractUrl = $contract ? route('contractual.index', ['contract_id' => $contract->id]) : null;
                                     @endphp
                                     <div class="border rounded-xl overflow-hidden {{ $cdp->status === 'cancelled' ? 'opacity-50' : '' }}">
                                         <div class="bg-gray-50 px-4 py-3 flex justify-between items-center">
@@ -328,9 +332,21 @@
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $cdp->status_color }}">
                                                     {{ $cdp->status_name }}
                                                 </span>
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $isCdpEditable ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }}">
-                                                    {{ $isCdpEditable ? 'Editable' : 'Bloqueado por RP/Contrato' }}
-                                                </span>
+                                                @if($isCdpEditable)
+                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                                                        Editable
+                                                    </span>
+                                                @elseif($contractUrl)
+                                                    <a href="{{ $contractUrl }}" target="_blank" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors shadow-xs group" title="Abrir {{ $contract ? 'Contrato N° ' . $contract->formatted_number : 'Contrato' }} en nueva pestaña">
+                                                        <svg class="w-3.5 h-3.5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                                        <span>Bloqueado por {{ $rp ? 'RP N° ' . $rp->formatted_number : '' }}{{ $rp && $contract ? ' - ' : '' }}{{ $contract ? 'Contrato N° ' . $contract->formatted_number : '' }}</span>
+                                                        <svg class="w-3.5 h-3.5 text-amber-600 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                    </a>
+                                                @else
+                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                                        Bloqueado {{ $rp ? 'por RP N° ' . $rp->formatted_number : 'por Proceso' }}
+                                                    </span>
+                                                @endif
                                             </div>
                                             <div class="flex items-center gap-3">
                                                 <span class="font-semibold text-gray-900">${{ number_format($cdp->total_amount, 2, ',', '.') }}</span>

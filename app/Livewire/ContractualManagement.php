@@ -155,8 +155,10 @@ class ContractualManagement extends Component
 
         $this->filterYear = \App\Models\School::find($this->schoolId)?->current_validity ?? date('Y');
 
-        // Si viene del precontractual con convocatoria preseleccionada
-        if ($convocatoria_id) {
+        $contractId = request()->query('contract_id');
+        if ($contractId) {
+            $this->viewDetail((int) $contractId);
+        } elseif ($convocatoria_id) {
             $this->openCreateView($convocatoria_id);
         }
     }

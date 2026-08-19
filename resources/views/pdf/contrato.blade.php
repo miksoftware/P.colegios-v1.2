@@ -77,7 +77,7 @@
             </tr>
             <tr>
                 <td class="info-label">Plazo:</td>
-                <td>{{ $contract->duration_days ?? 'N/A' }} DÍAS HÁBILES</td>
+                <td>{{ $contract->duration_days ?? 'N/A' }} DÍAS</td>
             </tr>
             <tr>
                 <td class="info-label">Contratista:</td>

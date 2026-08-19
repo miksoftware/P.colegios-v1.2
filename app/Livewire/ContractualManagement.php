@@ -465,16 +465,8 @@ class ContractualManagement extends Component
                     return;
                 }
 
-                $days = 0;
-                $current = $start->copy();
-                while ($current->lte($end)) {
-                    if ($current->isWeekday()) {
-                        $days++;
-                    }
-                    $current->addDay();
-                }
-
-                $this->editDurationDays = $days;
+                // Días calendario (inicio a fin inclusive)
+                $this->editDurationDays = $start->diffInDays($end) + 1;
             } catch (\Exception $e) {
                 $this->editDurationDays = 0;
             }
@@ -524,22 +516,13 @@ class ContractualManagement extends Component
                 $start = \Carbon\Carbon::parse($this->startDate);
                 $end   = \Carbon\Carbon::parse($this->endDate);
 
-                if ($end->lte($start)) {
+                if ($end->lt($start)) {
                     $this->durationDays = 0;
                     return;
                 }
 
-                // Contar solo días hábiles (lunes a viernes)
-                $days = 0;
-                $current = $start->copy();
-                while ($current->lte($end)) {
-                    if ($current->isWeekday()) {
-                        $days++;
-                    }
-                    $current->addDay();
-                }
-
-                $this->durationDays = $days;
+                // Días calendario (inicio a fin inclusive)
+                $this->durationDays = $start->diffInDays($end) + 1;
             } catch (\Exception $e) {
                 $this->durationDays = 0;
             }
@@ -1219,26 +1202,12 @@ class ContractualManagement extends Component
         $newEnd = \Carbon\Carbon::parse($this->extensionNewEndDate);
         $oldEnd = $contract->end_date;
 
-        // Calcular días hábiles de extensión
-        $extensionDays = 0;
-        $current = $oldEnd->copy()->addDay();
-        while ($current->lte($newEnd)) {
-            if ($current->isWeekday()) {
-                $extensionDays++;
-            }
-            $current->addDay();
-        }
+        // Calcular días de extensión (días calendario)
+        $extensionDays = $oldEnd->diffInDays($newEnd);
 
-        // Recalcular duración total en días hábiles
+        // Recalcular duración total en días calendario
         $start = $contract->start_date;
-        $totalDays = 0;
-        $cur = $start->copy();
-        while ($cur->lte($newEnd)) {
-            if ($cur->isWeekday()) {
-                $totalDays++;
-            }
-            $cur->addDay();
-        }
+        $totalDays = $start->diffInDays($newEnd) + 1;
 
         // Guardar documento
         $path = $this->extensionDocument->store('contracts/extensions', 'public');
@@ -1258,7 +1227,7 @@ class ContractualManagement extends Component
         $this->showExtensionModal = false;
         $this->extensionDocument = null;
         $this->extensionJustification = '';
-        $this->dispatch('toast', message: "Prórroga registrada: +{$extensionDays} días hábiles.", type: 'success');
+        $this->dispatch('toast', message: "Prórroga registrada: +{$extensionDays} días.", type: 'success');
         $this->viewDetail($this->contractId);
     }
 
@@ -1744,16 +1713,9 @@ class ContractualManagement extends Component
         DB::transaction(function () use ($contract) {
             $originalEnd = $contract->original_end_date ?? $contract->end_date;
 
-            // Recalcular duración en días hábiles con la fecha original
+            // Recalcular duración en días calendario con la fecha original
             $start = $contract->start_date;
-            $totalDays = 0;
-            $cur = $start->copy();
-            while ($cur->lte($originalEnd)) {
-                if ($cur->isWeekday()) {
-                    $totalDays++;
-                }
-                $cur->addDay();
-            }
+            $totalDays = $start->diffInDays($originalEnd) + 1;
 
             $contract->update([
                 'end_date' => $originalEnd,

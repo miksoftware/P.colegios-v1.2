@@ -296,9 +296,9 @@
                             <input type="text" x-ref="endInput" value="{{ $endDate }}" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white" placeholder="Seleccionar fecha..." readonly>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Duración del Contrato (días hábiles)</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Duración del Contrato (días)</label>
                             <input type="number" value="{{ $durationDays }}" class="w-full rounded-xl border-gray-300 bg-gray-50" disabled>
-                            <p class="text-xs text-gray-400 mt-1">Solo días hábiles (lunes a viernes)</p>
+                            <p class="text-xs text-gray-400 mt-1">Días calendario calculados automáticamente</p>
                         </div>
                     </div>
 
@@ -639,7 +639,7 @@
                                 <span><strong>Lugar:</strong> {{ $contract->execution_place ?: 'N/D' }}</span>
                                 <span><strong>Inicio:</strong> {{ $contract->start_date?->format('d/m/Y') }}</span>
                                 <span><strong>Fin:</strong> {{ $contract->end_date?->format('d/m/Y') }}</span>
-                                <span><strong>Duración:</strong> {{ $contract->duration_days }} días hábiles</span>
+                                <span><strong>Duración:</strong> {{ $contract->duration_days }} días</span>
                                 <span><strong>Año fiscal:</strong> {{ $contract->fiscal_year }}</span>
                             </div>
                             @if($contract->extension_days > 0)
@@ -647,7 +647,7 @@
                                     <div class="flex items-center justify-between">
                                         <div>
                                             <span class="font-medium text-indigo-700">Prórroga:</span>
-                                            <span class="text-indigo-600">+{{ $contract->extension_days }} días hábiles</span>
+                                            <span class="text-indigo-600">+{{ $contract->extension_days }} días</span>
                                             @if($contract->original_end_date)
                                                 <span class="text-gray-500 ml-2">(Fecha original: {{ $contract->original_end_date->format('d/m/Y') }})</span>
                                             @endif
@@ -1123,7 +1123,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Duración calculada</label>
                             <div class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
-                                {{ $editDurationDays }} días hábiles
+                                {{ $editDurationDays }} días
                             </div>
                         </div>
 

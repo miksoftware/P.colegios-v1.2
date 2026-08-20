@@ -109,6 +109,38 @@ class Cdp extends Model
         return self::STATUS_COLORS[$this->status] ?? 'bg-gray-100 text-gray-700';
     }
 
+    /**
+     * Saldo disponible del rubro/distribución antes de crear este CDP (Saldo anterior)
+     */
+    public function getPriorAvailableBalanceAttribute(): float
+    {
+        $convDist = $this->convocatoriaDistribution;
+        if ($convDist && $convDist->expenseDistribution) {
+            $expDist       = $convDist->expenseDistribution;
+            $expDistAmount = (float) $expDist->amount;
+
+            $sameDistIds = ConvocatoriaDistribution::where('expense_distribution_id', $expDist->id)
+                ->pluck('id');
+
+            $priorReserved = static::whereIn('convocatoria_distribution_id', $sameDistIds)
+                ->where('id', '<', $this->id)
+                ->where('status', '!=', 'cancelled')
+                ->sum('total_amount');
+
+            $directPaid = (float) $expDist->paymentOrderLines()
+                ->whereHas('paymentOrder', fn($q) => $q
+                    ->where('payment_type', 'direct')
+                    ->whereIn('status', ['draft', 'approved', 'paid'])
+                )
+                ->sum('total');
+
+            return max(0, $expDistAmount - (float) $priorReserved - $directPaid);
+        }
+
+        $savedBalance = (float) $this->fundingSources->sum('available_balance_at_creation');
+        return $savedBalance > 0 ? $savedBalance : (float) $this->total_amount;
+    }
+
     // Scopes
 
     public function scopeForSchool($query, $schoolId)

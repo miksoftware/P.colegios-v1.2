@@ -490,8 +490,8 @@ class PrecontractualPdfController extends Controller
             }
         }
 
-        // El VALOR del CDP
-        $grandTotal = (float) $cdp->total_amount;
+        // El VALOR del CDP = disponibilidad del rubro antes de crear este CDP (Saldo anterior)
+        $grandTotal = (float) $cdp->prior_available_balance;
 
         $sources = [];
         foreach ($cdp->fundingSources as $cdpFs) {

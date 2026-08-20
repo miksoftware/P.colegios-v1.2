@@ -370,7 +370,7 @@
                                                         <span class="text-gray-600">{{ $cdpFs->fundingSource?->code }} - {{ $cdpFs->fundingSource?->name }}</span>
                                                         <div class="text-right">
                                                             <span class="font-medium">${{ number_format($cdpFs->amount, 2, ',', '.') }}</span>
-                                                            <span class="text-xs text-gray-400 ml-2">(Saldo al crear: ${{ number_format($cdpFs->available_balance_at_creation, 2, ',', '.') }})</span>
+                                                            <span class="text-xs text-gray-400 ml-2">(Saldo al crear: ${{ number_format($cdp->prior_available_balance, 2, ',', '.') }})</span>
                                                         </div>
                                                     </div>
                                                 @endforeach

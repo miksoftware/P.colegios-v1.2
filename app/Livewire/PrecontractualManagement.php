@@ -1350,7 +1350,30 @@ class PrecontractualManagement extends Component
 
         $totalAmount = collect($this->cdpFundingSources)->sum('amount');
 
-        DB::transaction(function () use ($totalAmount) {
+        $convDist = \App\Models\ConvocatoriaDistribution::with('expenseDistribution')->find($this->cdpDistributionId);
+        $expenseAvailable = 0;
+        if ($convDist && $convDist->expenseDistribution) {
+            $expDist       = $convDist->expenseDistribution;
+            $expDistAmount = (float) $expDist->amount;
+
+            $sameDistIds = \App\Models\ConvocatoriaDistribution::where('expense_distribution_id', $expDist->id)
+                ->pluck('id');
+
+            $priorReserved = \App\Models\Cdp::whereIn('convocatoria_distribution_id', $sameDistIds)
+                ->where('status', '!=', 'cancelled')
+                ->sum('total_amount');
+
+            $directPaid = (float) $expDist->paymentOrderLines()
+                ->whereHas('paymentOrder', fn($q) => $q
+                    ->where('payment_type', 'direct')
+                    ->whereIn('status', ['draft', 'approved', 'paid'])
+                )
+                ->sum('total');
+
+            $expenseAvailable = max(0, $expDistAmount - (float) $priorReserved - $directPaid);
+        }
+
+        DB::transaction(function () use ($totalAmount, $expenseAvailable) {
             $cdp = Cdp::create([
                 'school_id'                    => $this->schoolId,
                 'convocatoria_id'              => $this->convocatoria->id,
@@ -1365,13 +1388,13 @@ class PrecontractualManagement extends Component
 
             foreach ($this->cdpFundingSources as $fs) {
                 // available_balance_at_creation = disponibilidad de la distribución
-                // de gasto antes de crear este CDP (no el saldo total de la fuente)
+                // de gasto antes de crear este CDP (Saldo anterior)
                 CdpFundingSource::create([
                     'cdp_id'                       => $cdp->id,
                     'funding_source_id'            => $fs['id'],
                     'budget_id'                    => $fs['budget_id'],
                     'amount'                       => $fs['amount'],
-                    'available_balance_at_creation' => $fs['available'],
+                    'available_balance_at_creation' => $expenseAvailable > 0 ? $expenseAvailable : $fs['available'],
                 ]);
             }
         });
@@ -1433,7 +1456,31 @@ class PrecontractualManagement extends Component
 
         $totalAmount = collect($this->cdpFundingSources)->sum(fn($fs) => (float) ($fs['amount'] ?? 0));
 
-        DB::transaction(function () use ($cdp, $totalAmount) {
+        $convDist = \App\Models\ConvocatoriaDistribution::with('expenseDistribution')->find($this->cdpDistributionId);
+        $expenseAvailable = 0;
+        if ($convDist && $convDist->expenseDistribution) {
+            $expDist       = $convDist->expenseDistribution;
+            $expDistAmount = (float) $expDist->amount;
+
+            $sameDistIds = \App\Models\ConvocatoriaDistribution::where('expense_distribution_id', $expDist->id)
+                ->pluck('id');
+
+            $priorReserved = \App\Models\Cdp::whereIn('convocatoria_distribution_id', $sameDistIds)
+                ->where('id', '!=', $cdp->id)
+                ->where('status', '!=', 'cancelled')
+                ->sum('total_amount');
+
+            $directPaid = (float) $expDist->paymentOrderLines()
+                ->whereHas('paymentOrder', fn($q) => $q
+                    ->where('payment_type', 'direct')
+                    ->whereIn('status', ['draft', 'approved', 'paid'])
+                )
+                ->sum('total');
+
+            $expenseAvailable = max(0, $expDistAmount - (float) $priorReserved - $directPaid);
+        }
+
+        DB::transaction(function () use ($cdp, $totalAmount, $expenseAvailable) {
             $cdp->update([
                 'convocatoria_distribution_id' => $this->cdpDistributionId,
                 'budget_item_id' => $this->cdpBudgetItemId,
@@ -1448,7 +1495,7 @@ class PrecontractualManagement extends Component
                     'funding_source_id' => $fs['id'],
                     'budget_id' => $fs['budget_id'],
                     'amount' => $fs['amount'],
-                    'available_balance_at_creation' => $fs['available'],
+                    'available_balance_at_creation' => $expenseAvailable > 0 ? $expenseAvailable : $fs['available'],
                 ]);
             }
         });

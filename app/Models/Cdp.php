@@ -115,26 +115,99 @@ class Cdp extends Model
     public function getPriorAvailableBalanceAttribute(): float
     {
         $convDist = $this->convocatoriaDistribution;
+        $convocatoria = $this->convocatoria;
+
         if ($convDist && $convDist->expenseDistribution) {
-            $expDist       = $convDist->expenseDistribution;
-            $expDistAmount = (float) $expDist->amount;
+            $expDist = $convDist->expenseDistribution;
+            $currentConvId = $convocatoria?->id ?? $this->convocatoria_id;
 
-            $sameDistIds = ConvocatoriaDistribution::where('expense_distribution_id', $expDist->id)
-                ->pluck('id');
+            $convDistributions = $expDist->convocatoriaDistributions()
+                ->with('convocatoria.contract.rps.cdp', 'convocatoria.contract.rps.fundingSources')
+                ->get();
 
-            $priorReserved = static::whereIn('convocatoria_distribution_id', $sameDistIds)
-                ->where('id', '<', $this->id)
-                ->where('status', '!=', 'cancelled')
-                ->sum('total_amount');
+            $paymentLines = $expDist->paymentOrderLines()
+                ->with('paymentOrder.contract')
+                ->get();
 
-            $directPaid = (float) $expDist->paymentOrderLines()
-                ->whereHas('paymentOrder', fn($q) => $q
-                    ->where('payment_type', 'direct')
-                    ->whereIn('status', ['draft', 'approved', 'paid'])
+            $directPaid = (float) $paymentLines
+                ->filter(fn($line) => $line->paymentOrder
+                    && $line->paymentOrder->payment_type === 'direct'
+                    && in_array($line->paymentOrder->status, ['draft', 'approved', 'paid'])
                 )
                 ->sum('total');
 
-            return max(0, $expDistAmount - (float) $priorReserved - $directPaid);
+            $validPaymentLines = $paymentLines->filter(
+                fn($line) => $line->paymentOrder && in_array($line->paymentOrder->status, ['draft', 'approved', 'paid'])
+            );
+
+            $priorLocked = 0;
+
+            foreach ($convDistributions as $cd) {
+                if ($cd->convocatoria && $cd->convocatoria->status === 'cancelled') {
+                    continue;
+                }
+
+                if ($currentConvId && $cd->convocatoria_id >= $currentConvId) {
+                    continue;
+                }
+
+                $contract = $cd->convocatoria->contract ?? null;
+                if ($contract && $contract->status === 'annulled') {
+                    continue;
+                }
+
+                $paidForThis = $validPaymentLines
+                    ->filter(fn($line) => $line->paymentOrder->contract && $line->paymentOrder->contract->convocatoria_id == $cd->convocatoria_id)
+                    ->sum('total');
+
+                $committedAmount = (float) $cd->amount;
+                if ($contract && $contract->status !== 'annulled') {
+                    $nonAdditionRps = collect($contract->rps ?? [])
+                        ->where('status', 'active')
+                        ->where('is_addition', false);
+
+                    if ($nonAdditionRps->isNotEmpty()) {
+                        $rpsForDist = $nonAdditionRps->filter(
+                            fn($rp) => $rp->cdp && (int) $rp->cdp->convocatoria_distribution_id === (int) $cd->id
+                        );
+
+                        if ($rpsForDist->isNotEmpty()) {
+                            $committedAmount = (float) $rpsForDist->sum('total_amount');
+                        } else {
+                            $rpsForConv = $nonAdditionRps->filter(
+                                fn($rp) => $rp->cdp
+                                    && (int) $rp->cdp->convocatoria_id === (int) $cd->convocatoria_id
+                                    && is_null($rp->cdp->convocatoria_distribution_id)
+                            );
+
+                            if ($rpsForConv->isNotEmpty()) {
+                                $totalConvAmt = (float) ConvocatoriaDistribution::where('convocatoria_id', $cd->convocatoria_id)->sum('amount');
+                                $proportion = $totalConvAmt > 0 ? (float) $cd->amount / $totalConvAmt : 1.0;
+                                $committedAmount = (float) $rpsForConv->sum('total_amount') * $proportion;
+                            }
+                        }
+                    }
+                }
+
+                $baseLocked = max((float) $paidForThis, $committedAmount);
+                $priorLocked += $baseLocked;
+
+                if ($contract && $contract->status !== 'annulled') {
+                    $additionRps = $contract->rps ?? collect();
+                    foreach ($additionRps as $rp) {
+                        if ($rp->status !== 'active' || !$rp->is_addition) {
+                            continue;
+                        }
+                        foreach ($rp->fundingSources ?? [] as $rpFs) {
+                            if ($rpFs->budget_id == $expDist->budget_id) {
+                                $priorLocked += (float) $rpFs->amount;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return max(0, (float) $expDist->amount - $priorLocked - $directPaid);
         }
 
         $savedBalance = (float) $this->fundingSources->sum('available_balance_at_creation');

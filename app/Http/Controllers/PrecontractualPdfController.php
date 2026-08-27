@@ -47,10 +47,6 @@ class PrecontractualPdfController extends Controller
             $durationDays = $convocatoria->start_date->diffInDays($convocatoria->end_date);
         }
 
-        // Monto en letras
-        $amount = (float) ($contract?->total ?? $convocatoria->assigned_budget);
-        $amountInWords = self::amountToWords($amount);
-
         // CDPs activos
         $activeCdps = $convocatoria->cdps->where('status', '!=', 'cancelled');
 
@@ -66,6 +62,12 @@ class PrecontractualPdfController extends Controller
                 ];
             }
         }
+
+        // Monto estimado basado en el total de rubros o presupuesto asignado
+        $amount = !empty($expenseCodeRows)
+            ? (float) collect($expenseCodeRows)->sum('amount')
+            : (float) $convocatoria->assigned_budget;
+        $amountInWords = self::amountToWords($amount);
 
         // Construir tabla de CDPs con códigos de gasto
         $cdpRows = [];

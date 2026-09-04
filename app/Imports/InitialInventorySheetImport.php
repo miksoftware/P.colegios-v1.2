@@ -45,13 +45,30 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
         $totalAddedValue = 0;
 
         foreach ($rows as $row) {
-            // Validar que la fila tenga datos básicos
-            if (!isset($row[0]) || !isset($row[1])) {
+            // Mapeo REAL del formato AP-AI-RG-170:
+            // Col A (índice 0) = # (consecutivo de fila)
+            // Col B (índice 1) = Código Contable
+            // Col C (índice 2) = Descripción del artículo
+            // Col D (índice 3) = Calco Actual (placa)
+            // Col E (índice 4) = Estado (B, R, M)
+            // Col F (índice 5) = Valor Inicial
+            // Col G (índice 6) = Depreciación Acumulada
+            // Col H (índice 7) = Acta Baja
+            // Col I (índice 8) = Valor Baja
+            // Col J (índice 9) = Saldo
+            // Col K (índice 10) = Fecha Adquisición
+            // Col L (índice 11) = Proveedor
+            // Col M (índice 12) = Procedencia Recursos
+            // Col N (índice 13) = Sede Ubicación
+            // Col O (índice 14) = Tipo Inventario
+
+            // Validar que la fila tenga datos básicos (código contable y descripción)
+            if (!isset($row[1]) || !isset($row[2]) || trim($row[1]) === '') {
                 continue;
             }
 
-            $accountCode = trim($row[0]);
-            $stateCheck  = mb_strtoupper(trim($row[3] ?? ''));
+            $accountCode = trim($row[1]);
+            $stateCheck  = mb_strtoupper(trim($row[4] ?? ''));
 
             // Saltar filas de encabezado, metadatos y totales de categoría:
             // - El código contable debe ser numérico/puntual (ej: 1.6.55.05)
@@ -74,8 +91,8 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
             }
             $accountId = $this->accountsCache[$accountCode];
 
-            // 2. Obtener o crear Proveedor
-            $supplierNameRaw = isset($row[10]) && trim($row[10]) !== '' ? trim($row[10]) : 'PROVEEDOR DESCONOCIDO';
+            // 2. Obtener o crear Proveedor (Col L = índice 11)
+            $supplierNameRaw = isset($row[11]) && trim($row[11]) !== '' ? trim($row[11]) : 'PROVEEDOR DESCONOCIDO';
             $supplierName = mb_substr($supplierNameRaw, 0, 50);
             $supplierKey = mb_strtoupper($supplierName);
 
@@ -105,49 +122,49 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
             }
             $supplierId = $this->suppliersCache[$supplierKey];
 
-            // 3. Mapeo de campos
-            // Columnas (0-indexed, col A=0): A=Cód.Contable, B=Descripción, C=Calco Actual,
-            // D=Estado, E=Valor Inicial, F=Depreciación, G=Acta Baja, H=Val.Baja, I=Saldo,
-            // J=Fecha Adquisición, K=Proveedor, L=Procedencia Recursos, M=Sede Ubicación, N=Tipo Inventario
-            $stateRaw = mb_strtoupper(trim($row[3] ?? 'B'));
+            // 3. Mapeo de campos con índices corregidos
+            // Estado (Col E = índice 4)
+            $stateRaw = mb_strtoupper(trim($row[4] ?? 'B'));
             $state = match($stateRaw) {
                 'R' => 'regular',
                 'M' => 'malo',
                 default => 'bueno',
             };
 
-            $typeRaw = mb_strtoupper(trim($row[13] ?? 'DEVOLUTIVO'));
+            // Tipo de inventario (Col O = índice 14)
+            $typeRaw = mb_strtoupper(trim($row[14] ?? 'DEVOLUTIVO'));
             $inventoryType = str_contains($typeRaw, 'CONSUMO') ? 'consumo' : 'devolutivo';
 
-            // Valor inicial de compra (columna E = índice 4)
-            $initialValue = isset($row[4]) && is_numeric($row[4]) ? (float) $row[4] : 0;
+            // Valor inicial de compra (Col F = índice 5)
+            $initialValue = isset($row[5]) && is_numeric($row[5]) ? (float) $row[5] : 0;
             
+            // Fecha de adquisición (Col K = índice 10)
             $acquisitionDate = now();
-            if (isset($row[9]) && is_numeric($row[9])) {
+            if (isset($row[10]) && is_numeric($row[10])) {
                 try {
-                    $acquisitionDate = Date::excelToDateTimeObject($row[9]);
+                    $acquisitionDate = Date::excelToDateTimeObject($row[10]);
                 } catch (\Exception $e) {
                     // Ignorar fecha inválida
                 }
             }
 
-            // CALCO ACTUAL (placa) está en columna C = índice 2
-            $currentTag = isset($row[2]) && trim($row[2]) !== '' && trim($row[2]) !== 'ND' ? trim($row[2]) : null;
+            // CALCO ACTUAL / placa (Col D = índice 3)
+            $currentTag = isset($row[3]) && trim($row[3]) !== '' && trim($row[3]) !== 'ND' ? trim($row[3]) : null;
 
             // 4. Crear Artículo
             InventoryItem::create([
                 'school_id' => $this->schoolId,
                 'inventory_accounting_account_id' => $accountId,
                 'inventory_entry_id' => $this->entryId,
-                'name' => mb_substr(trim($row[1]), 0, 255),
-                'initial_value' => $initialValue,
-                'acquisition_date' => $acquisitionDate,
-                'supplier_id' => $supplierId,
-                'state' => $state,
-                'current_tag' => $currentTag,
-                'location' => isset($row[12]) && trim($row[12]) !== '' ? mb_substr(trim($row[12]), 0, 100) : null,
-                'funding_source' => isset($row[11]) && trim($row[11]) !== '' ? mb_substr(trim($row[11]), 0, 100) : null,
-                'inventory_type' => $inventoryType,
+                'name' => mb_substr(trim($row[2]), 0, 255),           // Col C = Descripción
+                'initial_value' => $initialValue,                      // Col F = Valor
+                'acquisition_date' => $acquisitionDate,                // Col K = Fecha
+                'supplier_id' => $supplierId,                          // Col L = Proveedor
+                'state' => $state,                                     // Col E = Estado
+                'current_tag' => $currentTag,                          // Col D = Calco/Placa
+                'location' => isset($row[13]) && trim($row[13]) !== '' ? mb_substr(trim($row[13]), 0, 100) : null,  // Col N = Sede
+                'funding_source' => isset($row[12]) && trim($row[12]) !== '' ? mb_substr(trim($row[12]), 0, 100) : null, // Col M = Procedencia
+                'inventory_type' => $inventoryType,                    // Col O = Tipo
                 'is_active' => true,
             ]);
 

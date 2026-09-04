@@ -45,35 +45,31 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
         $totalAddedValue = 0;
 
         foreach ($rows as $row) {
-            // Mapeo REAL del formato AP-AI-RG-170:
-            // Col A (índice 0) = # (consecutivo de fila)
-            // Col B (índice 1) = Código Contable
-            // Col C (índice 2) = Descripción del artículo
-            // Col D (índice 3) = Calco Actual (placa)
-            // Col E (índice 4) = Estado (B, R, M)
-            // Col F (índice 5) = Valor Inicial
-            // Col G (índice 6) = Depreciación Acumulada
-            // Col H (índice 7) = Acta Baja
-            // Col I (índice 8) = Valor Baja
-            // Col J (índice 9) = Saldo
-            // Col K (índice 10) = Fecha Adquisición
-            // Col L (índice 11) = Proveedor
-            // Col M (índice 12) = Procedencia Recursos
-            // Col N (índice 13) = Sede Ubicación
-            // Col O (índice 14) = Tipo Inventario
+            // Detectar automáticamente el desplazamiento de columnas:
+            // Caso 1: Columna B (índice 1) es Código Contable y Columna E (índice 4) es Estado (Offset 1)
+            // Caso 2: Columna A (índice 0) es Código Contable y Columna D (índice 3) es Estado (Offset 0)
+            $colOffset = null;
+            $acc1 = trim((string)($row[1] ?? ''));
+            $st1  = mb_strtoupper(trim((string)($row[4] ?? '')));
 
-            // Validar que la fila tenga datos básicos (código contable y descripción)
-            if (!isset($row[1]) || !isset($row[2]) || trim($row[1]) === '') {
+            if (preg_match('/^\d[\d\.]+\d$/', $acc1) && in_array($st1, ['B', 'R', 'M'])) {
+                $colOffset = 1;
+            } else {
+                $acc0 = trim((string)($row[0] ?? ''));
+                $st0  = mb_strtoupper(trim((string)($row[3] ?? '')));
+                if (preg_match('/^\d[\d\.]+\d$/', $acc0) && in_array($st0, ['B', 'R', 'M'])) {
+                    $colOffset = 0;
+                }
+            }
+
+            // Saltar filas que no sean artículos válidos (ej: encabezados en fila 13, títulos de categoría, subtotales)
+            if ($colOffset === null) {
                 continue;
             }
 
-            $accountCode = trim($row[1]);
-            $stateCheck  = mb_strtoupper(trim($row[4] ?? ''));
-
-            // Saltar filas de encabezado, metadatos y totales de categoría:
-            // - El código contable debe ser numérico/puntual (ej: 1.6.55.05)
-            // - El estado debe ser B, R o M (artículos reales)
-            if (!preg_match('/^\d[\d\.]+\d$/', $accountCode) || !in_array($stateCheck, ['B', 'R', 'M'])) {
+            $accountCode = trim((string)$row[0 + $colOffset]);
+            $rawItemName = trim((string)($row[1 + $colOffset] ?? ''));
+            if ($rawItemName === '') {
                 continue;
             }
 
@@ -91,13 +87,14 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
             }
             $accountId = $this->accountsCache[$accountCode];
 
-            // 2. Obtener o crear Proveedor (Col L = índice 11)
-            $supplierNameRaw = isset($row[11]) && trim($row[11]) !== '' ? trim($row[11]) : 'PROVEEDOR DESCONOCIDO';
+            // 2. Obtener o crear Proveedor
+            $supplierNameRaw = isset($row[10 + $colOffset]) && trim((string)$row[10 + $colOffset]) !== '' 
+                ? trim((string)$row[10 + $colOffset]) 
+                : 'PROVEEDOR DESCONOCIDO';
             $supplierName = mb_substr($supplierNameRaw, 0, 50);
             $supplierKey = mb_strtoupper($supplierName);
 
             if (!isset($this->suppliersCache[$supplierKey])) {
-                // Buscar si existe por nombre o apellido
                 $supplier = Supplier::where('school_id', $this->schoolId)
                     ->where(function($q) use ($supplierName) {
                         $q->where('first_name', 'like', "%{$supplierName}%")
@@ -105,7 +102,6 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
                     })->first();
 
                 if (!$supplier) {
-                    // Si no existe, crearlo con un NIT aleatorio único
                     $supplier = Supplier::create([
                         'school_id' => $this->schoolId,
                         'first_surname' => $supplierName,
@@ -122,49 +118,63 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
             }
             $supplierId = $this->suppliersCache[$supplierKey];
 
-            // 3. Mapeo de campos con índices corregidos
-            // Estado (Col E = índice 4)
-            $stateRaw = mb_strtoupper(trim($row[4] ?? 'B'));
+            // 3. Mapeo de campos
+            $stateRaw = mb_strtoupper(trim((string)($row[3 + $colOffset] ?? 'B')));
             $state = match($stateRaw) {
                 'R' => 'regular',
                 'M' => 'malo',
                 default => 'bueno',
             };
 
-            // Tipo de inventario (Col O = índice 14)
-            $typeRaw = mb_strtoupper(trim($row[14] ?? 'DEVOLUTIVO'));
+            $typeRaw = mb_strtoupper(trim((string)($row[13 + $colOffset] ?? 'DEVOLUTIVO')));
             $inventoryType = str_contains($typeRaw, 'CONSUMO') ? 'consumo' : 'devolutivo';
 
-            // Valor inicial de compra (Col F = índice 5)
-            $initialValue = isset($row[5]) && is_numeric($row[5]) ? (float) $row[5] : 0;
+            // Valor inicial de compra
+            $valRaw = $row[4 + $colOffset] ?? 0;
+            $initialValue = is_numeric($valRaw) ? (float) $valRaw : 0;
             
-            // Fecha de adquisición (Col K = índice 10)
+            // Fecha de adquisición (número serial de Excel o fecha en texto)
             $acquisitionDate = now();
-            if (isset($row[10]) && is_numeric($row[10])) {
+            $dateRaw = $row[9 + $colOffset] ?? null;
+            if ($dateRaw && is_numeric($dateRaw)) {
                 try {
-                    $acquisitionDate = Date::excelToDateTimeObject($row[10]);
+                    $acquisitionDate = Date::excelToDateTimeObject($dateRaw);
                 } catch (\Exception $e) {
-                    // Ignorar fecha inválida
+                }
+            } elseif ($dateRaw && !empty($dateRaw)) {
+                try {
+                    $acquisitionDate = \Carbon\Carbon::parse(str_replace('/', '-', $dateRaw));
+                } catch (\Exception $e) {
                 }
             }
 
-            // CALCO ACTUAL / placa (Col D = índice 3)
-            $currentTag = isset($row[3]) && trim($row[3]) !== '' && trim($row[3]) !== 'ND' ? trim($row[3]) : null;
+            // CALCO ACTUAL / placa
+            $currentTagRaw = isset($row[2 + $colOffset]) ? trim((string)$row[2 + $colOffset]) : '';
+            $currentTag = ($currentTagRaw !== '' && $currentTagRaw !== 'ND') ? $currentTagRaw : null;
+
+            // Ubicación y Fuente de Recursos
+            $locationRaw = isset($row[12 + $colOffset]) && trim((string)$row[12 + $colOffset]) !== '' 
+                ? mb_substr(trim((string)$row[12 + $colOffset]), 0, 100) 
+                : null;
+
+            $fundingRaw = isset($row[11 + $colOffset]) && trim((string)$row[11 + $colOffset]) !== '' 
+                ? mb_substr(trim((string)$row[11 + $colOffset]), 0, 100) 
+                : null;
 
             // 4. Crear Artículo
             InventoryItem::create([
                 'school_id' => $this->schoolId,
                 'inventory_accounting_account_id' => $accountId,
                 'inventory_entry_id' => $this->entryId,
-                'name' => mb_substr(trim($row[2]), 0, 255),           // Col C = Descripción
-                'initial_value' => $initialValue,                      // Col F = Valor
-                'acquisition_date' => $acquisitionDate,                // Col K = Fecha
-                'supplier_id' => $supplierId,                          // Col L = Proveedor
-                'state' => $state,                                     // Col E = Estado
-                'current_tag' => $currentTag,                          // Col D = Calco/Placa
-                'location' => isset($row[13]) && trim($row[13]) !== '' ? mb_substr(trim($row[13]), 0, 100) : null,  // Col N = Sede
-                'funding_source' => isset($row[12]) && trim($row[12]) !== '' ? mb_substr(trim($row[12]), 0, 100) : null, // Col M = Procedencia
-                'inventory_type' => $inventoryType,                    // Col O = Tipo
+                'name' => mb_substr($rawItemName, 0, 255),
+                'initial_value' => $initialValue,
+                'acquisition_date' => $acquisitionDate,
+                'supplier_id' => $supplierId,
+                'state' => $state,
+                'current_tag' => $currentTag,
+                'location' => $locationRaw,
+                'funding_source' => $fundingRaw,
+                'inventory_type' => $inventoryType,
                 'is_active' => true,
             ]);
 
@@ -232,8 +242,8 @@ class InitialInventorySheetImport implements ToCollection, WithStartRow, WithChu
     public function startRow(): int
     {
         // Los encabezados de columna están en la fila 13 del formato AP-AI-RG-170.
-        // Los datos reales comienzan en la fila 14.
-        return 14;
+        // El proceso inicia leyendo desde la fila 13 (la cabecera se salta automáticamente).
+        return 13;
     }
 
     public function chunkSize(): int

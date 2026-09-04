@@ -38,7 +38,8 @@ class InventoryInitialUpload extends Component
 
         try {
             $schoolId = session('selected_school_id');
-            Excel::import(new InitialInventoryImport($schoolId), $this->file->getRealPath());
+            $filePath = $this->file->getRealPath();
+            Excel::import(new InitialInventoryImport($schoolId, $filePath), $filePath);
 
             $this->dispatch('toast', message: 'Inventario inicial importado con éxito.', type: 'success');
             $this->reset('file');

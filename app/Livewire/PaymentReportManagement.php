@@ -221,6 +221,23 @@ class PaymentReportManagement extends Component
 
             $bankAccountInfo = $bankAccountParts->unique()->implode(' / ');
 
+            // Mapa rp_id → cuenta bancaria formateada para los RPs del contrato
+            $rpBankAccounts = [];
+            if ($contract) {
+                foreach ($contract->rps as $cRp) {
+                    $parts = [];
+                    foreach ($cRp->fundingSources as $cRpFs) {
+                        $cBa   = $cRpFs->bankAccount;
+                        $cBank = $cBa?->bank ?? $cRpFs->bank;
+                        $cPart = trim(($cBank?->name ?? '') . ' - ' . ($cBa?->account_number ?? ''), ' -');
+                        if ($cPart) $parts[] = $cPart;
+                    }
+                    if (!empty($parts)) {
+                        $rpBankAccounts[$cRp->id] = implode(' / ', array_unique($parts));
+                    }
+                }
+            }
+
             // Concepto de retención a nivel de orden de pago (fallback para casos sin expense lines)
             $poRetentionName = PaymentOrder::resolveRetentionConceptName(
                 $po->resolved_retention_concept,
@@ -281,13 +298,35 @@ class PaymentReportManagement extends Component
                         $fs = $matchingRpFs?->fundingSource;
                     }
 
-                    // CDP y RP exactos de esta distribución (vía cdp.convocatoria_distribution_id).
-                    // Si no hay match, caemos al baseData (CDP/RP del contrato, comportamiento legacy).
+                    // CDP, RP y Cuenta Bancaria exactos de esta distribución
                     $lineCdp = $baseData['cdp_number'];
                     $lineRp  = $baseData['rp_number'];
+                    $lineBankAccount = $baseData['bank_account'];
+
+                    $lineRpId = null;
                     if ($dist && isset($distMap[$dist->id])) {
-                        $lineCdp = $distMap[$dist->id]['cdp_number'];
-                        $lineRp  = $distMap[$dist->id]['rp_number'];
+                        $lineCdp  = $distMap[$dist->id]['cdp_number'];
+                        $lineRp   = $distMap[$dist->id]['rp_number'];
+                        $lineRpId = $distMap[$dist->id]['rp_id'] ?? null;
+                    }
+
+                    // Fallback para lineRpId si no vino en distMap
+                    if (!$lineRpId && $contract) {
+                        foreach ($contract->rps as $cRp) {
+                            $cRpDistId = $cRp->cdp?->convocatoria_distribution_id;
+                            if ($cRpDistId && $dist && $cRpDistId == $dist->id) {
+                                $lineRpId = $cRp->id;
+                                break;
+                            }
+                            if ($dist?->budget_id && $cRp->fundingSources->contains('budget_id', $dist->budget_id)) {
+                                $lineRpId = $cRp->id;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($lineRpId && !empty($rpBankAccounts[$lineRpId])) {
+                        $lineBankAccount = $rpBankAccounts[$lineRpId];
                     }
 
                     $lineTotal      = (float) $line->total;
@@ -301,6 +340,7 @@ class PaymentReportManagement extends Component
                     $rows[] = array_merge($baseData, [
                         'cdp_number'             => $lineCdp,
                         'rp_number'              => $lineRp,
+                        'bank_account'           => $lineBankAccount,
                         'funding_source'         => $fs ? "{$fs->name} ({$fs->code})" : '',
                         'rubro_code'             => $ec?->code ?? $bi?->code ?? '',
                         'rubro_name'             => $ec?->name ?? $bi?->name ?? '',
@@ -357,6 +397,9 @@ class PaymentReportManagement extends Component
                 foreach ($rpSources as $rpFs) {
                     $fs    = $rpFs->fundingSource;
                     $bi    = $rpFs->budget?->budgetItem;
+                    $ba    = $rpFs->bankAccount;
+                    $bank  = $ba?->bank ?? $rpFs->bank;
+                    $fsAccount = trim(($bank?->name ?? '') . ' - ' . ($ba?->account_number ?? ''), ' -');
                     $ratio = $totalRpAmount > 0 ? (float) $rpFs->amount / $totalRpAmount : 1;
                     $poOtherBreakdown = is_array($po->other_taxes_breakdown ?? null) ? $po->other_taxes_breakdown : [];
                     $poStampillas = 0.0;
@@ -374,6 +417,7 @@ class PaymentReportManagement extends Component
                         $poOtros = (float) $po->retencion_ica;
                     }
                     $rows[] = array_merge($baseData, [
+                        'bank_account'   => $fsAccount ?: $baseData['bank_account'],
                         'funding_source' => $fs ? "{$fs->name} ({$fs->code})" : '',
                         'rubro_code'     => $bi?->code ?? '',
                         'rubro_name'     => $bi?->name ?? '',

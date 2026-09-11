@@ -178,7 +178,15 @@ class PaymentReportManagement extends Component
             $convocatoria = $contract?->convocatoria;
 
             // Determinar RP y CDP de la orden de pago
-            $rp  = $po->contractRp ?? $contract?->rps->first();
+            $rp = $po->contractRp;
+            if (!$rp && $contract && $po->expenseLines->isNotEmpty() && !empty($distToCdpRpByContract[$contract->id])) {
+                $firstDistId = $po->expenseLines->first()->expense_distribution_id;
+                $matchedRpId = $distToCdpRpByContract[$contract->id][$firstDistId]['rp_id'] ?? null;
+                if ($matchedRpId) {
+                    $rp = $contract->rps->firstWhere('id', $matchedRpId);
+                }
+            }
+            $rp  = $rp ?? $contract?->rps->first();
             $cdp = $rp?->cdp ?? $po->cdp ?? $convocatoria?->cdps->first();
 
             // Cuenta(s) bancaria(s) desde las que sale el dinero.
@@ -196,7 +204,7 @@ class PaymentReportManagement extends Component
             }
 
             if ($bankAccountParts->isEmpty()) {
-                $rpForBank = $po->contractRp ?? $contract?->rps->first();
+                $rpForBank = $rp;
                 if ($rpForBank) {
                     foreach ($rpForBank->fundingSources as $rpFs) {
                         $ba   = $rpFs->bankAccount;

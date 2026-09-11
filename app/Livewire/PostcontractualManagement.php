@@ -1921,6 +1921,31 @@ class PostcontractualManagement extends Component
 
             if ($this->paymentType === 'contract') {
                 $paymentData['contract_id'] = $this->selectedContractId;
+
+                // Determinar contract_rp_id según la distribución de gasto seleccionada
+                $contract = Contract::with('rps.cdp.convocatoriaDistribution')->find($this->selectedContractId);
+                if ($contract && $contract->rps->isNotEmpty()) {
+                    if ($this->paymentMode === 'single' && $this->selectedExpenseDistributionId) {
+                        $matchedRp = $contract->rps->first(function ($rp) {
+                            return $rp->cdp?->convocatoriaDistribution?->expense_distribution_id == $this->selectedExpenseDistributionId;
+                        });
+                        if ($matchedRp) {
+                            $paymentData['contract_rp_id'] = $matchedRp->id;
+                        }
+                    } elseif ($this->paymentMode === 'split' && !empty($this->expenseLines)) {
+                        $activeLines = collect($this->expenseLines)->filter(fn($l) => (float)($l['subtotal'] ?? 0) > 0 || (float)($l['iva'] ?? 0) > 0);
+                        $rpIds = $activeLines->map(function ($line) use ($contract) {
+                            $distId = $line['expense_distribution_id'] ?? null;
+                            return $contract->rps->first(fn($rp) => $rp->cdp?->convocatoriaDistribution?->expense_distribution_id == $distId)?->id;
+                        })->filter()->unique();
+                        if ($rpIds->count() === 1) {
+                            $paymentData['contract_rp_id'] = $rpIds->first();
+                        }
+                    }
+                    if (empty($paymentData['contract_rp_id']) && $contract->rps->count() === 1) {
+                        $paymentData['contract_rp_id'] = $contract->rps->first()->id;
+                    }
+                }
             } elseif ($this->paymentType === 'accounts_payable') {
                 // Cuentas por Pagar: proveedor con retenciones, sin CDP/RP
                 $paymentData['supplier_id'] = $this->selectedSupplierId;
@@ -2504,6 +2529,31 @@ class PostcontractualManagement extends Component
 
             if ($this->paymentType === 'contract') {
                 $paymentData['contract_id'] = $this->selectedContractId;
+
+                // Determinar contract_rp_id según la distribución de gasto seleccionada
+                $contract = Contract::with('rps.cdp.convocatoriaDistribution')->find($this->selectedContractId);
+                if ($contract && $contract->rps->isNotEmpty()) {
+                    if ($this->paymentMode === 'single' && $this->selectedExpenseDistributionId) {
+                        $matchedRp = $contract->rps->first(function ($rp) {
+                            return $rp->cdp?->convocatoriaDistribution?->expense_distribution_id == $this->selectedExpenseDistributionId;
+                        });
+                        if ($matchedRp) {
+                            $paymentData['contract_rp_id'] = $matchedRp->id;
+                        }
+                    } elseif ($this->paymentMode === 'split' && !empty($this->expenseLines)) {
+                        $activeLines = collect($this->expenseLines)->filter(fn($l) => (float)($l['subtotal'] ?? 0) > 0 || (float)($l['iva'] ?? 0) > 0);
+                        $rpIds = $activeLines->map(function ($line) use ($contract) {
+                            $distId = $line['expense_distribution_id'] ?? null;
+                            return $contract->rps->first(fn($rp) => $rp->cdp?->convocatoriaDistribution?->expense_distribution_id == $distId)?->id;
+                        })->filter()->unique();
+                        if ($rpIds->count() === 1) {
+                            $paymentData['contract_rp_id'] = $rpIds->first();
+                        }
+                    }
+                    if (empty($paymentData['contract_rp_id']) && $contract->rps->count() === 1) {
+                        $paymentData['contract_rp_id'] = $contract->rps->first()->id;
+                    }
+                }
             } elseif ($this->paymentType === 'accounts_payable') {
                 $paymentData['supplier_id'] = $this->selectedSupplierId;
                 $paymentData['description'] = $this->directDescription;

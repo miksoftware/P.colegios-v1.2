@@ -154,29 +154,8 @@ class PostcontractualPdfController extends Controller
         if ($po->payment_type === 'contract' && $po->contract) {
             $allSources = [];
 
-            // Usar el RP específico vinculado a esta orden de pago (contract_rp_id).
-            // Antes se usaba siempre el primer RP activo del contrato, lo que causaba
-            // que se mostrara la cuenta bancaria y el número de RP incorrectos cuando
-            // el pago correspondía a un RP posterior (ej. RP #0003 mostraba datos del #0002).
-            $targetRp = $po->contractRp
-                ?? $po->contract->rps->where('status', 'active')->first();
-
-            // Banco/cuenta: tomar del RP específico de esta orden de pago
-            if ($targetRp) {
-                foreach ($targetRp->fundingSources as $rpFs) {
-                    $fsName = $rpFs->fundingSource?->name ?? '';
-                    if ($fsName) { $allSources[] = $fsName; }
-                    if (!$bankName && $rpFs->bank) {
-                        $bankName = $rpFs->bank->name ?? '';
-                        $accountNumber = $rpFs->bankAccount?->account_number ?? '';
-                    }
-                }
-            }
-            $fundingSourceName = implode(' Y ', array_unique(array_filter($allSources)));
-
             // Mapear cada RP activo del contrato según la distribución de gasto / código de gasto
-            // de origen de su CDP, para poder asociar cada línea de gasto con el RP que
-            // realmente la financia (antes se mostraba siempre $targetRp en todas las filas).
+            // de origen de su CDP, para asociar cada línea de gasto con el RP que realmente la financia.
             $rpByExpenseDistribution = [];
             $rpByExpenseCode = [];
             foreach ($po->contract->rps->where('status', 'active') as $rp) {
@@ -189,8 +168,50 @@ class PostcontractualPdfController extends Controller
                 }
             }
 
+            // Identificar qué RP(s) financian este pago:
+            // 1) Si tiene contractRp explícito en la orden de pago, usarlo.
+            // 2) Si tiene expenseLines, deducir los RPs a partir de las líneas registradas.
+            // 3) Fallback al primer RP activo del contrato.
+            $usedRps = collect();
+            if ($po->contractRp) {
+                $usedRps->push($po->contractRp);
+            } elseif ($po->expenseLines->isNotEmpty()) {
+                foreach ($po->expenseLines as $line) {
+                    $lineRp = $rpByExpenseDistribution[$line->expense_distribution_id] ?? null;
+                    if (!$lineRp && $line->expense_code_id) {
+                        $lineRp = $rpByExpenseCode[$line->expense_code_id] ?? null;
+                    }
+                    if ($lineRp) {
+                        $usedRps->push($lineRp);
+                    }
+                }
+                $usedRps = $usedRps->unique('id')->values();
+            }
+
+            if ($usedRps->isEmpty()) {
+                $firstRp = $po->contract->rps->where('status', 'active')->first();
+                if ($firstRp) {
+                    $usedRps->push($firstRp);
+                }
+            }
+
+            $targetRp = $usedRps->first();
+
+            // Banco/cuenta y fuentes de financiación tomados de los RPs que realmente financian el pago
+            foreach ($usedRps as $uRp) {
+                foreach ($uRp->fundingSources as $rpFs) {
+                    $fsName = $rpFs->fundingSource?->name ?? '';
+                    if ($fsName) { $allSources[] = $fsName; }
+                    if (!$bankName && $rpFs->bank) {
+                        $bankName = $rpFs->bank->name ?? '';
+                        $accountNumber = $rpFs->bankAccount?->account_number ?? '';
+                    }
+                }
+            }
+            $fundingSourceName = implode(' Y ', array_unique(array_filter($allSources)));
+
             // Una fila por cada línea de gasto del pago (valor BRUTO por rubro, tal cual se registró).
-            // Si no hay expenseLines, caer al RP como antes.
+            // Si no hay expenseLines, caer a los RPs utilizados.
             if ($po->expenseLines->isNotEmpty()) {
                 foreach ($po->expenseLines as $line) {
                     $ec = $line->expenseCode;
@@ -207,7 +228,7 @@ class PostcontractualPdfController extends Controller
                     ];
                 }
             } else {
-                foreach ($po->contract->rps->where('status', 'active') as $rp) {
+                foreach ($usedRps as $rp) {
                     $ecFromCdp = $rp->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
                     $rpData[] = [
                         'rp_number'    => $rp->formatted_number,
@@ -309,16 +330,19 @@ class PostcontractualPdfController extends Controller
         // Rubro presupuestal
         $budgetItemCode = '';
         $budgetItemName = '';
-        if ($po->payment_type === 'contract' && $po->contract) {
+        if ($po->expenseLines->isNotEmpty()) {
+            $directEc = $po->expenseLines->first()?->expenseCode;
+            $budgetItemCode = $directEc?->code ?? '';
+            $budgetItemName = $directEc?->name ?? '';
+        } elseif ($po->contractRp) {
+            $ecFromCdp = $po->contractRp->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
+            $budgetItemCode = $ecFromCdp?->code ?? $po->contractRp->cdp?->budgetItem?->code ?? '';
+            $budgetItemName = $ecFromCdp?->name ?? $po->contractRp->cdp?->budgetItem?->name ?? '';
+        } elseif ($po->payment_type === 'contract' && $po->contract) {
             $rp = $po->contract->rps->where('status', 'active')->first();
             $ecFromCdp = $rp?->cdp?->convocatoriaDistribution?->expenseDistribution?->expenseCode;
             $budgetItemCode = $ecFromCdp?->code ?? $rp?->cdp?->budgetItem?->code ?? '';
             $budgetItemName = $ecFromCdp?->name ?? $rp?->cdp?->budgetItem?->name ?? '';
-        } elseif ($po->expenseLines->isNotEmpty()) {
-            // Pago directo: usar el código de gasto (expenseLines)
-            $directEc = $po->expenseLines->first()?->expenseCode;
-            $budgetItemCode = $directEc?->code ?? $po->cdp?->budgetItem?->code ?? '';
-            $budgetItemName = $directEc?->name ?? $po->cdp?->budgetItem?->name ?? '';
         } elseif ($po->cdp?->budgetItem) {
             $budgetItemCode = $po->cdp->budgetItem->code;
             $budgetItemName = $po->cdp->budgetItem->name;

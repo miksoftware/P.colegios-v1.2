@@ -24,6 +24,8 @@ class BudgetTransferPermissionSeeder extends Seeder
         $permissions = [
             'budget_transfers.view' => 'Ver traslados presupuestales',
             'budget_transfers.create' => 'Crear traslados presupuestales',
+            'budget_transfers.edit' => 'Editar traslados presupuestales',
+            'budget_transfers.delete' => 'Eliminar traslados presupuestales',
         ];
 
         foreach ($permissions as $name => $displayName) {
@@ -36,16 +38,16 @@ class BudgetTransferPermissionSeeder extends Seeder
             );
         }
 
-        // Asignar permisos al rol Admin si existe
+        // Asignar todos los permisos al rol Admin si existe
         $adminRole = Role::where('name', 'Admin')->first();
         if ($adminRole) {
             $adminRole->givePermissionTo(array_keys($permissions));
         }
 
-        // Asignar permisos al rol Contador si existe
+        // Asignar solo ver y crear al rol Contador si existe (edit y delete son exclusivos de Admin por defecto)
         $contadorRole = Role::where('name', 'Contador')->first();
         if ($contadorRole) {
-            $contadorRole->givePermissionTo(array_keys($permissions));
+            $contadorRole->givePermissionTo(['budget_transfers.view', 'budget_transfers.create']);
         }
     }
 }

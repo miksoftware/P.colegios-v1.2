@@ -75,6 +75,7 @@ docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan config:cache
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan route:cache
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan view:cache
 docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan event:cache 2>/dev/null || true
+docker exec -w /var/www/html ${PROJECT_NAME}_php php artisan permission:cache-reset 2>/dev/null || true
 echo -e "${GREEN}✓ Cache reconstruida${NC}"
 
 echo ""
